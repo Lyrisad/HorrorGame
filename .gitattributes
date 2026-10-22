@@ -1,0 +1,4 @@
+# Fins de ligne normalisées (LF) pour tous les fichiers texte, comme Godot le recommande
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf

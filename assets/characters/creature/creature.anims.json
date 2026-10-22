@@ -1,0 +1,44 @@
+[
+ {
+  "name": "stalk",
+  "frames": 29,
+  "seconds": 0.9666666666666667,
+  "speed": 2.715
+ },
+ {
+  "name": "run",
+  "frames": 19,
+  "seconds": 0.6333333333333333,
+  "speed": 4.802
+ },
+ {
+  "name": "charge",
+  "frames": 19,
+  "seconds": 0.6333333333333333,
+  "speed": 0.996
+ },
+ {
+  "name": "crouch",
+  "frames": 29,
+  "seconds": 0.9666666666666667,
+  "speed": 0.0
+ },
+ {
+  "name": "listen",
+  "frames": 119,
+  "seconds": 3.966666666666667,
+  "speed": 0.0
+ },
+ {
+  "name": "search",
+  "frames": 116,
+  "seconds": 3.8666666666666667,
+  "speed": 0.0
+ },
+ {
+  "name": "screech",
+  "frames": 89,
+  "seconds": 2.966666666666667,
+  "speed": 0.0
+ }
+]

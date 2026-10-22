@@ -1,0 +1,22 @@
+# Godot
+.godot/
+*.tmp
+
+# Export
+build/
+
+# Éditeur Godot local (trop lourd pour un dépôt) : tools/setup_pc.ps1 le télécharge
+tools/godot/
+
+tools/blender/
+tools/rocketbox_src/
+
+# Outils de dev : captures de test, environnements Python
+tools/dev/out/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Claude Code : réglages propres à chaque PC
+.claude/settings.local.json

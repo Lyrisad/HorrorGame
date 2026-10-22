@@ -1,0 +1,39 @@
+{
+ "target": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\rocketbox_src\\Security_Male_01\\Export\\Security_Male_01.fbx",
+ "texture_dir": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\rocketbox_src\\Security_Male_01\\Textures",
+ "rig": "biped",
+ "max_texture": 2048,
+ "clips": [
+  {
+   "name": "idle",
+   "bvh": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\mocap\\cmu\\77_02.bvh",
+   "loop": true,
+   "inplace": true,
+   "min_loop": 6.0
+  },
+  {
+   "name": "walk",
+   "bvh": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\mocap\\cmu\\35_01.bvh",
+   "loop": true,
+   "inplace": true,
+   "min_loop": 0.9
+  },
+  {
+   "name": "run",
+   "bvh": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\mocap\\cmu\\35_17.bvh",
+   "loop": true,
+   "inplace": true,
+   "min_loop": 0.5
+  },
+  {
+   "name": "crouch_walk",
+   "bvh": "C:\\Users\\phari\\Documents\\HorrorGame\\tools\\mocap\\cmu\\77_29.bvh",
+   "start": 1320,
+   "end": 1944,
+   "loop": true,
+   "inplace": true,
+   "min_loop": 1.0
+  }
+ ],
+ "out": "C:\\Users\\phari\\Documents\\HorrorGame\\assets\\characters\\theo\\theo.glb"
+}

@@ -1,0 +1,63 @@
+DERNIER ENREGISTREMENT
+Jeu d'horreur « found footage », vu à travers la caméra-piéton de Théo.
+Durée : 30 à 45 minutes environ. Joue au casque, dans le noir.
+
+
+LANCER LE JEU
+-------------
+1. Décompresse le dossier (clic droit sur le .zip > « Extraire tout »).
+2. Double-clique sur DernierEnregistrement.exe. Tout est dedans, rien à installer.
+
+Si Windows affiche « Windows a protégé votre ordinateur » : c'est normal pour un jeu
+fait maison (il n'est pas signé). Clique sur « Informations complémentaires », puis
+« Exécuter quand même ».
+
+Au tout premier lancement, l'image peut saccader quelques secondes (la carte
+graphique prépare ses effets) : ça ne le fait plus ensuite.
+
+Configuration : Windows 10 ou 11 (64 bits), une carte graphique récente
+(compatible Vulkan ou DirectX 12), environ 1 Go d'espace disque.
+
+
+COMMANDES
+---------
+Z Q S D (ou W A S D, ou les flèches)   se déplacer
+Souris                                  regarder
+Maj                                     courir (ça fait du bruit, et on s'essouffle)
+C (maintenir)                           s'accroupir, avancer sans bruit
+F                                       lampe torche
+E                                       interagir (certaines actions se maintiennent)
+G ou clic droit                         lancer une bouteille (diversion)
+I                                       inventaire (objets, documents à relire)
+Tab                                     rappeler l'objectif
+Échap                                   pause / paramètres
+F11                                     plein écran / fenêtré
+
+
+LE MICRO
+--------
+La créature t'entend... vraiment : si ton micro est branché, parler ou crier
+fait du bruit dans le jeu (le vumètre « MIC » en bas à droite passe au rouge).
+Seul le volume est mesuré, rien n'est enregistré ni envoyé.
+Pour le désactiver ou choisir ton micro : Échap > Paramètres > Micro.
+
+
+QUELQUES CONSEILS (sans rien gâcher)
+------------------------------------
+- Regarde partout dans la maison avant de vouloir repartir.
+- Plus bas, elle n'y voit rien. Elle écoute.
+- Accroupi et immobile, on peut se faire oublier.
+- Si tu meurs, tu reprends au dernier point de contrôle.
+
+
+SAUVEGARDE
+----------
+La progression (chapitres débloqués, réglages) est enregistrée automatiquement dans
+%APPDATA%\Godot\app_userdata\Dernier Enregistrement
+
+
+CRÉDITS
+-------
+Modèles 3D, personnages, animations et textures : voir CREDITS.md
+(Poly Haven, Sketchfab, Microsoft Rocketbox, CMU Motion Capture Database).
+Moteur : Godot Engine.

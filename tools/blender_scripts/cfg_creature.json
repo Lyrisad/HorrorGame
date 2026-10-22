@@ -1,0 +1,57 @@
+{
+ "src": "C:\\Users\\phari\\Documents\\HorrorGame\\assets\\sketchfab\\rake\\rake.glb",
+ "remove_objects": [
+  "Icosphere"
+ ],
+ "ref_action": "metarig|ref",
+ "height": 2.45,
+ "rename_bones": {
+  "spine_01": "Hips",
+  "spine.001_02": "Spine",
+  "spine.002_03": "Spine1",
+  "spine.003_04": "Spine2",
+  "spine.004_05": "Neck",
+  "spine.005_06": "Neck1",
+  "head_07": "Head",
+  "jaw_08": "Jaw"
+ },
+ "actions": [
+  {
+   "src": "metarig|walk",
+   "name": "stalk",
+   "loop": true
+  },
+  {
+   "src": "metarig|run",
+   "name": "run",
+   "loop": true,
+   "lift": -0.16
+  },
+  {
+   "src": "metarig|standing run",
+   "name": "charge",
+   "loop": true
+  },
+  {
+   "src": "metarig|idle",
+   "name": "crouch",
+   "loop": true
+  },
+  {
+   "src": "metarig|idle standing",
+   "name": "listen",
+   "loop": true
+  },
+  {
+   "src": "metarig|search",
+   "name": "search",
+   "loop": true
+  },
+  {
+   "src": "metarig|screech",
+   "name": "screech",
+   "loop": false
+  }
+ ],
+ "out": "C:\\Users\\phari\\Documents\\HorrorGame\\assets\\characters\\creature\\creature.glb"
+}

@@ -1,0 +1,26 @@
+[
+ {
+  "name": "idle",
+  "frames": 230,
+  "seconds": 7.666666666666667,
+  "speed": 0.002
+ },
+ {
+  "name": "walk",
+  "frames": 34,
+  "seconds": 1.1333333333333333,
+  "speed": 1.159
+ },
+ {
+  "name": "run",
+  "frames": 23,
+  "seconds": 0.7666666666666667,
+  "speed": 2.885
+ },
+ {
+  "name": "crouch_walk",
+  "frames": 44,
+  "seconds": 1.4666666666666666,
+  "speed": 0.55
+ }
+]

@@ -1,0 +1,4 @@
+# Scripts Python du projet (sons, textures, icônes, planches de captures, téléchargements d'assets)
+numpy
+scipy
+Pillow
