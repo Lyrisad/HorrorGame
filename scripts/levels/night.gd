@@ -70,7 +70,7 @@ func _ready() -> void:
 	env.sdfgi_cascades = 4
 	env.sdfgi_min_cell_size = 0.15
 	env.sdfgi_energy = 0.9
-	Game.set_fx("grain", 0.08)
+	Game.set_fx("grain", 0.045)
 	Game.set_fx("gain", 0.28)
 	Game.set_fx("saturation", 0.78)
 	Sound.set_reverb(0.18, 0.06, 0.8)
@@ -753,8 +753,10 @@ func _clue_phones() -> void:
 		m2.emission_texture = load("res://assets/gen/phone_watch.png")
 	Sound.play("stinger_soft", -8.0)
 	await wait(1.6)
-	Game.hud.say("« Souris, Théo »...? Ils connaissent mon nom ?!", 3.0)
-	await wait(3.2)
+	Game.hud.say("« Souris, Théo »...? Sur LEURS téléphones ?", 2.8)
+	await wait(3.0)
+	Game.hud.say("C'est quoi ce délire... Les gars ? C'est une blague, c'est ça ?", 3.2)
+	await wait(3.4)
 	var back := player.head.global_transform
 	var tw2 := create_tween()
 	tw2.tween_method(func(w: float) -> void: player.set_cinematic(close.interpolate_with(back, w), 1.0 - w), 0.0, 1.0, 0.9).set_trans(Tween.TRANS_SINE)

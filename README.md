@@ -161,6 +161,7 @@ Godot_v4.7.2-stable_win64.exe --path . -- --level=sewer --windowed
 - `--celltest`, `--fusetest` (avec `--torch`), `--bottletest` (avec `--creature --chase`) : tests automatiques des énigmes
 - `--bright` : égouts tout éclairés, sans brouillard (pour inspecter la géométrie)
 - `--gust` : égouts, coup de vent de la forêt au-dessus du puits le plus proche après 1 s
+- `--lenstest` : égouts, gouttes d'eau sur l'objectif dès le départ
 - `--freecam=x,y,z --freelook=x,y,z` : égouts / épilogue, caméra libre pour inspecter un détail
 - `--autotest=house|sewer` : joue une séquence automatiquement ; `--autoexit` sort de la voiture
 - `--topdown`, `--hide=Ceil0,Wall1` : vues de débogage des égouts

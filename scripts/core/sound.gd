@@ -10,6 +10,7 @@ var _world_lowpass: AudioEffectLowPassFilter
 var _amb_lowpass: AudioEffectLowPassFilter
 var _master_lowpass: AudioEffectLowPassFilter
 var _music_lowpass: AudioEffectLowPassFilter
+var _creature_lowpass: AudioEffectLowPassFilter
 
 # --- micro du joueur : seul son NIVEAU est mesuré (rien n'est enregistré ni envoyé)
 var mic_db := -90.0  ## niveau actuel de la voix (dBFS)
@@ -132,6 +133,13 @@ func _setup_buses() -> void:
 	_world_lowpass.cutoff_hz = 20000.0
 	AudioServer.add_bus_effect(_idx("World"), _world_lowpass)
 
+	# la créature a son bus : étouffée derrière les murs, couverte par la vapeur (puis l'écho du lieu)
+	_add_bus("Creature")
+	AudioServer.set_bus_send(_idx("Creature"), "World")
+	_creature_lowpass = AudioEffectLowPassFilter.new()
+	_creature_lowpass.cutoff_hz = 20000.0
+	AudioServer.add_bus_effect(_idx("Creature"), _creature_lowpass)
+
 	_add_bus("Ambience")
 	_amb_lowpass = AudioEffectLowPassFilter.new()
 	_amb_lowpass.cutoff_hz = 20000.0
@@ -206,7 +214,7 @@ func play(sound_name: String, volume_db := 0.0, pitch := 1.0, bus := "World", pa
 
 
 ## Son spatialisé ponctuel à une position du monde.
-func play_at(sound_name: String, pos: Vector3, volume_db := 0.0, pitch := 1.0, unit_size := 4.0, max_distance := 60.0, parent: Node = null) -> AudioStreamPlayer3D:
+func play_at(sound_name: String, pos: Vector3, volume_db := 0.0, pitch := 1.0, unit_size := 4.0, max_distance := 60.0, parent: Node = null, bus := "World") -> AudioStreamPlayer3D:
 	var s := stream(sound_name)
 	if s == null:
 		return null
@@ -218,7 +226,7 @@ func play_at(sound_name: String, pos: Vector3, volume_db := 0.0, pitch := 1.0, u
 	p.max_distance = max_distance
 	p.attenuation_filter_cutoff_hz = 7000.0
 	p.attenuation_filter_db = -18.0
-	p.bus = "World"
+	p.bus = bus
 	_parent_for(parent).add_child(p)
 	p.global_position = pos
 	p.play()
@@ -268,10 +276,18 @@ func fade(p: Node, to_db: float, duration: float, free_after := false) -> void:
 
 
 # ------------------------------------------------------------------ bus
-func set_reverb(room_size: float, wet: float, damping := 0.5) -> void:
+func set_reverb(room_size: float, wet: float, damping := 0.5, predelay_ms := 20.0, hipass := 0.0) -> void:
 	_reverb.room_size = room_size
 	_reverb.wet = wet
 	_reverb.damping = damping
+	_reverb.predelay_msec = predelay_ms
+	_reverb.hipass = hipass
+
+
+## Créature : filtre (Hz) et volume (dB) de son bus — derrière un mur, son cri arrive étouffé.
+func set_creature_filter(cutoff_hz: float, volume_db: float) -> void:
+	_creature_lowpass.cutoff_hz = cutoff_hz
+	AudioServer.set_bus_volume_db(_idx("Creature"), volume_db)
 
 
 func muffle_world(cutoff_hz: float, duration := 0.0) -> void:
@@ -304,6 +320,7 @@ func reset_effects() -> void:
 	muffle_master(20000.0)
 	muffle_music(20000.0)
 	set_reverb(0.4, 0.12)
+	set_creature_filter(20000.0, 0.0)
 
 
 func set_master_volume(v: float) -> void:

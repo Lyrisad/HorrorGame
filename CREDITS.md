@@ -35,13 +35,15 @@
 | `assets/sketchfab/hard_hat` | [Scan Broken Hard Hat-Freepoly.org](https://sketchfab.com/3d-models/scan-broken-hard-hat-freepolyorg-4c71eda1e1b745fb8b7aa4060c0b70d4) | blackrray |
 | `assets/sketchfab/worn_cap` | [Worn Crew Hat](https://sketchfab.com/3d-models/worn-crew-hat-dc2e6c211c74444e87e2d88cfdfc1d39) | kuroderuta |
 | `assets/sketchfab/fusebox_vintage` | [Freebie - Game Art: Vintage Fuse Box (boîtier + fusible extrait)](https://sketchfab.com/3d-models/freebie-game-art-vintage-fuse-box-4109ae3e180d4ed8b3427fe6a97d58b6) | filip.alecsandru |
+| `assets/sketchfab/sleeping_bag` | [Sleeping bag](https://sketchfab.com/3d-models/sleeping-bag-8098c046310445b6b15c0f1466509e35) | Tactical_Beard |
+| `assets/sketchfab/flashlight_dead` | [Flashlight](https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) | Hepatitis_Bee |
 
 Modifications : modèles recadrés, recolorés, découpés en pièces ; la créature garde les animations
 de son auteur (mises à l'échelle, renommées, calées au sol).
 
 ## Personnages — Microsoft Rocketbox (licence MIT)
 Théo (Security_Male_01), le kidnappeur (Military_Male_03), Karim (Male_Adult_12),
-Max (Male_Adult_08), Inès (Female_Adult_05) — https://github.com/microsoft/Microsoft-Rocketbox
+Max (Male_Adult_08), Inès (Female_Adult_05), l'égoutier (Construction_Male_03) — https://github.com/microsoft/Microsoft-Rocketbox
 
 ## Captures de mouvement — CMU Graphics Lab Motion Capture Database
 The data used in this project was obtained from mocap.cs.cmu.edu.

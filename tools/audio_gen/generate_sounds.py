@@ -280,14 +280,145 @@ def bubble(d=0.03, f0=None):
     return sine(f, d) * env_exp(d, 0.001, d / 3)
 
 
+def droplet(f0=None):
+    """Goutte qui retombe dans l'eau : petit « plic » dont la note monte (bulle d'air piégée)."""
+    f0 = f0 or rng.uniform(900, 2600)
+    d = rng.uniform(0.012, 0.03)
+    f = np.linspace(f0, f0 * rng.uniform(1.3, 1.9), n_samples(d))
+    return sine(f, d) * env_exp(d, 0.0008, d / 4) + hp(white(d), 3000) * env_exp(d, 0.0002, 0.002) * 0.3
+
+
 def step_water(i):
+    """Pas dans 5 cm d'eau : le pied claque la surface, l'eau est chassée (gerbe qui chuinte),
+    des gouttes retombent tout autour, puis un petit remous quand le pied repart."""
+    d = 0.6
+    n = n_samples(d)
+    y = np.zeros(n)
+    # claque du pied à plat sur l'eau
+    slap = bp(white(0.09), 350, 3800) * env_exp(0.09, 0.0015, 0.018) * 1.4
+    place(y, slap, 0.0)
+    place(y, lp(white(0.12), 220) * env_exp(0.12, 0.003, 0.03) * 1.2, 0.002)
+    # gerbe : l'eau chassée chuinte, sa couleur descend (2,5 kHz → 800 Hz)
+    sw = 0.24
+    src = white(sw)
+    gerbe = np.zeros(n_samples(sw))
+    blk = 512
+    for k in range(0, len(src), blk):
+        fc = 2500 * (1 - k / len(src)) + 800 * (k / len(src))
+        seg = bp(src[max(0, k - blk) : k + blk], fc * 0.6, fc * 1.6)
+        gerbe[k : k + blk] = seg[-len(gerbe[k : k + blk]) :]
+    gerbe *= env_lin(sw, [(0, 0), (0.01, 1), (0.08, 0.55), (sw, 0)]) * (0.7 + 0.3 * np.abs(_norm_walk(len(gerbe), 60)))
+    place(y, gerbe * 0.75, 0.006)
+    # gouttes qui retombent, de moins en moins fortes
+    for _ in range(rng.integers(8, 15)):
+        at = 0.04 + rng.beta(1.5, 3.5) * 0.4
+        place(y, droplet() * rng.uniform(0.12, 0.4) * (1.0 - at * 1.4), at)
+    # remous quand le pied repart
+    lift = bp(white(0.14), 500, 1800) * env_lin(0.14, [(0, 0), (0.05, 1), (0.14, 0)]) * 0.25
+    place(y, lift, rng.uniform(0.3, 0.38))
+    return fade_out(reverb(y, 0.35, 0.12), 0.08)
+
+
+def glass_crunch(i):
+    """Pied qui écrase des éclats de verre : crissement granuleux et éclats qui tintent."""
     d = 0.45
-    y = hp(white(d), 400) * env_exp(d, 0.003, 0.07) * 0.9
-    y += bp(white(d), 200, 1200) * env_exp(d, 0.01, 0.12) * 0.7
-    for _ in range(rng.integers(5, 10)):
-        place(y, bubble(rng.uniform(0.02, 0.05)) * rng.uniform(0.2, 0.6), rng.uniform(0.02, 0.25))
-    y += sine(rng.uniform(70, 90), d) * env_exp(d, 0.002, 0.03) * 0.5
-    return fade_out(y, 0.08)
+    n = n_samples(d)
+    y = np.zeros(n)
+    place(y, step_concrete(i) * 0.5, 0.0)
+    # crissement : des centaines de micro-chocs serrés, le verre qui se brise sous la semelle
+    crunch = np.zeros(n)
+    for _ in range(rng.integers(140, 220)):
+        at = rng.beta(1.6, 4.0) * 0.32
+        c = white(0.003) * env_exp(0.003, 0.0001, 0.0006) * rng.uniform(0.2, 1.0)
+        place(crunch, c, at)
+    y += bp(crunch, 2200, 11000) * 1.3
+    # éclats qui tintent en glissant
+    for _ in range(rng.integers(4, 8)):
+        place(y, modal(rng.uniform(3500, 9000), [1, 2.2, 3.4], [0.03, 0.02, 0.012], 0.12) * rng.uniform(0.08, 0.25), rng.uniform(0.01, 0.3))
+    return fade_out(y, 0.06)
+
+
+def flashlight_tap(i):
+    """Deux petits coups secs du plat de la main sur le corps alu de la lampe."""
+    d = 0.5
+    y = np.zeros(n_samples(d))
+    for k, at in enumerate((0.0, rng.uniform(0.14, 0.2))):
+        hit = modal(rng.uniform(1100, 1500), [1, 2.7, 4.1], [0.02, 0.012, 0.008], 0.1) * 0.5
+        hit += lp(white(0.1), 600) * env_exp(0.1, 0.001, 0.012) * 1.2
+        hit += bp(white(0.1), 2000, 6000) * env_exp(0.1, 0.0003, 0.004) * 0.6
+        place(y, hit * (1.0 if k == 0 else 0.8), at)
+    return fade_out(y, 0.05)
+
+
+def dying_breath_loop():
+    """Respiration d'un homme qui se vide de son sang : courte, irrégulière, mouillée (gargouillis),
+    avec une plainte à l'expiration."""
+    d = 7.0
+    y = np.zeros(n_samples(d))
+    t = 0.1
+    while t < d - 0.2:
+        ins = rng.uniform(0.35, 0.6)
+        seg = bp(white(ins), 600, 2800) * env_lin(ins, [(0, 0), (ins * 0.6, 1), (ins, 0)]) * 0.5
+        wet = np.abs(_norm_walk(len(seg), rng.uniform(18, 30)))
+        seg *= 0.5 + wet
+        place_wrap(y, seg, t)
+        t += ins + rng.uniform(0.05, 0.15)
+        ex = rng.uniform(0.6, 1.1)
+        f0 = np.linspace(rng.uniform(95, 115), rng.uniform(75, 85), n_samples(ex))
+        moan = formants(glottal(f0, ex, 0.12, 0.6), [450, 900, 2300], [4, 5, 6], [1, 0.5, 0.15]) * 0.06
+        air = bp(white(ex), 300, 1800) * 0.45
+        gurgle = bp(white(ex), 200, 900) * (np.abs(_norm_walk(n_samples(ex), 25)) ** 2) * 0.8
+        seg2 = (moan + air + gurgle) * env_lin(ex, [(0, 0), (0.06, 1), (ex * 0.5, 0.6), (ex, 0)])
+        place_wrap(y, seg2, t)
+        t += ex + rng.uniform(0.5, 1.4)
+    return y
+
+
+def dying_cough(i):
+    """Toux grasse, deux ou trois quintes, du sang dans la gorge."""
+    d = 1.6
+    y = np.zeros(n_samples(d))
+    at = 0.0
+    for k in range(int(rng.integers(2, 4))):
+        c = rng.uniform(0.2, 0.32)
+        burst = bp(white(c), 250, 3500) * env_exp(c, 0.004, 0.07) * 1.2
+        burst += formants(glottal(rng.uniform(120, 160), c, 0.25, 0.8), [550, 1100, 2400], [3, 4, 5], [1, 0.6, 0.2]) * env_exp(c, 0.004, 0.06) * 0.35
+        burst += bp(white(c), 150, 700) * (np.abs(_norm_walk(n_samples(c), 30)) ** 2) * env_exp(c, 0.01, 0.12) * 1.2
+        place(y, burst * (1.0 - k * 0.2), at)
+        at += c + rng.uniform(0.08, 0.2)
+    return fade_out(reverb(y, 0.6, 0.12), 0.1)
+
+
+def death_rattle():
+    """Dernier souffle : une longue expiration qui gargouille et s'éteint."""
+    d = 3.0
+    n = n_samples(d)
+    rattle = bp(white(d), 180, 900) * (np.abs(_norm_walk(n, 14)) ** 1.5) * 1.3
+    air = bp(white(d), 400, 2200) * 0.35
+    moan = formants(glottal(np.linspace(90, 60, n), d, 0.2, 0.7), [400, 850], [4, 5]) * 0.05
+    y = (rattle + air + moan) * env_lin(d, [(0, 0), (0.15, 1), (1.2, 0.7), (2.6, 0.08), (d, 0)])
+    return fade_out(y, 0.2)
+
+
+def dying_murmur(i):
+    """Phrase soufflée, presque sans voix : des voyelles chuchotées, à peine voisées, hachées."""
+    d = [2.2, 2.8, 1.8][i % 3]
+    n = n_samples(d)
+    src = white(d)
+    vowels = [(300, 870), (600, 1000), (700, 1200), (400, 1900), (350, 2200), (500, 800)]
+    y = np.zeros(n)
+    voice = glottal(np.full(n, rng.uniform(95, 110)) * (1 + 0.05 * _norm_walk(n, 3)), d, 0.15, 0.6) * 0.25
+    blk = 2048
+    seq = [vowels[int(rng.integers(0, len(vowels)))] for _ in range(n // blk + 2)]
+    for k in range(0, n, blk):
+        f1, f2 = seq[k // blk]
+        seg = src[max(0, k - 1024) : k + blk] + voice[max(0, k - 1024) : k + blk]
+        out = reso(seg, f1, 5) + reso(seg, f2, 7) * 0.7
+        y[k : k + blk] = out[-len(y[k : k + blk]) :]
+    syll = np.clip(np.sin(2 * np.pi * rng.uniform(3.2, 4.5) * tt(d) + rng.uniform(0, 6)), 0, 1) ** 0.6
+    hiss = hp(src, 4000) * (np.clip(np.sin(2 * np.pi * 1.1 * tt(d) + 1.0), 0, 1) ** 6) * 0.3
+    y = (y * syll + hiss) * env_lin(d, [(0, 0), (0.15, 1), (d * 0.7, 0.8), (d, 0)])
+    return reverb(y, 0.6, 0.15)
 
 
 def creature_step(i):
@@ -1213,12 +1344,20 @@ def main():
         write(f"step_gravel_{i}", step_gravel(i), 0.6)
         write(f"step_grass_{i}", step_grass(i), 0.55)
         write(f"step_water_{i}", step_water(i), 0.7)
+        write(f"step_glass_{i}", glass_crunch(i), 0.6)
     for i in range(3):
         write(f"creature_step_{i}", creature_step(i), 0.85)
         write(f"creature_click_{i}", creature_click(i), 0.85)
         write(f"creature_growl_{i}", creature_growl(i), 0.85)
         write(f"glitch_{i}", glitch(i), 0.6)
         write(f"drip_{i}", drip(i), 0.5)
+    for i in range(2):
+        write(f"flashlight_tap_{i}", flashlight_tap(i), 0.5)
+        write(f"dying_cough_{i}", dying_cough(i), 0.75)
+    for i in range(3):
+        write(f"dying_murmur_{i}", dying_murmur(i), 0.55)
+    write("dying_breath_loop", dying_breath_loop(), 0.6)
+    write("death_rattle", death_rattle(), 0.6)
     write("creature_shriek", creature_shriek(0), 0.95)
     write("creature_attack", creature_attack(0), 0.95)
     write("creature_breath_loop", creature_breath_loop(), 0.8)

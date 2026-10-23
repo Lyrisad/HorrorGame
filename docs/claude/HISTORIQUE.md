@@ -38,6 +38,15 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    par les grilles des puits (sifflement, feuilles mortes qui tombent et flottent, lune qui tremble, chouette).
 9. 23/10/2026 : projet mis sur GitHub (Lyrisad/HorrorGame, dépôt public) pour travailler depuis un autre PC, avec
    cette mémoire dans le dépôt (CLAUDE.md + docs/claude/).
+10. 23/10/2026 (2e séance) : grosse liste de retours, tout fait : moins d'aberration chromatique et de grain
+   (« effet neige »), flare sur les lampes, faisceau de la lampe centré, égouts plus sombres, caméra fêlée après
+   l'agression, moins de balancement (mouvement en « U » doux en courant), shaders plus réalistes (macroblocs,
+   buée, gouttes), un égoutier mourant juste à la sortie de la cage qui explique les 3 fusibles, pas dans l'eau
+   refaits, éclats de verre qui craquent même accroupi (les bouteilles en laissent), chaque fusible agite le
+   monstre, traces mouillées de la créature, sons étouffés derrière les murs, écho par zone, planque d'une
+   ancienne victime, buée en entrant dans la citerne, mains qui tremblent après une poursuite, la vapeur couvre
+   les bruits du monstre, faux contacts de la lampe ; à la maison, Théo ne dit plus « ils connaissent mon nom »
+   (c'est sur les téléphones de ses potes) mais un truc confus.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
@@ -46,7 +55,6 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 - Les cartes de l'utilisateur (maison, égouts) sont dans `maps/` (identiques à celles de son %APPDATA% au 23/10/2026).
 
 ## Idées proposées, pas encore faites
-- Buée et gouttes sur l'objectif de la caméra-piéton dans les égouts (coût moyen, plusieurs vérifications visuelles).
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).
 - Petite incohérence : le README appelle l'acte 3 « Sous la ville » alors que les égouts sont sous la forêt.
 

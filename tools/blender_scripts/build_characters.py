@@ -72,6 +72,9 @@ CHARACTERS = {
     "karim": dict(rocketbox("Male_Adult_12"), clips=[{"name": "dead", "bvh": m("90_16"), "static": "last", "inplace": False}]),
     "max": dict(rocketbox("Male_Adult_08"), clips=[{"name": "dead", "bvh": m("139_18"), "static": "first", "inplace": False}]),
     "ines": dict(rocketbox("Female_Adult_05"), clips=[{"name": "dead", "bvh": m("140_03"), "static": "first", "inplace": False}]),
+    # l'égoutier mourant, juste après la cage : assis par terre, adossé, jambes tendues
+    # (140_04 « se relever du sol », 4,2 s : buste penché en arrière d'environ 30°)
+    "egoutier": dict(rocketbox("Construction_Male_03"), clips=[{"name": "sit", "bvh": m("140_04"), "start": 500, "end": 530, "static": "first", "inplace": False}]),
 }
 
 

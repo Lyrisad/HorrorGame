@@ -40,6 +40,11 @@ var _focus: Interactable = null
 var _flicker_t := 0.0
 var _flash_energy := 4.2
 var _body_yaw := 0.0
+var _aim_dist := 6.0  ## distance où le faisceau croise le centre de l'image
+var _tremble := 0.0  ## mains qui tremblent après une poursuite (secondes restantes)
+var _tremble_t := 0.0
+var _scared := false
+var _glitch_cd := 90.0  ## faux contact de la lampe, de temps en temps
 
 var head: Node3D
 var cam: Camera3D
@@ -47,6 +52,7 @@ var hand: Node3D
 var flashlight: SpotLight3D
 var flash_fill: OmniLight3D
 var ray: RayCast3D
+var aim_ray: RayCast3D
 var body: Actor
 var breath_player: AudioStreamPlayer
 var heart_player: AudioStreamPlayer
@@ -117,6 +123,13 @@ func _ready() -> void:
 	ray.exclude_parent = true
 	cam.add_child(ray)
 	ray.add_exception(self)
+	# visée de la lampe : elle est tenue à droite, Théo la braque vers ce qu'il regarde
+	aim_ray = RayCast3D.new()
+	aim_ray.target_position = Vector3(0, 0, -14.0)
+	aim_ray.collision_mask = 1
+	cam.add_child(aim_ray)
+	aim_ray.add_exception(self)
+	_glitch_cd = randf_range(70.0, 160.0)
 
 	# corps de Théo (agent de sécurité) : visible seulement par les caméras de surveillance
 	body = Actor.create(self, "theo")
@@ -226,13 +239,12 @@ func _move(delta: float) -> void:
 		stamina = minf(1.0, stamina + delta / (9.0 if exhausted else 6.0))
 		if exhausted and stamina > 0.45:
 			exhausted = false
-	# pas
-	if is_on_floor() and moving:
-		_step_accum += hspeed * delta
-		var stride := 0.62 if crouching else (0.95 if running else 0.74)
-		if _step_accum >= stride:
-			_step_accum = 0.0
-			_footstep()
+	# pas : un pas à chaque point bas du balancement
+	var stride := 0.62 if crouching else (0.95 if running else 0.74)
+	var before := floorf(_bob / PI)
+	_bob += hspeed * delta / stride * PI
+	if is_on_floor() and moving and floorf(_bob / PI) != before:
+		_footstep()
 	# corps vu par les caméras : il se tourne vers où il va, et recule pour de vrai
 	var cycle := "crouch_walk" if crouching else ("run" if running else "walk")
 	var rel := 0.0
@@ -289,8 +301,14 @@ func _footstep() -> void:
 	if surface == "water":
 		radius *= 1.6
 		vol += 3.0
+	elif surface == "glass":
+		# des éclats de verre : impossible de les écraser sans bruit, même accroupi
+		radius = maxf(radius * 1.3, 7.5)
+		vol = maxf(vol, -9.0)
 	Sound.play_at(Sound.variant("step_" + surface, 4), global_position + Vector3(0, 0.05, 0), vol, randf_range(0.92, 1.08), 3.0, 30.0)
 	emit_noise(radius)
+	if Game.level != null and Game.level.has_method("on_footstep"):
+		Game.level.on_footstep(surface)
 	_bob_kick()
 
 
@@ -317,18 +335,18 @@ func _update_camera(delta: float) -> void:
 	_turn_speed = lerpf(_turn_speed, wrapf(_cam_yaw - prev_yaw, -PI, PI) / maxf(delta, 0.001), 1.0 - exp(-10.0 * delta))
 	Game.post_mat.set_shader_parameter("shutter", clampf(_turn_speed * 0.0035, -0.03, 0.03))
 
-	# balancement de marche
+	# balancement de marche, discret : la caméra décrit un « U » doux (au plus bas à chaque pas,
+	# au plus haut quand le poids passe sur une jambe), un peu plus ample en courant
 	var amp_target := 0.0
 	if moving and is_on_floor():
-		amp_target = 0.6 if crouching else (1.6 if running else 1.0)
+		amp_target = 0.55 if crouching else (1.45 if running else 1.0)
 	_bob_amp = lerpf(_bob_amp, amp_target, 1.0 - exp(-6.0 * delta))
-	var stride := 0.62 if crouching else (0.95 if running else 0.74)
-	_bob += hspeed * delta / stride * PI
 	_breath_t += delta * (2.6 if exhausted else 1.1)
-	var bob_y := -absf(sin(_bob)) * 0.028 * _bob_amp
-	var bob_x := sin(_bob) * 0.018 * _bob_amp
-	var roll := sin(_bob) * deg_to_rad(1.1) * _bob_amp
-	var sway_yaw := sin(_bob) * deg_to_rad(1.3) * _bob_amp
+	var sb := sin(_bob)
+	var bob_y := (sb * sb - 0.5) * 0.014 * _bob_amp
+	var bob_x := sb * 0.011 * _bob_amp
+	var roll := sb * deg_to_rad(0.45) * _bob_amp
+	var sway_yaw := sb * deg_to_rad(0.5) * _bob_amp
 	var breath := sin(_breath_t) * (0.006 if not exhausted else 0.016)
 	var shake := Game.shake_amount()
 	var shake_rot := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * shake
@@ -340,11 +358,34 @@ func _update_camera(delta: float) -> void:
 		t = t.interpolate_with(cine_offset, cine_weight)
 	head.global_transform = t
 
-	# la main (lampe) suit avec son propre retard, un peu à droite et en bas
-	_hand_basis = _hand_basis.slerp(head.global_basis, 1.0 - exp(-9.0 * delta)).orthonormalized()
+	# la main (lampe) suit avec son propre retard, un peu à droite et en bas, et vise ce que
+	# Théo regarde : le centre du faisceau tombe au centre de l'image
 	var hand_pos := head.global_position + head.global_basis * Vector3(0.24, -0.28, -0.25)
-	hand.global_transform = Transform3D(_hand_basis, hand_pos)
+	aim_ray.force_raycast_update()
+	var want_dist := 14.0
+	if aim_ray.is_colliding():
+		want_dist = clampf(cam.global_position.distance_to(aim_ray.get_collision_point()), 0.9, 14.0)
+	_aim_dist = lerpf(_aim_dist, want_dist, 1.0 - exp(-8.0 * delta))
+	var aim_at := head.global_position - head.global_basis.z * _aim_dist
+	var aim_basis := Basis.looking_at(aim_at - hand_pos, head.global_basis.y)
+	_hand_basis = _hand_basis.slerp(aim_basis, 1.0 - exp(-9.0 * delta)).orthonormalized()
+	var hb := _hand_basis
+	# mains qui tremblent (après une poursuite) : le faisceau tremblote quelques secondes
+	_update_tremble(delta)
+	if _tremble > 0.0:
+		_tremble_t += delta
+		var a := minf(_tremble / 2.0, 1.0) * deg_to_rad(1.1)
+		hb = hb * Basis.from_euler(Vector3(
+			(sin(_tremble_t * 23.0) + sin(_tremble_t * 37.3) * 0.6) * a,
+			(sin(_tremble_t * 19.7 + 1.3) + sin(_tremble_t * 41.0) * 0.5) * a, 0.0))
+	hand.global_transform = Transform3D(hb, hand_pos)
 
+	# lampe : faux contact de temps en temps (elle grésille, Théo tape dessus)
+	if flashlight_on and has_flashlight:
+		_glitch_cd -= delta
+		if _glitch_cd <= 0.0 and _flicker_t <= 0.0 and cine_weight <= 0.0:
+			_glitch_cd = randf_range(80.0, 170.0)
+			_flashlight_glitch()
 	# lampe : vacillement + rendu
 	if flashlight_on:
 		var e := _flash_energy
@@ -420,6 +461,28 @@ func _update_audio(_delta: float) -> void:
 		if _pant_cd <= 0.0:
 			_pant_cd = 0.7
 			emit_noise(9.0)
+
+
+## Après une grosse frayeur (la créature tout près, une poursuite), les mains tremblent
+## quelques secondes une fois le danger passé.
+func _update_tremble(delta: float) -> void:
+	if danger > 0.65:
+		_scared = true
+	elif _scared and danger < 0.35:
+		_scared = false
+		_tremble = 6.0
+	_tremble = maxf(0.0, _tremble - delta)
+
+
+func _flashlight_glitch() -> void:
+	var fail := randf_range(0.35, 1.1)
+	flicker(fail)
+	Sound.play_at("flicker", hand.global_position, -18.0, 1.6, 2.0, 8.0)
+	await get_tree().create_timer(fail + 0.15, false).timeout
+	if randf() < 0.6 and flashlight_on:
+		# deux petits coups du plat de la main sur la lampe
+		Sound.play(Sound.variant("flashlight_tap", 2), -10.0, randf_range(0.95, 1.05))
+		Game.shake(0.05)
 
 
 ## Fixe des caméras de cinématique : poids 0 = caméra normale, 1 = transform imposé.

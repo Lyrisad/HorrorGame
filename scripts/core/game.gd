@@ -43,15 +43,26 @@ var _level_time := 0.0
 
 const FX_DEFAULTS := {
 	"distortion": 0.30,
-	"aberration": 0.035,
-	"grain": 0.075,
+	"aberration": 0.012,
+	"grain": 0.04,
 	"gain": 0.0,
 	"vignette": 0.85,
 	"saturation": 0.8,
 	"exposure": 1.0,
 	"sharpen": 0.45,
 	"tint": Color(1, 1, 1),
+	"compress": 1.0,
+	"crack": 0.0,
+	"flare": 1.0,
 }
+
+# objectif : buée (humidité) et gouttes (éclaboussure), qui s'évaporent / sèchent toutes seules
+var _lens_fog := 0.0
+var _lens_fog_target := 0.0
+var _lens_drops := 0.0
+## Lampes qui font des reflets dans l'objectif quand on les regarde : [lumière, force, couleur]
+var _flares: Array = []
+var _flare_smooth := {}
 
 
 func _ready() -> void:
@@ -68,6 +79,8 @@ func _ready() -> void:
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post_mat = ShaderMaterial.new()
 	post_mat.shader = load("res://shaders/bodycam.gdshader")
+	post_mat.set_shader_parameter("crack_tex", load("res://assets/gen/lens_crack.png"))
+	post_mat.set_shader_parameter("drops_tex", load("res://assets/gen/lens_drops.png"))
 	post.material = post_mat
 	post_layer.add_child(post)
 
@@ -340,8 +353,118 @@ func reset_fx() -> void:
 	_blackout = 0.0
 	_blackout_target = 0.0
 	_shake = 0.0
+	_lens_fog = 0.0
+	_lens_fog_target = 0.0
+	_lens_drops = 0.0
+	_flares.clear()
+	_flare_smooth.clear()
 	for k in fx_base.keys():
 		post_mat.set_shader_parameter(k, fx_base[k])
+	_push_flares([])
+
+
+## Une lampe visible (avec son luminaire) : quand Théo la regarde, elle fait des reflets dans l'objectif.
+func add_flare(light: Light3D, strength := 1.0, size := 1.0) -> void:
+	_flares.append([light, strength, size])
+
+
+## Buée sur l'objectif : monte vers `amount` (0..1) puis se dissipe d'elle-même.
+func lens_fog(amount: float) -> void:
+	_lens_fog_target = maxf(_lens_fog_target, amount)
+
+
+## Gouttes d'eau projetées sur la vitre de la caméra (éclaboussure).
+func lens_splash(amount := 1.0) -> void:
+	_lens_drops = maxf(_lens_drops, amount)
+
+
+func _update_lens(delta: float) -> void:
+	# la buée se forme en 2 s puis s'évapore lentement (≈ 20 s), en commençant par le centre
+	if _lens_fog_target > _lens_fog:
+		_lens_fog = move_toward(_lens_fog, _lens_fog_target, delta * 0.5)
+		if _lens_fog >= _lens_fog_target - 0.01:
+			_lens_fog_target = 0.0
+	else:
+		_lens_fog = maxf(0.0, _lens_fog - delta * 0.045)
+	_lens_drops = maxf(0.0, _lens_drops - delta * 0.12)
+	post_mat.set_shader_parameter("lens_fog", _lens_fog)
+	post_mat.set_shader_parameter("lens_drops", _lens_drops)
+
+
+func _update_flares(delta: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or _flares.is_empty() or level == null:
+		_push_flares([])
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var cam_pos := cam.global_position
+	var cam_fwd := -cam.global_basis.z
+	var cands: Array = []
+	for f in _flares:
+		var l := f[0] as Light3D
+		if not is_instance_valid(l) or not l.is_visible_in_tree() or l.light_energy <= 0.02:
+			continue
+		var p := l.global_position
+		var to := p - cam_pos
+		var dist := to.length()
+		if dist > 28.0 or dist < 0.3 or cam.is_position_behind(p):
+			continue
+		var facing := cam_fwd.dot(to / dist)
+		if facing < 0.55:
+			continue
+		var uv := cam.unproject_position(p) / vp
+		if uv.x < -0.05 or uv.x > 1.05 or uv.y < -0.05 or uv.y > 1.05:
+			continue
+		var k := float(f[1]) * l.light_energy / (1.0 + dist * dist * 0.06)
+		# un spot ne se voit que dans son cône
+		if l is SpotLight3D:
+			var sp := l as SpotLight3D
+			var cone := (-sp.global_basis.z).dot(-to / dist)
+			k *= smoothstep(cos(deg_to_rad(sp.spot_angle)), 1.0, cone)
+		# plus fort quand la lampe est près du centre de l'image
+		k *= smoothstep(0.55, 0.95, facing)
+		if k > 0.01:
+			cands.append([k, uv, l, float(f[2]), dist])
+	cands.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
+	var space := cam.get_world_3d().direct_space_state
+	var out: Array = []
+	var seen := {}
+	for c in cands:
+		if out.size() >= 4:
+			break
+		var l2 := c[2] as Light3D
+		# masquée par un mur ou un objet ?
+		var q := PhysicsRayQueryParameters3D.create(cam_pos, l2.global_position - (l2.global_position - cam_pos).normalized() * 0.35, 1)
+		if level.player != null:
+			q.exclude = [level.player.get_rid()]
+		if not space.intersect_ray(q).is_empty():
+			continue
+		var id := l2.get_instance_id()
+		seen[id] = true
+		var sm := lerpf(float(_flare_smooth.get(id, 0.0)), float(c[0]), 1.0 - exp(-10.0 * delta))
+		_flare_smooth[id] = sm
+		out.append([c[1], sm, float(c[3]) * clampf(4.0 / maxf(float(c[4]), 1.0), 0.5, 1.6), l2.light_color])
+	for id in _flare_smooth.keys():
+		if not seen.has(id):
+			_flare_smooth.erase(id)
+	_push_flares(out)
+
+
+func _push_flares(list: Array) -> void:
+	var src: Array[Vector4] = []
+	var col: Array[Vector4] = []
+	for i in 4:
+		if i < list.size():
+			var e: Array = list[i]
+			var uv: Vector2 = e[0]
+			var c: Color = e[3]
+			src.append(Vector4(uv.x, uv.y, minf(float(e[1]), 1.5), float(e[2])))
+			col.append(Vector4(c.r, c.g, c.b, 1.0))
+		else:
+			src.append(Vector4.ZERO)
+			col.append(Vector4.ZERO)
+	post_mat.set_shader_parameter("flare_src", src)
+	post_mat.set_shader_parameter("flare_col", col)
 
 
 func set_fx(key: String, value: Variant) -> void:
@@ -412,6 +535,9 @@ func _process(delta: float) -> void:
 	post_mat.set_shader_parameter("blackout", _blackout)
 	post_mat.set_shader_parameter("exposure", float(fx_base.get("exposure", 1.0)) * float(settings["brightness"]))
 	post_mat.set_shader_parameter("shake_x", (randf() - 0.5) * 0.004 * _shake)
+	if not get_tree().paused:
+		_update_lens(delta)
+		_update_flares(delta)
 	_debug_screenshots()
 	if args.has("timeout") and Time.get_ticks_msec() / 1000.0 > float(args["timeout"]):
 		print("TIMEOUT")

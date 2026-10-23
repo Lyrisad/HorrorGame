@@ -24,6 +24,16 @@ def main():
     g.write("steam_hiss_loop", g.steam_hiss_loop(), 0.6)
     g.write("wind_gust", g.wind_gust(), 0.75)
     g.write("owl_hoot", g.owl_hoot(), 0.6)
+    for i in range(4):
+        g.write(f"step_water_{i}", g.step_water(i), 0.7)
+        g.write(f"step_glass_{i}", g.glass_crunch(i), 0.6)
+    for i in range(2):
+        g.write(f"flashlight_tap_{i}", g.flashlight_tap(i), 0.5)
+        g.write(f"dying_cough_{i}", g.dying_cough(i), 0.75)
+    for i in range(3):
+        g.write(f"dying_murmur_{i}", g.dying_murmur(i), 0.55)
+    g.write("dying_breath_loop", g.dying_breath_loop(), 0.6)
+    g.write("death_rattle", g.death_rattle(), 0.6)
     print("OK")
 
 

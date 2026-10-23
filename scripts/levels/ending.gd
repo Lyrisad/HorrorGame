@@ -34,7 +34,8 @@ func _ready() -> void:
 	dawn.light_energy = 0.55
 	dawn.rotation_degrees = Vector3(-12, -150, 0)
 	add_child(dawn)
-	Game.set_fx("grain", 0.09)
+	Game.set_fx("grain", 0.05)
+	Game.set_fx("crack", 0.7)
 	Game.set_fx("gain", 0.4)
 	Game.set_fx("saturation", 0.6)
 	Game.set_fx("tint", Color(0.92, 0.96, 1.05))
@@ -59,6 +60,7 @@ func _ready() -> void:
 	B.box(self, Vector3(0.3, 0.1, 0.5), pole_pos + Vector3(0, 6.95, 1.35), B.color_mat(Color(0.2, 0.2, 0.2), 0.5, 0.8), false)
 	var sodium := B.spot(self, pole_pos + Vector3(0, 6.85, 1.35), pole_pos + Vector3(0, 0, 4.0), Color(1.0, 0.62, 0.3), 3.0, 18.0, 55.0, true)
 	sodium.light_volumetric_fog_energy = 2.0
+	Game.add_flare(sodium, 1.4, 1.3)
 	# caméra vissée sur la face du poteau tournée vers le chemin (côté bouche d'égout),
 	# support tenu par deux colliers d'acier ; au début elle surveille la route, puis se tourne vers Théo
 	var mount_y := 4.6

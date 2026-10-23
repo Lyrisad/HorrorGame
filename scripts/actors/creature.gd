@@ -47,6 +47,8 @@ var _stand_speed := 0.6
 var _rear := 0.0  ## se dresse en hurlant avant de charger (secondes restantes)
 var _chase_run := 0.0
 var _winded := 0.0
+## 0..3 : fusibles ramassés par Théo — elle s'agite (+5 % de vitesse et +12 % d'ouïe par fusible)
+var aggression := 0
 
 
 func _ready() -> void:
@@ -56,7 +58,7 @@ func _ready() -> void:
 	actor.skeleton.add_child(twitch)
 	twitch.bones = {"head": actor.bone("Head"), "neck": actor.bone("Neck"), "hips": actor.bone("Hips")}
 	_wet_skin()
-	breath = Sound.loop_at("creature_breath_loop", self, -4.0, 3.0, 22.0)
+	breath = Sound.loop_at("creature_breath_loop", self, -4.0, 3.0, 22.0, "Creature")
 	breath.position.y = 1.5
 	if state == State.DORMANT:
 		visible = false
@@ -156,7 +158,7 @@ func _set_state(s: State) -> void:
 			_repath_cd = 0.0
 			if player != null:
 				_last_known = player.global_position
-			Sound.play_at("creature_shriek", head_position(), 4.0, randf_range(0.95, 1.05), 10.0, 70.0)
+			Sound.play_at("creature_shriek", head_position(), 4.0, randf_range(0.95, 1.05), 10.0, 70.0, null, "Creature")
 			Game.glitch(0.35)
 			twitch.spasm(1.2)
 			_vocal_cd = 2.0
@@ -185,6 +187,7 @@ func _pick_patrol() -> void:
 func hear(pos: Vector3, radius: float, lure := false) -> void:
 	if state in [State.DORMANT, State.STAND, State.SCRIPTED, State.ATTACK]:
 		return
+	radius *= 1.0 + 0.12 * aggression
 	var d := global_position.distance_to(pos)
 	# un bruit derrière un mur porte moins loin : tourner à un angle aide à le semer
 	if d > radius * 0.55 and nav != null and not nav.has_los(global_position + Vector3(0, 1.0, 0), pos + Vector3(0, 0.6, 0)):
@@ -236,7 +239,7 @@ func wander_to(pos: Vector3) -> void:
 
 
 func _click() -> void:
-	Sound.play_at(Sound.variant("creature_click", 3), head_position(), 0.0, randf_range(0.9, 1.1), 7.0, 50.0)
+	Sound.play_at(Sound.variant("creature_click", 3), head_position(), 0.0, randf_range(0.9, 1.1), 7.0, 50.0, null, "Creature")
 	twitch.spasm(0.5)
 
 
@@ -252,7 +255,7 @@ func _process(delta: float) -> void:
 		if _chase_run > CHASE_BURST and _winded <= 0.0:
 			_winded = WINDED_TIME
 			_chase_run = 0.0
-			Sound.play_at(Sound.variant("creature_growl", 3), head_position(), 0.0, randf_range(0.7, 0.8), 7.0, 45.0)
+			Sound.play_at(Sound.variant("creature_growl", 3), head_position(), 0.0, randf_range(0.7, 0.8), 7.0, 45.0, null, "Creature")
 	elif state != State.CHASE:
 		_chase_run = maxf(0.0, _chase_run - delta * 0.5)
 	_winded = maxf(0.0, _winded - delta)
@@ -341,7 +344,8 @@ func _locomote(delta: float) -> void:
 		_rear -= delta
 		speed = 0.0
 		return
-	speed = lerpf(speed, target_speed if not path.is_empty() else 0.0, 1.0 - exp(-4.0 * delta))
+	var agit := 1.0 + 0.05 * aggression if state != State.SCRIPTED else 1.0
+	speed = lerpf(speed, target_speed * agit if not path.is_empty() else 0.0, 1.0 - exp(-4.0 * delta))
 	if path.is_empty():
 		return
 	var target := path[0]
@@ -377,7 +381,7 @@ func _locomote(delta: float) -> void:
 	if _step_accum > stride:
 		_step_accum = 0.0
 		var vol := -10.0 + clampf(speed / CHASE_SPEED, 0.0, 1.0) * 10.0
-		Sound.play_at(Sound.variant("creature_step", 3), global_position, vol, randf_range(0.85, 1.05), 5.0, 40.0)
+		Sound.play_at(Sound.variant("creature_step", 3), global_position, vol, randf_range(0.85, 1.05), 5.0, 40.0, null, "Creature")
 
 
 func _animate() -> void:
@@ -406,7 +410,7 @@ func _vocalize(delta: float) -> void:
 	match state:
 		State.CHASE:
 			_vocal_cd = randf_range(1.2, 2.2)
-			Sound.play_at(Sound.variant("creature_growl", 3), head_position(), 2.0, randf_range(1.0, 1.2), 8.0, 50.0)
+			Sound.play_at(Sound.variant("creature_growl", 3), head_position(), 2.0, randf_range(1.0, 1.2), 8.0, 50.0, null, "Creature")
 		State.INVESTIGATE, State.SEARCH:
 			_vocal_cd = randf_range(1.8, 3.5)
 			_click()
@@ -415,7 +419,7 @@ func _vocalize(delta: float) -> void:
 			if randf() < 0.5:
 				_click()
 			else:
-				Sound.play_at(Sound.variant("creature_growl", 3), head_position(), -4.0, randf_range(0.85, 1.0), 6.0, 40.0)
+				Sound.play_at(Sound.variant("creature_growl", 3), head_position(), -4.0, randf_range(0.85, 1.0), 6.0, 40.0, null, "Creature")
 
 
 func is_hunting() -> bool:

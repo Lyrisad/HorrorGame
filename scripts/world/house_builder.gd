@@ -407,6 +407,7 @@ func ceiling_light(pos: Vector3, energy := 1.0, light_range := 7.0, shadow := fa
 	var l := B.omni(inside, Vector3(pos.x, HH - 0.78, pos.z), Color(1.0, 0.78, 0.55), energy, light_range, shadow)
 	l.light_volumetric_fog_energy = 0.25
 	room_lights.append(l)
+	Game.add_flare(l, 0.9, 0.9)
 	return l
 
 
@@ -534,6 +535,7 @@ func _exterior() -> void:
 	porch.light_size = 0.15
 	porch.light_volumetric_fog_energy = 2.5
 	room_lights.append(porch)
+	Game.add_flare(porch, 1.3, 1.0)
 	# paillasson : épaisseur en fibre + motif imprimé sur le dessus (texture entière, non découpée)
 	B.box(self, Vector3(0.9, 0.015, 0.6), Vector3(-2.5, FLOOR_Y + 0.0075, 6.55), B.color_mat(Color(0.3, 0.22, 0.13), 0.95), false)
 	var mat_top := B.quad(self, Vector2(0.9, 0.6), Vector3(-2.5, FLOOR_Y + 0.0155, 6.55), B.textured("res://assets/gen/doormat.png"), Vector3(-90, 0, 0))

@@ -94,7 +94,29 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - SecurityCamera: mount (fixed bracket, oriented by mount_out) + head (pivot at swivel). Cams saved with "wall";
   old saves derive it from dir. Frame posts/beams have NO collision → never rely on raycasts for user-placed cams.
   Ending pole camera is attached explicitly on the pole (two collars). _find_wall skips surfaces in front of the lens.
-- Flashlight energy 4.2, fog energy 1.0.
+- Flashlight energy 4.2, fog energy 1.0. The hand AIMS at what the camera looks at (aim_ray, converging
+  distance) so the beam centre falls on the screen centre. Head bob = soft "U" (y = sin²), footsteps fire at
+  each low point of the bob. Hands tremble ~6 s once danger drops after > 0.65; random flashlight
+  glitch every 80–170 s (flicker + flashlight_tap sound).
+- Bodycam shader (shaders/bodycam.gdshader): aberration 0.012, grain 0.04 (sewer 0.06) half-res-blended
+  so it isn't "snow", dark-area 8 px macroblocks (`compress`), `crack` (assets/gen/lens_crack.png, set to 0.7
+  in sewer + ending: camera hit during the kidnapping), `lens_fog` / `lens_drops` (Game.lens_fog(),
+  Game.lens_splash(); textures from tools/texture_gen/generate_lens_fx.py). Lens flares come from REAL lamps
+  registered with Game.add_flare(light, strength, size): Game projects them to screen, raycasts occlusion,
+  passes the 4 strongest as `flare_src[4]`/`flare_col[4]` (never screen-space brightness: the torch-lit wall
+  would flare constantly).
+- Sewer extras (2026-10-23): dying sewer worker "Lucien Mercier" (`egoutier`, Rocketbox Construction_Male_03,
+  static frame 500 of CMU 140_04 + BreathModifier/TwitchModifier) at NPC_POS right outside the cage — talks
+  when Théo is out and within 2.4 m (explains écluse 3, chain + cutters, 3 fuses, Bertrand, the clicking),
+  dies, params["npc"]=true for checkpoints. Hideout of a former victim at HIDEOUT (8,13) (sf:sleeping_bag,
+  cans, decal_tally 11 days, sf:flashlight_dead). Glass patches (GLASS_SPOTS, always in tile CORNERS because
+  corner cells never hold the channel) + every shattered bottle → surface "glass" (step_glass_*, noise ≥ 7.5 m
+  even crouched). Creature: `aggression` = fuses picked (+5 % speed, +12 % hearing each, growl after pickup);
+  wet prints (decal_wet_print + _orm) every 0.8 m on walkways, fade 45–110 s, max 70. Audio: zone reverb
+  (_zone_audio: vaults long, cistern huge, galleries dry/metallic), creature sounds on bus "Creature"
+  (Sound.play_at(..., parent, bus)) low-passed when no line of sight and masked near the steam leak.
+  Lens fogs when entering the cistern; running in water may splash the lens. Sewer is darker (ambient 0.13,
+  lamps ×0.7, gain 0.45).
 
 ## Testing
 - Helper: `sh tools/dev/run.sh <dir> <name> <timeout> <args>` → `tools/dev/out/<dir>/<name>_N.png`.

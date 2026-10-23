@@ -20,3 +20,6 @@ venv/
 
 # Claude Code : réglages propres à chaque PC
 .claude/settings.local.json
+
+# Fichiers temporaires du script des personnages (chemins absolus de chaque PC)
+tools/blender_scripts/cfg_*.json
