@@ -81,8 +81,12 @@ var pillars: Array = []  ## [centre, rayon] des piliers de la citerne (la créat
 var _lost_said := 0.0
 var _shaft_tops: Array = []  ## [centre, hauteur du haut du conduit, lumière de lune] des puits vers la forêt
 var _gust_cd := 25.0
-const STEAM_TILE := Vector2i(19, 8)  ## fuite de vapeur sur le tuyau du mur est (galerie vers l'écluse)
-var _steam_pos := Vector3.ZERO
+var _ledge_side := 1.0
+var _lamp_lights: Array[Light3D] = []  ## luminaires : les plus proches de Théo ont des ombres
+var _shadow_cd := 0.0
+## Fuites de vapeur des galeries techniques : [case, mur, décalage de la bride le long du mur]
+const STEAM_LEAKS := [[Vector2i(19, 8), Vector2i(1, 0), 0.35], [Vector2i(16, 4), Vector2i(0, -1), -0.4], [Vector2i(16, 12), Vector2i(0, 1), 0.3]]
+var _steam_spots: Array[Vector3] = []
 var _chase_heat := 0.0
 var room_cam: SecurityCamera
 var gate_cam: SecurityCamera
@@ -1151,8 +1155,14 @@ func nav_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 	if astar.is_point_solid(b):
 		return out
 	var ids := astar.get_id_path(a, b, true)
+	# elle marche sur une banquette, toujours la même tant qu'elle peut (parfois elle change de côté)
+	if randf() < 0.25:
+		_ledge_side = -_ledge_side
 	for i in ids.size():
 		var c := tile_center(ids[i])
+		var kind := corridor_kind(ids[i])
+		if has_channel(ids[i]) and kind != Vector3.ZERO and i < ids.size() - 1:
+			c += Vector3(kind.z, 0, kind.x) * 0.72 * _ledge_side
 		if i == 0 and from.distance_to(c) < 1.2:
 			continue
 		out.append(c)
@@ -1178,13 +1188,52 @@ func has_los(a: Vector3, b: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
+## Fuites de vapeur dans les galeries techniques : une conduite calorifugée à hauteur d'homme, une bride
+## qui fuit et crache un jet qui siffle (il couvre les petits bruits... et ceux de la créature).
 func _build_steam() -> void:
-	var d := Vector2i(1, 0)
-	_steam_pos = wall_pos(STEAM_TILE, d, PIPE_INSET - 0.1) + Vector3(0, 2.22, 0)
-	var jet := Nature.steam(self, _steam_pos, Vector3(-1.0, -0.55, 0.35))
-	jet.name = "SteamLeak"
-	Sound.loop_at("steam_hiss_loop", jet, -6.0, 2.0, 16.0)
-	B.decal(self, "res://assets/gen/decal_grime.png", _steam_pos + Vector3(0.11, -0.3, 0), Vector3(-1, 0, 0), 0.6, 0.9, 0.2, Color(1, 1, 1, 0.6))
+	_steam_spots.clear()
+	for spec in STEAM_LEAKS:
+		var t: Vector2i = spec[0]
+		var d: Vector2i = spec[1]
+		var c := tile_center(t)
+		var dn := Vector3(d.x, 0, d.y)
+		var tan := Vector3(-d.y, 0, d.x)
+		var y := 1.48
+		var pipe_c := c + dn * (T * 0.5 - 0.2) + Vector3(0, y, 0)
+		var steel := B.mat("rusty_metal_02", 0.6, {"metallic": 0.6, "roughness": 0.55, "color": Color(0.5, 0.5, 0.48)})
+		var dark := B.color_mat(Color(0.12, 0.12, 0.12), 0.5, 0.7)
+		# la conduite le long du mur, avec ses colliers et une bride au milieu (celle qui fuit)
+		var pipe := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.065
+		cm.bottom_radius = 0.065
+		cm.height = T
+		cm.radial_segments = 14
+		pipe.mesh = cm
+		pipe.material_override = steel
+		add_child(pipe)
+		pipe.global_transform = Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5) if absf(tan.x) > 0.5 else Basis(Vector3(1, 0, 0), PI * 0.5), pipe_c)
+		for k2 in [-1.0, 1.0]:
+			B.box(self, Vector3(0.04, 0.17, 0.04) if absf(tan.x) < 0.5 else Vector3(0.04, 0.17, 0.04), pipe_c + tan * k2 * 1.0 + dn * 0.08, dark, false)
+		var flange := MeshInstance3D.new()
+		var fm := CylinderMesh.new()
+		fm.top_radius = 0.1
+		fm.bottom_radius = 0.1
+		fm.height = 0.05
+		fm.radial_segments = 14
+		flange.mesh = fm
+		flange.material_override = dark
+		add_child(flange)
+		var leak := pipe_c + tan * float(spec[2])
+		flange.global_transform = Transform3D(pipe.global_basis, leak)
+		var out := (-dn + Vector3(0, -0.25, 0) + tan * 0.25).normalized()
+		var jet := Nature.steam(self, leak - dn * 0.08, out)
+		jet.name = "SteamLeak"
+		Sound.loop_at("steam_hiss_loop", jet, -5.0, 2.0, 16.0)
+		# le mur est mouillé et sale sous la fuite, une flaque au sol
+		B.decal(self, "res://assets/gen/decal_grime.png", leak + dn * 0.17 + Vector3(0, -0.45, 0), -dn, 0.7, 1.0, 0.25, Color(1, 1, 1, 0.7))
+		B.decal(self, "res://assets/gen/decal_puddle.png", Vector3(leak.x, 0.0, leak.z) - dn * 0.5, Vector3.UP, 1.2, 1.0, 0.2, Color(1, 1, 1, 0.85))
+		_steam_spots.append(leak)
 
 
 ## Coup de vent dans la forêt au-dessus d'un puits : le vent siffle dans la grille, quelques feuilles
@@ -1214,13 +1263,20 @@ func _forest_gust(c: Vector3, top: float, moon: SpotLight3D) -> void:
 		Sound.play_at("owl_hoot", c + Vector3(0, top + 6.0, 0), -2.0, randf_range(0.95, 1.05), 8.0, 45.0)
 
 
+func _steam_dist(pos: Vector3) -> float:
+	var best := INF
+	for sp in _steam_spots:
+		best = minf(best, Vector2(pos.x - sp.x, pos.z - sp.z).length())
+	return best
+
+
 func obstacles() -> Array:
 	return pillars
 
 
 func on_noise(pos: Vector3, radius: float) -> void:
 	# près de la fuite de vapeur, le sifflement couvre les petits bruits
-	if _steam_pos != Vector3.ZERO and pos.distance_to(_steam_pos) < 4.5:
+	if _steam_dist(pos) < 4.5:
 		radius *= 0.55
 	if creature != null:
 		creature.hear(pos, radius)
@@ -1419,6 +1475,7 @@ func _build_lights() -> void:
 		var l := B.omni(self, c + Vector3(0, hang - 0.46, 0), warm, 0.42, 8.0, s[1])
 		l.light_volumetric_fog_energy = 0.8
 		Game.add_flare(l, 1.1, 1.0)
+		_lamp_lights.append(l)
 		var glow := _own_emissive(fixture)
 		Sound.loop_at("buzz_loop", fixture, -22.0, 1.5, 8.0)
 		if s[1]:
@@ -1440,6 +1497,7 @@ func _build_lights() -> void:
 		var l2 := B.omni(lamp, Vector3(0, 0, 0.08), Color(1.0, 0.55, 0.22), 0.7 if is_hall(t2) else 0.48, 10.0 if is_hall(t2) else 7.5, s[2] or t2 == Vector2i(9, 3))
 		l2.light_volumetric_fog_energy = 0.7
 		Game.add_flare(l2, 1.3, 1.0)
+		_lamp_lights.append(l2)
 		if s[2]:
 			flicker_lights.append(l2)
 			var glow2 := _own_emissive(lamp)
@@ -1454,6 +1512,7 @@ func _build_lights() -> void:
 		fluo.name = "Fluo"
 		var l3 := B.omni(self, c3 + Vector3(0, top - 0.35, 0), Color(0.82, 0.95, 1.0), 0.6, 7.0, false)
 		Game.add_flare(l3, 0.9, 1.4)
+		_lamp_lights.append(l3)
 		Sound.loop_at("buzz_loop", fluo, -18.0, 2.0, 9.0)
 		if s[1]:
 			flicker_lights.append(l3)
@@ -1469,6 +1528,7 @@ func _build_lights() -> void:
 	var red := B.omni(red_lamp, Vector3(0, 0, 0.08), Color(1.0, 0.08, 0.05), 0.55, 6.0)
 	red.light_volumetric_fog_energy = 0.9
 	Game.add_flare(red, 1.2, 0.9)
+	_lamp_lights.append(red)
 
 
 ## Béton de coffrage vieilli (coulures, crasse, algues à la ligne d'eau) — shaders/wet_concrete.gdshader.
@@ -2501,6 +2561,7 @@ func _build_gate() -> void:
 	gate_lamp.set_meta("editobj", "lamp_gate")
 	var gl := B.omni(gate_lamp, Vector3(0, -0.1, 0.28), Color(1.0, 0.75, 0.45), 0.8, 6.0)
 	gl.light_volumetric_fog_energy = 2.0
+	_lamp_lights.append(gl)
 
 
 func _build_exit() -> void:
@@ -3037,6 +3098,7 @@ func _process(delta: float) -> void:
 		_throw_bottle()
 	_zone_audio(delta)
 	_creature_tracks(delta)
+	_lamp_shadows(delta)
 	# l'égoutier : on le voit depuis la cage ; il parle quand Théo sort et s'approche
 	if _npc_state == 0 and _npc != null:
 		var dn := Vector2(player.global_position.x - NPC_POS.x, player.global_position.z - NPC_POS.z).length()
@@ -3425,7 +3487,7 @@ func _creature_tracks(delta: float) -> void:
 				dcl.queue_free()
 			_prints.remove_at(i)
 			continue
-		dcl.modulate.a = (1.0 - smoothstep(40.0, 110.0, float(e[1]))) * 0.8
+		dcl.modulate.a = (1.0 - smoothstep(45.0, 110.0, float(e[1]))) * 0.95
 	if creature == null or not creature.visible or creature.state in [Creature.State.DORMANT, Creature.State.STAND]:
 		_print_from = Vector3.INF
 		return
@@ -3445,9 +3507,9 @@ func _creature_tracks(delta: float) -> void:
 	var d := Decal.new()
 	d.texture_albedo = B.tex("res://assets/gen/decal_wet_print.png")
 	d.texture_orm = B.tex("res://assets/gen/decal_wet_print_orm.png")
-	var ln := randf_range(0.26, 0.36)
+	var ln := randf_range(0.34, 0.44)
 	d.size = Vector3(ln * randf_range(0.45, 0.6), 0.4, ln)
-	d.modulate = Color(1, 1, 1, 0.8)
+	d.modulate = Color(1, 1, 1, 0.95)
 	d.normal_fade = 0.3
 	d.cull_mask = 1
 	add_child(d)
@@ -3494,12 +3556,11 @@ func _zone_audio(delta: float) -> void:
 		if not has_los(ears, mouth):
 			cut = clampf(2400.0 - ears.distance_to(mouth) * 80.0, 650.0, 2400.0)
 			db = -5.0
-		if _steam_pos != Vector3.ZERO:
-			var ds := player.global_position.distance_to(_steam_pos)
-			if ds < 6.5:
-				var m := 1.0 - ds / 6.5
-				db -= 10.0 * m
-				cut = minf(cut, lerpf(20000.0, 1500.0, m))
+		var ds := _steam_dist(player.global_position)
+		if ds < 6.5:
+			var m := 1.0 - ds / 6.5
+			db -= 10.0 * m
+			cut = minf(cut, lerpf(20000.0, 1500.0, m))
 		_occl_cut = lerpf(_occl_cut, cut, 1.0 - exp(-6.0 * delta))
 		_occl_db = lerpf(_occl_db, db, 1.0 - exp(-6.0 * delta))
 		Sound.set_creature_filter(_occl_cut, _occl_db)
@@ -3511,6 +3572,23 @@ func _zone_audio(delta: float) -> void:
 		Game.lens_fog(0.8)
 	_in_hall = in_hall
 	_splash_cd -= delta
+
+
+## Sans ombre, la lumière d'une lampe traverse les murs et se reflète sur le sol mouillé de l'allée
+## d'à côté. Les 9 luminaires les plus proches de Théo projettent donc des ombres (assez pour que rien
+## ne « fuie » autour de lui, sans payer les ombres de toutes les lampes du réseau).
+func _lamp_shadows(delta: float) -> void:
+	_shadow_cd -= delta
+	if _shadow_cd > 0.0 or _lamp_lights.is_empty():
+		return
+	_shadow_cd = 0.4
+	var here := player.global_position
+	var lights := _lamp_lights.duplicate()
+	lights.sort_custom(func(a: Light3D, b: Light3D) -> bool: return a.global_position.distance_squared_to(here) < b.global_position.distance_squared_to(here))
+	for i in lights.size():
+		var l := lights[i] as Light3D
+		if is_instance_valid(l):
+			l.shadow_enabled = i < 9
 
 
 ## Un pas de Théo : en courant dans l'eau, ça éclabousse parfois jusqu'à l'objectif.

@@ -58,6 +58,11 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 12. Retour : « les nouveaux bruits de pas j'adore », mais pas ceux dans l'eau → remplacés par une marche dans
    l'eau peu profonde (on brasse l'eau). La créature flottait encore au galop → recalage image par image.
    Elle piétinait ~0,5 s en s'arrêtant à sa première apparition → animation pilotée par la vitesse réelle.
+13. L'égoutier ne touchait pas le sol avec ses fesses (posé sur une main) → posé par le bassin ; l'indice du micro
+   sortait de l'écran → retour à la ligne. Puis : on ne voyait pas la vapeur (fin tuyau à 2,2 m) → 3 fuites sur
+   une conduite à hauteur d'homme ; on ne voyait pas les traces de la créature (elle marchait dans l'eau) → elle
+   longe les banquettes ; la lumière des allées voisines se reflétait à travers les murs → ombres sur les lampes
+   proches. Carte des égouts du joueur (campement déplacé le 24/10) recopiée dans maps/.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

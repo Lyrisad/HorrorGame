@@ -77,18 +77,18 @@ def wet_print():
     for scale, amp in ((48, 0.5), (16, 0.3), (5, 0.2)):
         n = np.array(Image.fromarray((rnd.random((H // scale + 2, W // scale + 2)) * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), dtype=np.float32) / 255.0
         noise += n * amp
-    m = np.clip((m * (0.55 + noise) - 0.18) * 1.6, 0, 1)
+    m = np.clip((m * (0.8 + noise * 0.5) - 0.12) * 2.4, 0, 1)
     # gouttes projetées autour
     for _ in range(18):
         x, y = rnd.uniform(15, W - 15), rnd.uniform(15, H - 15)
         r = rnd.uniform(2.0, 5.0)
         m = np.maximum(m, np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (r * r)) * 0.6)
-    m = np.array(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.6)), dtype=np.float32) / 255.0
-    alpha = (np.clip(m, 0, 1) * 170).astype(np.uint8)  # jamais opaque : le béton reste visible dessous
+    m = np.array(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)), dtype=np.float32) / 255.0
+    alpha = (np.clip(m, 0, 1) * 235).astype(np.uint8)
     rgba = np.zeros((H, W, 4), dtype=np.uint8)
-    rgba[..., 0] = 16
-    rgba[..., 1] = 17
-    rgba[..., 2] = 14
+    rgba[..., 0] = 10
+    rgba[..., 1] = 11
+    rgba[..., 2] = 9
     rgba[..., 3] = alpha
     Image.fromarray(rgba, "RGBA").save(os.path.join(OUT, "decal_wet_print.png"))
     orm = np.zeros((H, W, 4), dtype=np.uint8)

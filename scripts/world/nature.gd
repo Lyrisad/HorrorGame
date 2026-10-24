@@ -417,8 +417,8 @@ static func steam(parent: Node, pos: Vector3, dir: Vector3) -> GPUParticles3D:
 	# presque invisible à la sortie du tuyau, puis un voile léger qui se dissipe
 	fade.set_color(0, Color(1, 1, 1, 0))
 	fade.set_color(1, Color(1, 1, 1, 0))
-	fade.add_point(0.1, Color(1, 1, 1, 0.09))
-	fade.add_point(0.45, Color(1, 1, 1, 0.05))
+	fade.add_point(0.08, Color(1, 1, 1, 0.24))
+	fade.add_point(0.45, Color(1, 1, 1, 0.12))
 	var ramp := GradientTexture1D.new()
 	ramp.gradient = fade
 	pm.color_ramp = ramp

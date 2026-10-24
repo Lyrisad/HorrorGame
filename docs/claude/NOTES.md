@@ -143,7 +143,13 @@ Keep it current — add a line whenever you learn something non-obvious. History
   wet prints (decal_wet_print + _orm) every 0.8 m on walkways, fade 45–110 s, max 70. Audio: zone reverb
   (_zone_audio: vaults long, cistern huge, galleries dry/metallic), creature sounds on bus "Creature"
   (Sound.play_at(..., parent, bus)) low-passed when no line of sight and masked near the steam leak.
-  Lens fogs when entering the cistern; running in water may splash the lens. Sewer is darker (ambient 0.13,
+  Lens fogs when entering the cistern; running in water may splash the lens.
+- Steam leaks (STEAM_LEAKS, 3 in the technical galleries) sit on a dedicated insulated pipe at 1.48 m with a
+  leaking flange (the zone-C wall pipes are at 2.2 m, nobody saw the steam up there). _steam_dist() = nearest leak.
+- nav_path() walks the creature on a LEDGE (0.72 m off the channel, same side most of the time) in straight
+  channel corridors: it only wades at junctions, so its wet prints are actually seen (they're skipped in water).
+- _lamp_shadows(): the 9 lamps nearest to Théo get shadows (every 0.4 s); without shadows the omni lights shone
+  through walls onto the wet floor of the next corridor. Cost ≈ 210 → 182 fps at 1080p on the dev PC. Sewer is darker (ambient 0.13,
   lamps ×0.7, gain 0.45).
 
 ## Testing
