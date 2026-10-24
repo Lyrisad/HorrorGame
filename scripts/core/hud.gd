@@ -262,17 +262,23 @@ func set_rec(on: bool) -> void:
 	rec_dot.visible = on
 
 
+var _sub_fade: Tween
+
+
 ## Affiche une réplique. Peut être attendue avec `await`.
 func say(text: String, duration := 3.2, speaker := "Théo") -> void:
 	_sub_id += 1
 	var id := _sub_id
+	# le fondu de la réplique précédente ne doit pas effacer celle-ci (répliques enchaînées)
+	if _sub_fade != null and _sub_fade.is_valid():
+		_sub_fade.kill()
 	var who := "" if speaker == "" else "[color=#ffd27a]%s :[/color] " % speaker
 	subtitle.text = "[center]%s%s[/center]" % [who, text]
 	subtitle.modulate.a = 1.0
 	await get_tree().create_timer(duration, false).timeout
 	if id == _sub_id:
-		var tw := create_tween()
-		tw.tween_property(subtitle, "modulate:a", 0.0, 0.4)
+		_sub_fade = create_tween()
+		_sub_fade.tween_property(subtitle, "modulate:a", 0.0, 0.4)
 
 
 func objective(text: String) -> void:

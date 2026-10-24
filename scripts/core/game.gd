@@ -52,7 +52,6 @@ const FX_DEFAULTS := {
 	"sharpen": 0.45,
 	"tint": Color(1, 1, 1),
 	"compress": 1.0,
-	"crack": 0.0,
 	"flare": 1.0,
 }
 
@@ -79,7 +78,6 @@ func _ready() -> void:
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post_mat = ShaderMaterial.new()
 	post_mat.shader = load("res://shaders/bodycam.gdshader")
-	post_mat.set_shader_parameter("crack_tex", load("res://assets/gen/lens_crack.png"))
 	post_mat.set_shader_parameter("drops_tex", load("res://assets/gen/lens_drops.png"))
 	post.material = post_mat
 	post_layer.add_child(post)

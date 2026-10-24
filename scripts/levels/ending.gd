@@ -35,7 +35,6 @@ func _ready() -> void:
 	dawn.rotation_degrees = Vector3(-12, -150, 0)
 	add_child(dawn)
 	Game.set_fx("grain", 0.05)
-	Game.set_fx("crack", 0.7)
 	Game.set_fx("gain", 0.4)
 	Game.set_fx("saturation", 0.6)
 	Game.set_fx("tint", Color(0.92, 0.96, 1.05))

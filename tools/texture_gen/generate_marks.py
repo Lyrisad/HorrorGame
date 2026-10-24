@@ -50,54 +50,52 @@ def tally(days=11):
 
 
 def wet_print():
-    rnd = random.Random(5)
+    """Trace humide laissée sur le béton par une main / un pied mouillé de la créature : une tache sombre
+    aux bords irréguliers (l'eau s'étale), plus marquée là où la paume a appuyé, quatre traînées
+    allongées des doigts, quelques gouttes autour. Pas de contour net : c'est de l'eau, pas de la peinture."""
+    rnd = np.random.default_rng(5)
     W, H = 256, 512
-    S = 2
-    img = Image.new("L", (W * S, H * S), 0)
-    d = ImageDraw.Draw(img)
-    # paume allongée (en bas), doigts très longs vers le haut, terminés par des griffes
-    cx, cy = W * S / 2, H * S * 0.72
-    d.ellipse([cx - 52 * S, cy - 70 * S, cx + 52 * S, cy + 80 * S], fill=255)
-    angles = [-0.42, -0.14, 0.12, 0.38]
-    lengths = [200, 250, 240, 190]
-    for a, ln in zip(angles, lengths):
-        x0, y0 = cx + math.sin(a) * 40 * S, cy - 50 * S
-        pts = [(x0, y0)]
-        x, y = x0, y0
-        steps = 8
-        for i in range(steps):
-            a2 = a + rnd.uniform(-0.05, 0.05) + i * a * 0.03
-            x += math.sin(a2) * ln * S / steps
-            y -= math.cos(a2) * ln * S / steps
-            pts.append((x, y))
-        for i in range(len(pts) - 1):
-            w = int((15 - i * 1.4) * S)
-            d.line([pts[i], pts[i + 1]], fill=255, width=max(2 * S, w))
-        # griffe : trait fin qui raye le sol
-        d.line([pts[-1], (pts[-1][0] + math.sin(a) * 22 * S, pts[-1][1] - 22 * S)], fill=180, width=2 * S)
-    a = img.resize((W, H), Image.LANCZOS).filter(ImageFilter.GaussianBlur(2.0))
-    arr = np.array(a, dtype=np.float32) / 255.0
-    # eau qui a coulé : bords irréguliers, gouttelettes autour
-    noise = np.array(Image.effect_noise((W, H), 120).filter(ImageFilter.GaussianBlur(3.0)), dtype=np.float32) / 255.0
-    arr = np.clip(arr * (0.7 + noise * 0.6), 0, 1)
-    for _ in range(26):
-        x, y = rnd.uniform(20, W - 20), rnd.uniform(20, H - 20)
-        r = rnd.uniform(1.5, 5)
-        yy, xx = np.mgrid[0:H, 0:W]
-        arr = np.maximum(arr, np.clip(1.0 - np.hypot(xx - x, yy - y) / r, 0, 1) * 0.7)
-    alpha = (arr * 255).astype(np.uint8)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+
+    def blob(cx, cy, rx, ry, rot=0.0):
+        c, s_ = math.cos(rot), math.sin(rot)
+        dx, dy = xx - cx, yy - cy
+        u = (dx * c + dy * s_) / rx
+        v = (-dx * s_ + dy * c) / ry
+        return np.exp(-(u * u + v * v) * 2.2)
+
+    # paume (bas) + empreintes allongées des doigts vers le haut
+    m = blob(W * 0.5, H * 0.74, 52, 74) * 0.9
+    for k, (ang, ln) in enumerate([(-0.38, 150), (-0.12, 190), (0.13, 180), (0.36, 140)]):
+        bx = W * 0.5 + math.sin(ang) * 30
+        by = H * 0.66
+        cx = bx + math.sin(ang) * ln * 0.5
+        cy = by - math.cos(ang) * ln * 0.5
+        m = np.maximum(m, blob(cx, cy, 11, ln * 0.5, -ang) * rnd.uniform(0.55, 0.85))
+    # bords irréguliers : bruit multi-échelle
+    noise = np.zeros((H, W), dtype=np.float32)
+    for scale, amp in ((48, 0.5), (16, 0.3), (5, 0.2)):
+        n = np.array(Image.fromarray((rnd.random((H // scale + 2, W // scale + 2)) * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), dtype=np.float32) / 255.0
+        noise += n * amp
+    m = np.clip((m * (0.55 + noise) - 0.18) * 1.6, 0, 1)
+    # gouttes projetées autour
+    for _ in range(18):
+        x, y = rnd.uniform(15, W - 15), rnd.uniform(15, H - 15)
+        r = rnd.uniform(2.0, 5.0)
+        m = np.maximum(m, np.exp(-((xx - x) ** 2 + (yy - y) ** 2) / (r * r)) * 0.6)
+    m = np.array(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.6)), dtype=np.float32) / 255.0
+    alpha = (np.clip(m, 0, 1) * 170).astype(np.uint8)  # jamais opaque : le béton reste visible dessous
     rgba = np.zeros((H, W, 4), dtype=np.uint8)
-    rgba[..., 0] = 22
-    rgba[..., 1] = 24
-    rgba[..., 2] = 20
+    rgba[..., 0] = 16
+    rgba[..., 1] = 17
+    rgba[..., 2] = 14
     rgba[..., 3] = alpha
     Image.fromarray(rgba, "RGBA").save(os.path.join(OUT, "decal_wet_print.png"))
-    # ORM : occlusion 1, rugosité très basse (mouillé), pas de métal
     orm = np.zeros((H, W, 4), dtype=np.uint8)
     orm[..., 0] = 255
-    orm[..., 1] = 18
+    orm[..., 1] = 25
     orm[..., 2] = 0
-    orm[..., 3] = alpha
+    orm[..., 3] = (np.clip(m * 1.4, 0, 1) * 255).astype(np.uint8)
     Image.fromarray(orm, "RGBA").save(os.path.join(OUT, "decal_wet_print_orm.png"))
 
 

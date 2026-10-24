@@ -1338,13 +1338,7 @@ def wake_gasp():
 # ---------------------------------------------------------------- export
 def main():
     print("Génération des sons dans", OUT)
-    for i in range(4):
-        write(f"step_concrete_{i}", step_concrete(i), 0.7)
-        write(f"step_wood_{i}", step_wood(i), 0.7)
-        write(f"step_gravel_{i}", step_gravel(i), 0.6)
-        write(f"step_grass_{i}", step_grass(i), 0.55)
-        write(f"step_water_{i}", step_water(i), 0.7)
-        write(f"step_glass_{i}", glass_crunch(i), 0.6)
+    # pas (béton, bois, gravier, herbe, eau, verre) et rats : vrais enregistrements CC0, voir real_sounds.py
     for i in range(3):
         write(f"creature_step_{i}", creature_step(i), 0.85)
         write(f"creature_click_{i}", creature_click(i), 0.85)
@@ -1415,7 +1409,7 @@ def main():
     write("signal_lost", signal_lost(), 0.7)
     write("ui_beep", ui_beep(), 0.5)
     write("tinnitus", tinnitus(), 0.25)
-    write("rat_squeak", rat_squeak(), 0.5)
+    # rat_squeak_0..2 : vrais enregistrements CC0, voir real_sounds.py
     write("splash_big", splash_big(), 0.8)
     write("car_door", car_door(), 0.85)
     write("wiper", wiper(), 0.5)

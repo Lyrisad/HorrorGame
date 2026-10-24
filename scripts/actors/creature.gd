@@ -49,6 +49,9 @@ var _chase_run := 0.0
 var _winded := 0.0
 ## 0..3 : fusibles ramassés par Théo — elle s'agite (+5 % de vitesse et +12 % d'ouïe par fusible)
 var aggression := 0
+var _contacts: Array[int] = []  ## os qui touchent le sol (mains, doigts, pieds, orteils)
+var _contact_hist: Array = []  ## [temps, hauteur la plus basse] sur le dernier pas
+var _clock := 0.0
 
 
 func _ready() -> void:
@@ -58,6 +61,11 @@ func _ready() -> void:
 	actor.skeleton.add_child(twitch)
 	twitch.bones = {"head": actor.bone("Head"), "neck": actor.bone("Neck"), "hips": actor.bone("Hips")}
 	_wet_skin()
+	for nm in ["hand.L", "hand.R", "middle2.L", "middle2.R", "foot.L", "foot.R", "toe.L", "toe.R"]:
+		for i in actor.skeleton.get_bone_count():
+			if actor.skeleton.get_bone_name(i).begins_with(nm):
+				_contacts.append(i)
+				break
 	breath = Sound.loop_at("creature_breath_loop", self, -4.0, 3.0, 22.0, "Creature")
 	breath.position.y = 1.5
 	if state == State.DORMANT:
@@ -263,6 +271,29 @@ func _process(delta: float) -> void:
 	_locomote(delta)
 	_animate()
 	_vocalize(delta)
+	_ground(delta)
+
+
+## Recale le corps pour que ses appuis touchent vraiment le sol : au galop, l'animation d'origine
+## le faisait flotter. On prend l'appui le plus bas sur le dernier pas (pas image par image).
+func _ground(delta: float) -> void:
+	if _contacts.is_empty() or actor.skeleton == null:
+		return
+	_clock += delta
+	var sk := actor.skeleton
+	var low := INF
+	for b in _contacts:
+		low = minf(low, (sk.global_transform * sk.get_bone_global_pose(b)).origin.y)
+	# hauteur de l'appui par rapport à l'origine du modèle (sans le recalage déjà appliqué)
+	var rel := low - global_position.y - actor.position.y
+	_contact_hist.append([_clock, rel])
+	while _contact_hist.size() > 1 and _clock - float(_contact_hist[0][0]) > 0.5:
+		_contact_hist.pop_front()
+	var lowest := INF
+	for e in _contact_hist:
+		lowest = minf(lowest, float(e[1]))
+	var want := clampf(0.025 - lowest, -0.6, 0.25)
+	actor.position.y = lerpf(actor.position.y, want, 1.0 - exp(-6.0 * delta))
 
 
 func _think(delta: float) -> void:

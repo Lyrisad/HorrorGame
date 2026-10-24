@@ -101,12 +101,30 @@ Keep it current — add a line whenever you learn something non-obvious. History
   each low point of the bob. Hands tremble ~6 s once danger drops after > 0.65; random flashlight
   glitch every 80–170 s (flicker + flashlight_tap sound).
 - Bodycam shader (shaders/bodycam.gdshader): aberration 0.012, grain 0.04 (sewer 0.06) half-res-blended
-  so it isn't "snow", dark-area 8 px macroblocks (`compress`), `crack` (assets/gen/lens_crack.png, set to 0.7
-  in sewer + ending: camera hit during the kidnapping), `lens_fog` / `lens_drops` (Game.lens_fog(),
-  Game.lens_splash(); textures from tools/texture_gen/generate_lens_fx.py). Lens flares come from REAL lamps
-  registered with Game.add_flare(light, strength, size): Game projects them to screen, raycasts occlusion,
-  passes the 4 strongest as `flare_src[4]`/`flare_col[4]` (never screen-space brightness: the torch-lit wall
-  would flare constantly).
+  so it isn't "snow", dark-area 8 px macroblocks (`compress`), `lens_fog` / `lens_drops` (Game.lens_fog(),
+  Game.lens_splash(); drops texture from tools/texture_gen/generate_lens_fx.py). Blurs use the screen
+  texture MIPMAPS (`filter_linear_mipmap` + textureLod) — a few offset taps made ghost/double images that the
+  user called the "drunk" effect. Lens flares = halo + thin horizontal streak only (NO ghosts, NO star: user
+  hated the doubling), from REAL lamps registered with Game.add_flare(light, strength, size): Game projects
+  them, raycasts occlusion, passes the 4 strongest as `flare_src[4]`/`flare_col[4]`. The lens crack was
+  removed (user didn't like it).
+- HUD.say kills the previous subtitle fade tween: before, a line said < 0.4 s after the previous one ended
+  was faded to invisible (whole conversations "stopped" mid-way).
+- Sounds: footsteps (concrete, wood, gravel, grass, water, glass), rats and the flies loop are REAL CC0
+  Freesound recordings (tools/dev/fs_fetch.py downloads HQ previews by search; tools/audio_gen/real_sounds.py
+  slices each step on its impact, scores cleanliness, normalizes). generate_sounds.py no longer writes those
+  names. I can't listen: pick sources by SNR / waveform plots, prefer most-downloaded.
+- Flashlight energy 3.0, range 22; glitch types: stutter, brownout (_dim_t), blinks, violent 1 s blackout
+  (_lamp_off). Creature `_ground()` re-seats the model each frame so the lowest hand/foot (min over 0.5 s)
+  touches the floor (the native gallop floated). Bodies use Actor.lowest_point(0.06) (6th percentile of
+  vertex heights) so the torso, not a protruding hand, rests on the floor. Flies = GPU particles with
+  velocity-aligned crossed ribbons + an attractor sphere.
+- Cistern: hall tiles have NO channel (continuous ledges along the walls, no little islands); every pillar
+  has a footing; pillars/footings/frames use shaders/wet_concrete.gdshader (concrete_wall_006, streaks,
+  grime, algae band at the waterline, wet glossy base) via sewer._wet_concrete(water_y, algae_h, submerged).
+- Editor-movable (editobj): "hideout" (whole camp node incl. its Interactable) and "hideout_marks" (tally
+  decal + invisible pick quad; sticks to walls). NPC arms: BreathModifier two-bone IK puts the hands flat on
+  the floor beside the hips; the NPC talk is a kneeling close-up cinematic (control locked ~32 s).
 - Sewer extras (2026-10-23): dying sewer worker "Lucien Mercier" (`egoutier`, Rocketbox Construction_Male_03,
   static frame 500 of CMU 140_04 + BreathModifier/TwitchModifier) at NPC_POS right outside the cage — talks
   when Théo is out and within 2.4 m (explains écluse 3, chain + cutters, 3 fuses, Bertrand, the clicking),

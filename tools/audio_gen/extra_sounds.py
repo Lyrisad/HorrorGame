@@ -20,13 +20,9 @@ def main():
     g.write("tap_running_loop", g.tap_running_loop(), 0.5)
     for i in range(3):
         g.write(f"creature_growl_{i}", g.creature_growl(i), 0.85)
-    g.write("flies_loop", g.flies_loop(), 0.6)
     g.write("steam_hiss_loop", g.steam_hiss_loop(), 0.6)
     g.write("wind_gust", g.wind_gust(), 0.75)
     g.write("owl_hoot", g.owl_hoot(), 0.6)
-    for i in range(4):
-        g.write(f"step_water_{i}", g.step_water(i), 0.7)
-        g.write(f"step_glass_{i}", g.glass_crunch(i), 0.6)
     for i in range(2):
         g.write(f"flashlight_tap_{i}", g.flashlight_tap(i), 0.5)
         g.write(f"dying_cough_{i}", g.dying_cough(i), 0.75)

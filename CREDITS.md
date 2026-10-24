@@ -37,6 +37,7 @@
 | `assets/sketchfab/fusebox_vintage` | [Freebie - Game Art: Vintage Fuse Box (boîtier + fusible extrait)](https://sketchfab.com/3d-models/freebie-game-art-vintage-fuse-box-4109ae3e180d4ed8b3427fe6a97d58b6) | filip.alecsandru |
 | `assets/sketchfab/sleeping_bag` | [Sleeping bag](https://sketchfab.com/3d-models/sleeping-bag-8098c046310445b6b15c0f1466509e35) | Tactical_Beard |
 | `assets/sketchfab/flashlight_dead` | [Flashlight](https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) | Hepatitis_Bee |
+| `assets/sketchfab/broken_bottle` | [Broken Wine Bottle](https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) | Ivan_Valbuena |
 
 Modifications : modèles recadrés, recolorés, découpés en pièces ; la créature garde les animations
 de son auteur (mises à l'échelle, renommées, calées au sol).
@@ -44,6 +45,13 @@ de son auteur (mises à l'échelle, renommées, calées au sol).
 ## Personnages — Microsoft Rocketbox (licence MIT)
 Théo (Security_Male_01), le kidnappeur (Military_Male_03), Karim (Male_Adult_12),
 Max (Male_Adult_08), Inès (Female_Adult_05), l'égoutier (Construction_Male_03) — https://github.com/microsoft/Microsoft-Rocketbox
+
+## Sons enregistrés — Freesound (CC0, domaine public)
+Pas, eau, verre, rats et mouches : extraits découpés et normalisés par `tools/audio_gen/real_sounds.py`.
+florianreichelt (459964), NachtmahrTV (553238), patchytherat (531566), ChristopherJngs (861369),
+martinimeniscus (164457, 164458), Rickmk2 (164315), ralph.whitehead (331451), PotatokingXII (352870),
+monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhailo (143125),
+egomassive (536753), galeku (46938), BeeProductive (395593) — https://freesound.org/s/<numéro>/
 
 ## Captures de mouvement — CMU Graphics Lab Motion Capture Database
 The data used in this project was obtained from mocap.cs.cmu.edu.

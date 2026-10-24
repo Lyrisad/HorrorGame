@@ -98,7 +98,7 @@ func _ready() -> void:
 	make_environment({
 		"bg": Color(0, 0, 0),
 		"ambient": Color(0.02, 0.024, 0.022),
-		"ambient_energy": 0.13,
+		"ambient_energy": 0.07,
 		"exposure": 1.0,
 		"vfog": true,
 		"vfog_density": 0.045,
@@ -112,11 +112,9 @@ func _ready() -> void:
 		"glow": 1.0,
 	})
 	Game.set_fx("grain", 0.06)
-	Game.set_fx("gain", 0.45)
+	Game.set_fx("gain", 0.4)
 	Game.set_fx("saturation", 0.55)
 	Game.set_fx("tint", Color(0.93, 1.0, 0.95))
-	# la caméra a pris un coup pendant l'agression : la vitre de l'objectif est fêlée
-	Game.set_fx("crack", 0.7)
 	Sound.set_reverb(0.85, 0.32, 0.35)
 	Game.set_clock(3, 12, 44, 15)
 
@@ -325,7 +323,7 @@ func _chan_capable(t: Vector2i) -> bool:
 
 ## Cunette au centre de la case (réseau continu d'un collecteur à l'autre).
 func has_channel(t: Vector2i) -> bool:
-	if not _chan_capable(t):
+	if not _chan_capable(t) or is_hall(t):
 		return false
 	for d: Vector2i in DIRS:
 		if _chan_capable(t + d) or cell(t + d) == "w":
@@ -691,7 +689,7 @@ func _build_geometry() -> void:
 	var frame_mi := MeshInstance3D.new()
 	frame_mi.name = "Frames"
 	frame_mi.mesh = frame_st.commit()
-	frame_mi.material_override = B.mat("brushed_concrete", 1.5, {"color": Color(0.5, 0.5, 0.48), "roughness": 0.85})
+	frame_mi.material_override = _wet_concrete(0.0, 0.35, 0.0)
 	add_child(frame_mi)
 	var pil_mi := MeshInstance3D.new()
 	pil_mi.name = "Pilasters"
@@ -1309,12 +1307,14 @@ func _build_props() -> void:
 		if lad != null:
 			lad.rotation_degrees.x = -14.0
 	deco("WetFloorSign_01", tile_center(Vector2i(6, 6 - 1)) + Vector3(0.9, 0, -0.9), 30.0)
-	var col_mat := B.mat("brushed_concrete", 1.5, {"color": Color(0.48, 0.48, 0.46)})
+	var col_mat := _wet_concrete(WATER_Y, 0.55, 1.0)
 	for cx in [8.5, 10.5]:
 		for cz in [7.85, 9.15]:
 			var cp := Vector3(cx * T, (HALL_H + CIS_Y) * 0.5, cz * T)
 			B.box(self, Vector3(0.6, HALL_H - CIS_Y, 0.6), cp, col_mat, true)
-			pillars.append([Vector3(cp.x, 0, cp.z), 0.43])
+			# socle en béton au pied de chaque poteau (l'un d'eux porte un fusible)
+			B.box(self, Vector3(0.95, 0.26, 0.95), Vector3(cp.x, CIS_Y + 0.13, cp.z), col_mat, true)
+			pillars.append([Vector3(cp.x, 0, cp.z), 0.52])
 	for cx2 in [8.5, 10.5]:
 		B.decal(self, "res://assets/gen/decal_gauge.png", Vector3(cx2 * T, 0.75, 9.15 * T + 0.3), Vector3(0, 0, 1), 0.28, 1.5, 0.08)
 	B.decal(self, "res://assets/gen/decal_gauge.png", Vector3(6 * T + 0.01, 0.9, 8.5 * T), Vector3(1, 0, 0), 0.3, 1.6, 0.1)
@@ -1412,7 +1412,7 @@ func _build_lights() -> void:
 		fixture.name = "Lamp"
 		B.set_shadows(fixture, false)
 		# la lumière naît DANS le tube de la baladeuse (pas de boule lumineuse en dessous)
-		var l := B.omni(self, c + Vector3(0, hang - 0.46, 0), warm, 0.55, 8.0, s[1])
+		var l := B.omni(self, c + Vector3(0, hang - 0.46, 0), warm, 0.42, 8.0, s[1])
 		l.light_volumetric_fog_energy = 0.8
 		Game.add_flare(l, 1.1, 1.0)
 		var glow := _own_emissive(fixture)
@@ -1433,7 +1433,7 @@ func _build_lights() -> void:
 		B.set_shadows(lamp, false)
 		lamp.set_meta("editobj", "lamp_b%d" % lamp_i)
 		lamp_i += 1
-		var l2 := B.omni(lamp, Vector3(0, 0, 0.08), Color(1.0, 0.55, 0.22), 0.95 if is_hall(t2) else 0.65, 10.0 if is_hall(t2) else 7.5, s[2] or t2 == Vector2i(9, 3))
+		var l2 := B.omni(lamp, Vector3(0, 0, 0.08), Color(1.0, 0.55, 0.22), 0.7 if is_hall(t2) else 0.48, 10.0 if is_hall(t2) else 7.5, s[2] or t2 == Vector2i(9, 3))
 		l2.light_volumetric_fog_energy = 0.7
 		Game.add_flare(l2, 1.3, 1.0)
 		if s[2]:
@@ -1448,7 +1448,7 @@ func _build_lights() -> void:
 		var top := h_top(t3)
 		var fluo := B.model(self, "mounted_fluorescent_lights", c3 + Vector3(0, top - 0.02, 0), 90.0 if corridor_kind(t3).x > 0.5 else 0.0, {"center": false})
 		fluo.name = "Fluo"
-		var l3 := B.omni(self, c3 + Vector3(0, top - 0.35, 0), Color(0.82, 0.95, 1.0), 0.8, 7.0, false)
+		var l3 := B.omni(self, c3 + Vector3(0, top - 0.35, 0), Color(0.82, 0.95, 1.0), 0.6, 7.0, false)
 		Game.add_flare(l3, 0.9, 1.4)
 		Sound.loop_at("buzz_loop", fluo, -18.0, 2.0, 9.0)
 		if s[1]:
@@ -1462,9 +1462,30 @@ func _build_lights() -> void:
 	if red_glow != null:
 		red_glow.emission = Color(1.0, 0.08, 0.04)
 		red_glow.albedo_color = Color(1.0, 0.2, 0.15)
-	var red := B.omni(red_lamp, Vector3(0, 0, 0.08), Color(1.0, 0.08, 0.05), 0.7, 6.0)
+	var red := B.omni(red_lamp, Vector3(0, 0, 0.08), Color(1.0, 0.08, 0.05), 0.55, 6.0)
 	red.light_volumetric_fog_energy = 0.9
 	Game.add_flare(red, 1.2, 0.9)
+
+
+## Béton de coffrage vieilli (coulures, crasse, algues à la ligne d'eau) — shaders/wet_concrete.gdshader.
+var _concrete_mats := {}
+
+
+func _wet_concrete(water_y: float, algae_h: float, submerged: float) -> ShaderMaterial:
+	var key := "%s|%s|%s" % [water_y, algae_h, submerged]
+	if _concrete_mats.has(key):
+		return _concrete_mats[key]
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/wet_concrete.gdshader")
+	var base := "res://assets/textures/concrete_wall_006/concrete_wall_006_"
+	m.set_shader_parameter("albedo_tex", load(base + "diff.jpg"))
+	m.set_shader_parameter("normal_tex", load(base + "nor.jpg"))
+	m.set_shader_parameter("rough_tex", load(base + "rough.jpg"))
+	m.set_shader_parameter("water_y", water_y)
+	m.set_shader_parameter("algae_h", algae_h)
+	m.set_shader_parameter("submerged", submerged)
+	_concrete_mats[key] = m
+	return m
 
 
 ## Matériau émissif propre à un luminaire (copie : on peut le faire grésiller sans toucher aux autres).
@@ -2201,7 +2222,7 @@ func _shatter(target: Variant) -> void:
 		Sound.play_at("glass_break", pos, 4.0, randf_range(0.92, 1.08), 6.0, 70.0)
 		lure_noise(pos, 22.0)
 		# éclats de verre au sol (ils craqueront sous les pieds)
-		_glass_patch(Vector3(pos.x, 0, pos.z), 0.4, 60)
+		_glass_patch(Vector3(pos.x, 0, pos.z), 0.35, 50)
 	rb.queue_free()
 
 
@@ -2241,7 +2262,6 @@ func _build_fuses() -> void:
 		if id == "citerne":
 			# sur le socle en béton d'un pilier, au milieu de la citerne : il faut patauger (bruit)
 			var cp := Vector3(10.5 * T, 0, 9.15 * T)
-			B.box(self, Vector3(0.95, 0.26, 0.95), cp + Vector3(0, CIS_Y + 0.13, 0), B.mat("concrete_moss", 1.0, {"color": Color(0.35, 0.37, 0.3)}), true)
 			pos = cp + Vector3(-0.36, CIS_Y + 0.26 + 0.018, 0.05)
 		var f := _fuse_mesh(self)
 		f.position = pos
@@ -2615,8 +2635,14 @@ func _start_from_cutters() -> void:
 
 
 func _pick_torch(torch: Node3D, torch_light: Node3D) -> void:
+	if not is_instance_valid(torch):
+		return
+	var pickup := find_child("TorchPickup", false, false)
+	if pickup != null:
+		pickup.queue_free()
 	torch.queue_free()
-	torch_light.queue_free()
+	if is_instance_valid(torch_light):
+		torch_light.queue_free()
 	Sound.play("pickup", -6.0)
 	player.has_flashlight = true
 	player.set_flashlight(true)
@@ -2680,7 +2706,7 @@ func _reveal_cross() -> void:
 	await wait(1.2)
 	# un rat couine dans le noir, vers la citerne : elle bondit dans cette direction
 	var rat_pos := tile_center(Vector2i(8, 7)) + Vector3(0.6, 0, -0.4)
-	Sound.play_at("rat_squeak", rat_pos, 2.0, 0.9, 6.0, 40.0)
+	Sound.play_at(Sound.variant("rat_squeak", 3), rat_pos, 2.0, 0.9, 6.0, 40.0)
 	await wait(0.25)
 	creature.twitch.spasm(1.2)
 	# elle se dresse d'un coup et hurle vers le bruit... puis part au galop
@@ -2746,8 +2772,9 @@ func _body(who: String, pos: Vector3, yaw: float, lines: Array) -> void:
 	var a := Actor.create(self, who, pos, yaw)
 	a.play("dead", 0.0)
 	a.tint("", Color(0.62, 0.58, 0.56), 0.55)
-	# la pose est appliquée tout de suite, puis le corps est posé au sol (point le plus bas du maillage)
-	var low := a.lowest_point()
+	# la pose est appliquée tout de suite, puis le corps est posé au sol : le gros du corps (et pas
+	# seulement le point le plus bas, souvent une main) touche le sol
+	var low := a.lowest_point(0.06)
 	if low < INF:
 		a.global_position.y += floor_y(pos) + 0.005 - low
 	B.decal(self, "res://assets/gen/decal_blood_pool.png", pos + Vector3(0, 0.1, 0), Vector3.UP, 2.2, 2.2, 0.5)
@@ -3066,7 +3093,7 @@ func _process(delta: float) -> void:
 		if d < 7.0 and _presence_cd <= 0.0:
 			_presence_cd = randf_range(0.8, 2.5)
 			Game.glitch(0.12 + (7.0 - d) * 0.04, false)
-		Game.set_fx("gain", 0.45 + danger * 0.45)
+		Game.set_fx("gain", 0.4 + danger * 0.45)
 	else:
 		player.danger = _chase_heat * 0.75
 	# trop longtemps sans la croiser : elle vient rôder dans le secteur du joueur (sans savoir où il est)
@@ -3112,6 +3139,11 @@ func _build_npc() -> void:
 	_npc_body.chest = _npc.bone("Spine2")
 	_npc_body.head = _npc.bone("Head")
 	_npc_body.droop = 0.85
+	# les mains à plat au sol, de chaque côté (plus de bras tendus en avant)
+	_npc_body.pelvis = _npc.bone("Pelvis")
+	_npc_body.ground_y = floor_y(NPC_POS)
+	_npc_body.arms = [[_npc.bone("L UpperArm"), _npc.bone("L Forearm"), _npc.bone("L Hand"), -1.0],
+		[_npc.bone("R UpperArm"), _npc.bone("R Forearm"), _npc.bone("R Hand"), 1.0]]
 	_npc.skeleton.add_child(_npc_body)
 	# il a saigné là, en glissant le long du mur
 	B.decal(self, "res://assets/gen/decal_blood_pool.png", NPC_POS + Vector3(-0.35, 0.1, 0), Vector3.UP, 1.4, 1.6, 0.4, Color(1, 1, 1, 0.85))
@@ -3150,25 +3182,33 @@ func _npc_talk() -> void:
 	_npc_state = 1
 	var head := _npc.global_position + Vector3(0, 0.8, 0)
 	Sound.play_at(Sound.variant("dying_cough", 2), head, -2.0, 1.0, 2.0, 14.0)
+	# Théo s'accroupit devant lui : on ne rate rien de ce qu'il dit
+	player.control_enabled = false
+	player.look_enabled = false
+	var start := player.head.global_transform
+	var eye := NPC_POS + Vector3(-1.0, 0.92, 0.12)
+	var close := Transform3D(Basis.looking_at(head + Vector3(0.05, -0.08, 0) - eye, Vector3.UP), eye)
+	var cam_tw := create_tween()
+	cam_tw.tween_method(func(w: float) -> void: player.set_cinematic(start.interpolate_with(close, w), 1.0), 0.0, 1.0, 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	# il relève la tête vers Théo
 	_npc_twitch.target = player.head
 	var tw := create_tween().set_parallel()
 	tw.tween_property(_npc_body, "droop", 0.15, 1.6).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(_npc_twitch, "look_weight", 0.85, 1.6).set_trans(Tween.TRANS_SINE)
 	await wait(1.6)
-	await _npc_say("Toi... t'es réveillé...", 2.4)
-	Game.hud.say("Monsieur ? Vous êtes blessé... attendez, je—", 2.6)
-	await wait(2.8)
-	await _npc_say("Laisse... Écoute-moi. La seule sortie, c'est l'écluse 3. La grille, tout au fond, vers l'est.", 4.2)
-	await _npc_say("Ils l'ont fermée avec une chaîne. Y a des pinces dans le local technique... au nord.", 3.8)
+	await _npc_say("Toi... t'es réveillé...", 2.2)
+	Game.hud.say("Monsieur ? Vous êtes blessé... attendez, je—", 2.4)
+	await wait(2.5)
+	await _npc_say("Laisse... Écoute-moi. La seule sortie, c'est l'écluse 3. La grille, tout au fond, vers l'est.", 4.0)
+	await _npc_say("Ils l'ont fermée avec une chaîne. Y a des pinces dans le local technique... au nord.", 3.6)
 	Sound.play_at(Sound.variant("dying_cough", 2), head, -6.0, 1.05, 2.0, 14.0)
-	await wait(1.0)
-	await _npc_say("Et ils ont coupé le courant. Les trois fusibles de l'armoire... ils les ont balancés dans le réseau.", 4.2)
-	await _npc_say("Un dans chaque partie des égouts. Bertrand est parti les chercher... il est jamais revenu.", 4.0)
-	await _npc_say("La chose, là-dedans... elle voit rien. Elle entend. Quand elle clique... tu bouges plus.", 4.2)
-	Game.hud.say("Tenez bon, je vais chercher de l'aide—", 2.2)
-	await wait(2.3)
-	await _npc_say("...Les fusibles...", 2.0)
+	await wait(0.9)
+	await _npc_say("Et ils ont coupé le courant. Les trois fusibles de l'armoire... ils les ont balancés dans le réseau.", 4.0)
+	await _npc_say("Un dans chaque partie des égouts. Bertrand est parti les chercher... il est jamais revenu.", 3.8)
+	await _npc_say("La chose, là-dedans... elle voit rien. Elle entend. Quand elle clique... tu bouges plus.", 4.0)
+	Game.hud.say("Tenez bon, je vais chercher de l'aide—", 2.0)
+	await wait(2.1)
+	await _npc_say("...Les fusibles...", 1.8)
 	# dernier souffle
 	if is_instance_valid(_npc_breath):
 		Sound.fade(_npc_breath, -60.0, 1.0, true)
@@ -3178,13 +3218,21 @@ func _npc_talk() -> void:
 	tw2.tween_property(_npc_body, "depth", 0.0, 2.6)
 	tw2.tween_property(_npc_twitch, "look_weight", 0.0, 1.8)
 	_npc_twitch.twitch_amount = 0.0
-	await wait(3.0)
+	await wait(2.8)
 	_npc_dead_pose()
 	params["npc"] = true
 	Game.level_params = params
-	Game.hud.say("Hé... Hé ! ...Non. Non, non, non.", 2.8)
-	await wait(3.2)
-	Game.hud.say("...Trois fusibles. Une chaîne. L'écluse 3.", 3.0)
+	Game.hud.say("Hé... Hé ! ...Non. Non, non, non.", 2.6)
+	await wait(2.8)
+	Game.hud.say("...Trois fusibles. Une chaîne. L'écluse 3.", 2.8)
+	# Théo se relève
+	var back := player.head.global_transform
+	var tw3 := create_tween()
+	tw3.tween_method(func(w: float) -> void: player.set_cinematic(close.interpolate_with(back, w), 1.0 - w), 0.0, 1.0, 1.1).set_trans(Tween.TRANS_SINE)
+	await wait(1.1)
+	player.set_cinematic(Transform3D(), 0.0)
+	player.control_enabled = true
+	player.look_enabled = true
 	_lock_objective()
 
 
@@ -3196,29 +3244,26 @@ const HIDEOUT := Vector2i(8, 13)
 
 func _build_hideout() -> void:
 	var c := tile_center(HIDEOUT)
-	var x := c.x + 1.0
-	var bag_pos := Vector3(x, 0, c.z + 0.15)
-	B.model(self, "sf:sleeping_bag", bag_pos + Vector3(0, floor_y(bag_pos) + 0.005, 0), 182.0, {"depth": 1.85})
-	# traits gravés au mur, au-dessus de la tête : onze jours
-	B.decal(self, "res://assets/gen/decal_tally.png", Vector3((HIDEOUT.x + 1) * T - 0.01, 1.05, c.z + 0.75), Vector3(-1, 0, 0), 0.62, 0.31, 0.12, Color(1, 1, 1, 0.85))
-	B.decal(self, "res://assets/gen/decal_grime.png", Vector3(x, 0.05, c.z - 0.6), Vector3.UP, 1.0, 1.0, 0.3, Color(0.6, 0.5, 0.4, 0.7))
-	# conserves vides, une canette écrasée
+	var base := Vector3(c.x + 1.0, floor_y(Vector3(c.x + 1.0, 0, c.z)), c.z)
+	# tout le campement est un seul « élément du niveau » : on le déplace d'un bloc dans l'éditeur (F8)
+	var camp := Node3D.new()
+	camp.name = "Hideout"
+	add_child(camp)
+	camp.global_position = base
+	camp.set_meta("editobj", "hideout")
+	camp.set_meta("spec", {"model": "campement de la victime", "center": false})
+	B.model(camp, "sf:sleeping_bag", Vector3(0, 0.005, 0.15), 182.0, {"depth": 1.85})
+	B.decal(camp, "res://assets/gen/decal_grime.png", Vector3(0, 0.05, -0.6), Vector3.UP, 1.0, 1.0, 0.3, Color(0.6, 0.5, 0.4, 0.7))
+	# conserves vides, une canette
 	for spec in [[Vector3(-0.3, 0, -1.05), 0.0, false], [Vector3(0.12, 0, -1.2), 40.0, true], [Vector3(-0.22, 0, 1.15), 75.0, true], [Vector3(0.15, 0, 1.2), 10.0, false]]:
-		var off: Vector3 = spec[0]
-		var p := Vector3(x, 0, c.z) + off
-		if in_channel(p):
-			continue
-		var can := B.model(self, "can_rusted", p + Vector3(0, floor_y(p), 0), spec[1], {"scale": 1.6})
+		var can := B.model(camp, "can_rusted", spec[0], spec[1], {"scale": 1.6})
 		if spec[2]:
 			can.rotation_degrees.z = 90.0
 			can.position.y += 0.06
-	var bc := Vector3(x - 0.32, 0, c.z - 0.95)
-	if not in_channel(bc):
-		var beer := B.model(self, "sf:beer_can", bc + Vector3(0, floor_y(bc) + 0.035, 0), 130.0, {"height": 0.12})
-		beer.rotation_degrees.x = 90.0
+	var beer := B.model(camp, "sf:beer_can", Vector3(-0.32, 0.035, -0.95), 130.0, {"height": 0.12})
+	beer.rotation_degrees.x = 90.0
 	# sa lampe torche, éteinte depuis longtemps
-	var lp := Vector3(x - 0.3, 0, c.z - 0.62)
-	var lamp := B.model(self, "sf:flashlight_dead", lp + Vector3(0, floor_y(lp) + 0.022, 0), 65.0, {"depth": 0.24})
+	var lamp := B.model(camp, "sf:flashlight_dead", Vector3(-0.3, 0.022, -0.62), 65.0, {"depth": 0.24})
 	for mi in lamp.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		for si in m.mesh.get_surface_count():
@@ -3228,7 +3273,7 @@ func _build_hideout() -> void:
 				dead.emission_enabled = false
 				m.set_surface_override_material(si, dead)
 	var seen := [false]
-	var it := Interactable.create(self, Vector3(x, 0.3, c.z), Vector3(1.0, 0.7, 2.2), "Examiner", func() -> void:
+	var it := Interactable.create(camp, Vector3(0, 0.3, 0), Vector3(1.0, 0.7, 2.2), "Examiner", func() -> void:
 		if seen[0]:
 			Game.hud.say("Onze jours, ici. Tout seul, dans le noir.", 2.8)
 			return
@@ -3240,6 +3285,29 @@ func _build_hideout() -> void:
 		await wait(3.0)
 		Game.hud.say("Sa lampe est morte. Plus de piles... Et lui, il est où ?", 3.4))
 	it.name = "HideoutUse"
+	it.position = Vector3(0, 0.3, 0)
+	# les traits gravés au mur : un élément à part, qui se colle à n'importe quel mur dans l'éditeur
+	var marks := Node3D.new()
+	marks.name = "HideoutMarks"
+	add_child(marks)
+	marks.global_transform = Transform3D(Basis.from_euler(Vector3(0, atan2(-1.0, 0.0), 0)), Vector3((HIDEOUT.x + 1) * T - 0.005, 1.05, c.z + 0.75))
+	marks.set_meta("editobj", "hideout_marks")
+	marks.set_meta("spec", {"model": "traits gravés au mur", "center": true})
+	var dcl := B.decal(marks, "res://assets/gen/decal_tally.png", Vector3.ZERO, Vector3(0, 0, 1), 0.62, 0.31, 0.12, Color(1, 1, 1, 0.85))
+	dcl.transform = Transform3D(Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0)), Vector3.ZERO)
+	# surface invisible pour pouvoir viser les traits dans l'éditeur
+	var pick := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.62, 0.31)
+	pick.mesh = q
+	var inv := StandardMaterial3D.new()
+	inv.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	inv.albedo_color = Color(1, 1, 1, 0)
+	inv.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	pick.material_override = inv
+	pick.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marks.add_child(pick)
+	pick.position = Vector3(0, 0, 0.004)
 
 
 # ================================================================== éclats de verre
@@ -3263,20 +3331,36 @@ func _build_glass() -> void:
 					ok = false
 					break
 			if ok:
-				_glass_patch(p, 0.45, 90)
+				_glass_patch(p, 0.4, 70)
 				break
 
 
-func _glass_patch(center: Vector3, radius: float, count: int) -> void:
+func _glass_patch(center: Vector3, radius: float, count: int, bottle := true) -> void:
 	glass_patches.append([center, radius])
-	# verre de bouteille vert, brun, et verre clair : presque transparent, très brillant
-	var specs := [[Color(0.16, 0.34, 0.12, 0.5)], [Color(0.32, 0.15, 0.05, 0.6)], [Color(0.85, 0.9, 0.9, 0.22)]]
+	var gy := maxf(floor_y(center), WATER_Y)
+	# la bouteille elle-même, cassée en deux (goulot + cul), couchée au milieu des éclats
+	if bottle:
+		var b := B.model(self, "sf:broken_bottle", Vector3(center.x, gy + 0.002, center.z), randf_range(0, 360), {"width": randf_range(0.28, 0.34), "center": false})
+		B.set_shadows(b, false)
+		# vrai verre de bouteille : vert sombre, translucide, très brillant
+		var bottle_glass := StandardMaterial3D.new()
+		bottle_glass.albedo_color = Color(0.07, 0.2, 0.06, 0.78)
+		bottle_glass.roughness = 0.04
+		bottle_glass.metallic_specular = 1.0
+		bottle_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		bottle_glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+		bottle_glass.rim_enabled = true
+		bottle_glass.rim = 0.25
+		for mi in b.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).material_override = bottle_glass
+	# menus éclats du même verre vert (et un peu de verre clair), pas plus gros qu'un ongle
+	var specs := [[Color(0.12, 0.3, 0.1, 0.65)], [Color(0.85, 0.9, 0.88, 0.3)]]
 	var tools: Array[SurfaceTool] = []
 	var mats: Array[StandardMaterial3D] = []
 	for sp in specs:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = sp[0]
-		m.roughness = 0.03
+		m.roughness = 0.04
 		m.metallic_specular = 1.0
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -3285,20 +3369,18 @@ func _glass_patch(center: Vector3, radius: float, count: int) -> void:
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		tools.append(st)
 	for k in count:
-		# plus dense au centre (là où la bouteille a éclaté)
-		var r := radius * pow(randf(), 0.75)
+		var r := radius * pow(randf(), 1.3)
 		var a := randf() * TAU
 		var p := center + Vector3(cos(a) * r, 0, sin(a) * r)
-		p.y = maxf(floor_y(p), WATER_Y) + 0.002
-		var size := randf_range(0.005, 0.02) if randf() < 0.75 else randf_range(0.02, 0.045)
-		var st2: SurfaceTool = tools[2] if k % 3 == 0 else tools[randi() % 2]
-		# éclat triangulaire irrégulier, un peu de travers
+		p.y = maxf(floor_y(p), WATER_Y) + 0.0015
+		var size := randf_range(0.003, 0.009) if randf() < 0.85 else randf_range(0.01, 0.018)
+		var st2: SurfaceTool = tools[1] if k % 5 == 0 else tools[0]
 		var a0 := randf() * TAU
-		var tilt := Vector3(randf_range(-0.25, 0.25), 1.0, randf_range(-0.25, 0.25)).normalized()
+		var tilt := Vector3(randf_range(-0.3, 0.3), 1.0, randf_range(-0.3, 0.3)).normalized()
 		st2.set_normal(tilt)
 		for v in 3:
-			var av := a0 + v * TAU / 3.0 + randf_range(-0.5, 0.5)
-			var rv := size * randf_range(0.45, 1.0)
+			var av := a0 + v * TAU / 3.0 + randf_range(-0.6, 0.6)
+			var rv := size * randf_range(0.4, 1.0)
 			var off := Vector3(cos(av) * rv, 0, sin(av) * rv)
 			off.y = -(tilt.x * off.x + tilt.z * off.z) / tilt.y
 			st2.add_vertex(p + off)
@@ -3336,7 +3418,7 @@ func _creature_tracks(delta: float) -> void:
 				dcl.queue_free()
 			_prints.remove_at(i)
 			continue
-		dcl.modulate.a = (1.0 - smoothstep(45.0, 110.0, float(e[1]))) * 0.9
+		dcl.modulate.a = (1.0 - smoothstep(40.0, 110.0, float(e[1]))) * 0.8
 	if creature == null or not creature.visible or creature.state in [Creature.State.DORMANT, Creature.State.STAND]:
 		_print_from = Vector3.INF
 		return
@@ -3356,9 +3438,9 @@ func _creature_tracks(delta: float) -> void:
 	var d := Decal.new()
 	d.texture_albedo = B.tex("res://assets/gen/decal_wet_print.png")
 	d.texture_orm = B.tex("res://assets/gen/decal_wet_print_orm.png")
-	var ln := randf_range(0.34, 0.46)
-	d.size = Vector3(ln * 0.5, 0.4, ln)
-	d.modulate = Color(1, 1, 1, 0.9)
+	var ln := randf_range(0.26, 0.36)
+	d.size = Vector3(ln * randf_range(0.45, 0.6), 0.4, ln)
+	d.modulate = Color(1, 1, 1, 0.8)
 	d.normal_fade = 0.3
 	d.cull_mask = 1
 	add_child(d)
@@ -3457,7 +3539,7 @@ class Rat extends Node3D:
 				_dir.y = 0
 				_dir = _dir.normalized().rotated(Vector3.UP, randf_range(-0.6, 0.6))
 				model.rotation.y = atan2(_dir.x, _dir.z)
-				Sound.play_at("rat_squeak", global_position, -8.0, randf_range(0.9, 1.2), 2.0, 15.0)
+				Sound.play_at(Sound.variant("rat_squeak", 3), global_position, -8.0, randf_range(0.9, 1.2), 2.0, 15.0)
 			return
 		global_position += _dir * 3.2 * delta
 		_t += delta

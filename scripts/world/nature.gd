@@ -320,51 +320,73 @@ static func dust(parent: Node, extents: Vector3, amount := 700) -> GPUParticles3
 	return p
 
 
-## Petit nuage de mouches qui tournent sur place (au-dessus d'un corps).
-static func flies(parent: Node, pos: Vector3, amount := 16) -> GPUParticles3D:
+## Essaim de mouches autour d'un corps : petites, rapides, trajectoires en zigzag, elles ne
+## s'éloignent jamais (un attracteur les ramène) ; étirées dans le sens du vol comme sur une vidéo.
+static func flies(parent: Node, pos: Vector3, amount := 18) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = amount
-	p.lifetime = 2.2
-	p.preprocess = 2.2
+	p.lifetime = 2.5
+	p.preprocess = 2.5
 	p.visibility_aabb = AABB(Vector3(-1.5, -1.0, -1.5), Vector3(3.0, 2.5, 3.0))
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	pm.emission_sphere_radius = 0.4
+	pm.emission_sphere_radius = 0.35
 	pm.direction = Vector3(0, 1, 0)
 	pm.spread = 180.0
-	pm.initial_velocity_min = 0.4
-	pm.initial_velocity_max = 1.1
+	pm.initial_velocity_min = 1.0
+	pm.initial_velocity_max = 2.2
 	pm.gravity = Vector3.ZERO
-	pm.damping_min = 0.6
-	pm.damping_max = 1.2
+	pm.damping_min = 0.3
+	pm.damping_max = 0.8
 	pm.turbulence_enabled = true
-	pm.turbulence_noise_strength = 4.0
-	pm.turbulence_noise_scale = 0.5
-	pm.turbulence_noise_speed = Vector3(0.6, 0.4, 0.6)
-	pm.turbulence_influence_min = 0.5
+	pm.turbulence_noise_strength = 7.0
+	pm.turbulence_noise_scale = 0.3
+	pm.turbulence_noise_speed = Vector3(1.6, 1.2, 1.6)
+	pm.turbulence_influence_min = 0.55
 	pm.turbulence_influence_max = 0.9
+	pm.particle_flag_align_y = true
+	pm.scale_min = 0.8
+	pm.scale_max = 1.2
 	var fade := Gradient.new()
 	fade.set_color(0, Color(1, 1, 1, 0))
 	fade.set_color(1, Color(1, 1, 1, 0))
-	fade.add_point(0.1, Color(1, 1, 1, 1))
-	fade.add_point(0.9, Color(1, 1, 1, 1))
+	fade.add_point(0.06, Color(1, 1, 1, 1))
+	fade.add_point(0.94, Color(1, 1, 1, 1))
 	var ramp := GradientTexture1D.new()
 	ramp.gradient = fade
 	pm.color_ramp = ramp
 	p.process_material = pm
-	var q := QuadMesh.new()
-	q.size = Vector2(0.016, 0.016)
+	# deux petits rubans croisés, étirés dans le sens du vol (visibles sous tous les angles)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in 2:
+		var ax := Vector3(0.0028, 0, 0) if k == 0 else Vector3(0, 0, 0.0028)
+		var up := Vector3(0, 0.009, 0)
+		var a := -ax - up
+		var b := ax - up
+		var c := ax + up
+		var d := -ax + up
+		for v in [a, b, c, a, c, d]:
+			st.add_vertex(v)
+	var mesh := st.commit()
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.02, 0.02, 0.02)
+	m.albedo_color = Color(0.035, 0.035, 0.03)
 	m.vertex_color_use_as_albedo = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	q.material = m
-	p.draw_pass_1 = q
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 0.35
+	m.metallic_specular = 0.6
+	mesh.surface_set_material(0, m)
+	p.draw_pass_1 = mesh
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(p)
 	p.global_position = pos
+	# l'essaim reste groupé autour du corps
+	var att := GPUParticlesAttractorSphere3D.new()
+	att.radius = 0.9
+	att.strength = 5.0
+	att.attenuation = 0.6
+	p.add_child(att)
 	return p
 
 

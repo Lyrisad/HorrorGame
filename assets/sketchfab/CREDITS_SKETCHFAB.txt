@@ -33,3 +33,4 @@ fusebox_vintage: "Freebie - Game Art: Vintage Fuse Box" by filip.alecsandru (htt
 fuse_screw: extrait de "Freebie - Game Art: Vintage Fuse Box" by filip.alecsandru (https://sketchfab.com/3d-models/freebie-game-art-vintage-fuse-box-4109ae3e180d4ed8b3427fe6a97d58b6) — CC Attribution
 sleeping_bag: "Sleeping bag" by Tactical_Beard (https://sketchfab.com/3d-models/sleeping-bag-8098c046310445b6b15c0f1466509e35) — CC Attribution
 flashlight_dead: "Flashlight" by Hepatitis_Bee (https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) — CC Attribution
+broken_bottle: "Broken Wine Bottle" by Ivan_Valbuena (https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) — CC Attribution

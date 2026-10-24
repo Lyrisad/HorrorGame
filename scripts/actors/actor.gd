@@ -112,10 +112,13 @@ func bone_position(core: String) -> Vector3:
 
 ## Hauteur (monde) du point le plus bas du maillage dans la pose actuelle, skinning calculé
 ## sur le CPU : sert à poser exactement un corps au sol (les os sont à l'intérieur du corps).
-func lowest_point() -> float:
+## `percentile` > 0 : hauteur sous laquelle se trouve cette part des sommets (ex. 0,06) — pour un
+## corps allongé, c'est le dos / le ventre qui touche le sol, pas une main qui dépasse dessous.
+func lowest_point(percentile := 0.0) -> float:
 	if anim != null:
 		anim.advance(0.0)
 	var low := INF
+	var heights := PackedFloat32Array()
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi.mesh == null or not mi.is_visible_in_tree():
@@ -126,7 +129,9 @@ func lowest_point() -> float:
 			var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 			if mi.skin == null or skel == null or arr[Mesh.ARRAY_BONES] == null:
 				for i in range(0, verts.size(), 3):
-					low = minf(low, (mi.global_transform * verts[i]).y)
+					var y0 := (mi.global_transform * verts[i]).y
+					low = minf(low, y0)
+					heights.append(y0)
 				continue
 			var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
 			var weights: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
@@ -144,6 +149,10 @@ func lowest_point() -> float:
 					if w > 0.0:
 						p += (mats[bones[i * per + k]] * verts[i]) * w
 				low = minf(low, p.y)
+				heights.append(p.y)
+	if percentile > 0.0 and heights.size() > 10:
+		heights.sort()
+		return heights[int(heights.size() * percentile)]
 	return low
 
 

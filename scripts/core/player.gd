@@ -38,7 +38,10 @@ var _turn_speed := 0.0
 var _hold := 0.0
 var _focus: Interactable = null
 var _flicker_t := 0.0
-var _flash_energy := 4.2
+var _flash_energy := 3.0
+var _lamp_off := false  ## coupure franche (faux contact violent)
+var _dim_t := 0.0  ## baisse de tension : la lampe faiblit puis revient
+var _dim_level := 1.0
 var _body_yaw := 0.0
 var _aim_dist := 6.0  ## distance où le faisceau croise le centre de l'image
 var _tremble := 0.0  ## mains qui tremblent après une poursuite (secondes restantes)
@@ -91,7 +94,7 @@ func _ready() -> void:
 	flashlight = SpotLight3D.new()
 	flashlight.light_color = Color(1.0, 0.95, 0.86)
 	flashlight.light_energy = _flash_energy
-	flashlight.spot_range = 26.0
+	flashlight.spot_range = 22.0
 	flashlight.spot_angle = 27.0
 	flashlight.spot_angle_attenuation = 0.9
 	flashlight.spot_attenuation = 1.4
@@ -389,9 +392,14 @@ func _update_camera(delta: float) -> void:
 	# lampe : vacillement + rendu
 	if flashlight_on:
 		var e := _flash_energy
+		if _dim_t > 0.0:
+			_dim_t -= delta
+			e *= _dim_level * (0.85 + 0.15 * sin(_tremble_t * 31.0 + _dim_t * 17.0))
 		if _flicker_t > 0.0:
 			_flicker_t -= delta
 			e = _flash_energy * (0.0 if randf() < 0.45 else randf_range(0.2, 1.0))
+		if _lamp_off:
+			e = 0.0
 		flashlight.light_energy = e
 		flash_fill.light_energy = e * 0.03
 	else:
@@ -474,11 +482,39 @@ func _update_tremble(delta: float) -> void:
 	_tremble = maxf(0.0, _tremble - delta)
 
 
+## Faux contacts de la lampe, jamais deux fois pareils :
+## grésillement bref · baisse de tension · un ou deux clignements · coupure violente d'une seconde.
 func _flashlight_glitch() -> void:
-	var fail := randf_range(0.35, 1.1)
-	flicker(fail)
-	Sound.play_at("flicker", hand.global_position, -18.0, 1.6, 2.0, 8.0)
-	await get_tree().create_timer(fail + 0.15, false).timeout
+	var tree := get_tree()
+	var roll := randf()
+	if roll < 0.3:
+		# grésillement : quelques dixièmes de seconde
+		var fail := randf_range(0.25, 0.7)
+		flicker(fail)
+		Sound.play_at("flicker", hand.global_position, -18.0, 1.6, 2.0, 8.0)
+		await tree.create_timer(fail + 0.15, false).timeout
+	elif roll < 0.55:
+		# baisse de tension : le faisceau jaunit, faiblit et ondule, puis revient
+		_dim_level = randf_range(0.25, 0.45)
+		_dim_t = randf_range(1.2, 2.6)
+		await tree.create_timer(_dim_t + 0.1, false).timeout
+	elif roll < 0.78:
+		# un ou deux clignements secs
+		for k in (1 if randf() < 0.5 else 2):
+			_lamp_off = true
+			await tree.create_timer(randf_range(0.06, 0.12), false).timeout
+			_lamp_off = false
+			await tree.create_timer(randf_range(0.12, 0.25), false).timeout
+	else:
+		# coupure violente : ça grésille fort, noir complet une seconde, puis elle se rallume
+		flicker(0.35)
+		Sound.play_at("flicker", hand.global_position, -12.0, 1.1, 2.0, 10.0)
+		await tree.create_timer(0.35, false).timeout
+		_lamp_off = true
+		await tree.create_timer(randf_range(0.9, 1.3), false).timeout
+		_lamp_off = false
+		Sound.play("flashlight_click", -10.0, 1.1)
+		Game.shake(0.08)
 	if randf() < 0.6 and flashlight_on:
 		# deux petits coups du plat de la main sur la lampe
 		Sound.play(Sound.variant("flashlight_tap", 2), -10.0, randf_range(0.95, 1.05))

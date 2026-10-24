@@ -47,6 +47,14 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    ancienne victime, buée en entrant dans la citerne, mains qui tremblent après une poursuite, la vapeur couvre
    les bruits du monstre, faux contacts de la lampe ; à la maison, Théo ne dit plus « ils connaissent mon nom »
    (c'est sur les téléphones de ses potes) mais un truc confus.
+11. 24/10/2026 : 2e liste. PNJ : mains au sol (plus de bras de zombie), conversation en gros plan jusqu'au bout
+   (bug des sous-titres qui s'effaçaient) ; flare sans dédoublement (« pas l'effet bourré »), plus de fissure ;
+   bouteille cassée réaliste ; égouts encore plus sombres, lampe moins forte avec plusieurs faux contacts
+   (dont une coupure d'1 s) ; gouttes floues et discrètes ; traces mouillées réalistes ; vrais sons enregistrés
+   (pas, eau, verre, rats, mouches) ; mouches en essaim ; corps bien au sol ; poteaux de la citerne en béton
+   vieilli (plus le gris uni) ; la créature touche le sol au galop ; campement déplaçable dans l'éditeur ;
+   citerne : seulement des quais le long des murs, un socle à chaque poteau ; plantage de la lampe corrigé.
+   Sa carte des égouts modifiée le 23/10 (121 objets) est recopiée dans maps/.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
