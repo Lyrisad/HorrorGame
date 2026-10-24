@@ -334,7 +334,7 @@ static func dust(parent: Node, extents: Vector3, amount := 700) -> GPUParticles3
 
 ## Quelques grains de poussière tout près de l'objectif : hors de la mise au point, ils deviennent de
 ## grosses taches rondes, floues et pâles dans le faisceau (les « orbes » des vidéos de caméra-piéton).
-static func dust_bokeh(parent: Node, amount := 26) -> GPUParticles3D:
+static func dust_bokeh(parent: Node, amount := 14) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = amount
 	p.lifetime = 9.0
@@ -382,7 +382,7 @@ static func dust_bokeh(parent: Node, amount := 26) -> GPUParticles3D:
 	disc.height = 64
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = disc
-	m.albedo_color = Color(0.9, 0.88, 0.82, 0.07)
+	m.albedo_color = Color(0.9, 0.88, 0.82, 0.045)
 	# trop près de l'objectif (contre la lampe), ils s'effacent au lieu de faire des billes blanches
 	m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
 	m.distance_fade_min_distance = 0.35

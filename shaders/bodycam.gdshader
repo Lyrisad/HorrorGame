@@ -26,6 +26,8 @@ uniform float compress = 1.0;    // macroblocs de compression dans les zones som
 uniform float lens_fog = 0.0;    // buée sur l'objectif (humidité)
 uniform float lens_drops = 0.0;  // gouttes sur l'objectif (éclaboussure)
 uniform float flare = 1.0;
+uniform float defocus = 0.0;  // mise au point qui patine (0 = net)
+uniform float ae_gain = 0.0;  // l'exposition automatique pousse le capteur dans le noir (plus de bruit)
 // lampes visibles projetées à l'écran : xy = position (uv), z = intensité, w = taille
 uniform vec4 flare_src[4];
 uniform vec4 flare_col[4];
@@ -118,6 +120,10 @@ void fragment() {
 	col.r = texture(screen_tex, uvR).r;
 	col.g = texture(screen_tex, uvG).g;
 	col.b = texture(screen_tex, uvB).b;
+	// mise au point qui patine : l'image floute puis revient
+	if (defocus > 0.001) {
+		col = mix(col, textureLod(screen_tex, uvG, defocus * 3.2).rgb, smoothstep(0.0, 0.35, defocus));
+	}
 
 	// accentuation "traitement vidéo" (masque flou)
 	vec2 px = SCREEN_PIXEL_SIZE * 1.5;
@@ -126,7 +132,7 @@ void fragment() {
 		+ texture(screen_tex, uvG + vec2(0.0, px.y)).rgb
 		+ texture(screen_tex, uvG - vec2(0.0, px.y)).rgb;
 	blur *= 0.25;
-	col += (col - blur) * sharpen * (1.0 - lens_fog);
+	col += (col - blur) * sharpen * (1.0 - lens_fog) * (1.0 - min(defocus * 2.0, 1.0));
 
 	// --- buée : voile laiteux et flou, qui se dissipe d'abord au centre ---
 	float fog_m = 0.0;
@@ -158,7 +164,8 @@ void fragment() {
 	col += fl * flare;
 
 	// --- exposition, gain du capteur ---
-	col = max(col, vec3(0.0)) * exposure * (1.0 + gain * 0.8);
+	float g_all = gain + ae_gain;
+	col = max(col, vec3(0.0)) * exposure * (1.0 + g_all * 0.8);
 
 	float l = dot(col, vec3(0.299, 0.587, 0.114));
 	float dark = 1.0 - smoothstep(0.0, 0.5, l);
@@ -166,7 +173,7 @@ void fragment() {
 	// --- macroblocs de compression : dans les ombres, l'encodeur lisse par blocs de 8 px ---
 	if (compress > 0.001) {
 		vec2 bpx = floor(uvG * res / 8.0) * 8.0 + 4.0;
-		vec3 bcol = texture(screen_tex, bpx / res).rgb * exposure * (1.0 + gain * 0.8);
+		vec3 bcol = texture(screen_tex, bpx / res).rgb * exposure * (1.0 + g_all * 0.8);
 		float moving = 0.5 + 0.5 * hash12(floor(uvG * res / 8.0) + floor(TIME * 6.0));
 		col = mix(col, bcol, dark * dark * 0.22 * compress * moving);
 	}
@@ -178,7 +185,7 @@ void fragment() {
 	float gco = hash13(vec3(floor(FRAGCOORD.xy / 2.0), frame * 5.0 + 3.0)) - 0.5;
 	float g = mix(gf, gco, 0.55);
 	float gc = hash13(vec3(floor(FRAGCOORD.xy / 2.0) * 1.37, frame * 3.0 + 11.0)) - 0.5;
-	float amp = grain * (0.3 + dark * 0.9) * (1.0 + gain * 1.6);
+	float amp = grain * (0.3 + dark * 0.9) * (1.0 + g_all * 1.6);
 	col += g * amp;
 	col.r += gc * amp * 0.25 * dark;
 	col.b -= gc * amp * 0.25 * dark;

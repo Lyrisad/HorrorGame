@@ -38,6 +38,7 @@
 | `assets/sketchfab/sleeping_bag` | [Sleeping bag](https://sketchfab.com/3d-models/sleeping-bag-8098c046310445b6b15c0f1466509e35) | Tactical_Beard |
 | `assets/sketchfab/flashlight_dead` | [Flashlight](https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) | Hepatitis_Bee |
 | `assets/sketchfab/broken_bottle` | [Broken Wine Bottle](https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) | Ivan_Valbuena |
+| `assets/sketchfab/cockroach` | [Giant cockroach](https://sketchfab.com/3d-models/giant-cockroach-4b19ed8851f74c278eef835250a82896) | Drillimpact |
 
 Modifications : modèles recadrés, recolorés, découpés en pièces ; la créature garde les animations
 de son auteur (mises à l'échelle, renommées, calées au sol).
@@ -51,7 +52,7 @@ Pas, eau, verre, rats et mouches : extraits découpés et normalisés par `tools
 florianreichelt (459964), ryansitz (342932),
 martinimeniscus (164457, 164458), Rickmk2 (164315), ralph.whitehead (331451), PotatokingXII (352870),
 monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhailo (143125),
-egomassive (536753), galeku (46938), BeeProductive (395593) — https://freesound.org/s/<numéro>/
+egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054) — https://freesound.org/s/<numéro>/
 
 ## Captures de mouvement — CMU Graphics Lab Motion Capture Database
 The data used in this project was obtained from mocap.cs.cmu.edu.

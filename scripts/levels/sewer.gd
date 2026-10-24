@@ -84,6 +84,7 @@ var _shaft_tops: Array = []  ## [centre, hauteur du haut du conduit, lumière de
 var _gust_cd := 25.0
 var _ledge_side := 1.0  ## -1 / +1 : une des banquettes ; 0 : dans l'eau, au milieu de la cunette
 var _lane_cd := 10.0
+var _close_seen := false
 var _lamp_lights: Array[Light3D] = []  ## luminaires : les plus proches de Théo ont des ombres
 var _shadow_cd := 0.0
 ## Fuites de vapeur des galeries techniques : [case, mur, décalage de la bride le long du mur]
@@ -130,6 +131,7 @@ func _ready() -> void:
 	_build_pipes()
 	_build_steam()
 	_build_navigation()
+	_build_debris()
 	_build_props()
 	_build_lights()
 	_build_signage()
@@ -198,6 +200,13 @@ func _ready() -> void:
 		_lookcam()
 	if Game.args.has("gust"):
 		_gust_cd = 1.0
+	# test : --splashtest → des ronds dans l'eau devant Théo ; --roachtest → des cafards puis la lampe dessus
+	if Game.args.has("splashtest"):
+		_splash_test()
+	if Game.args.has("roachtest"):
+		_roach_test()
+	if Game.args.has("misttest") and _mist != null:
+		(_mist.material as FogMaterial).density = float(Game.args["misttest"])
 	# test : --hinttest → affiche l'indice du micro (le plus long du jeu)
 	if Game.args.has("hinttest"):
 		Game.hud.hint(MIC_HINT, 8.0)
@@ -685,6 +694,7 @@ func _build_geometry() -> void:
 	water_mat.set_shader_parameter("speed", 0.05)
 	water_mat.set_shader_parameter("color", Color(0.045, 0.05, 0.038))
 	mats["water"] = water_mat
+	_water_mat = water_mat
 	var floor_faces := PackedVector3Array()
 	for surf_name: String in _surf:
 		var st: SurfaceTool = _surf[surf_name]
@@ -2281,6 +2291,7 @@ func _shatter(target: Variant) -> void:
 	var wet := get_surface(pos) == "water"
 	if wet:
 		Sound.play_at(Sound.variant("step_water", 4), pos, 2.0, 0.7, 5.0, 40.0)
+		splash(pos, 2.0)
 		lure_noise(pos, 12.0)
 	else:
 		Sound.play_at("glass_break", pos, 4.0, randf_range(0.92, 1.08), 6.0, 70.0)
@@ -3099,6 +3110,18 @@ func _process(delta: float) -> void:
 	_zone_audio(delta)
 	_creature_tracks(delta)
 	_lamp_shadows(delta)
+	_update_rings()
+	_update_debris(delta)
+	_update_roaches(delta)
+	# la créature surgit tout près, en face : la mise au point de la caméra patine
+	if creature != null and creature.visible and creature.state != Creature.State.DORMANT:
+		var cd := creature.global_position.distance_to(player.global_position)
+		var face := (-player.cam.global_basis.z).dot((creature.head_position() - player.cam.global_position).normalized())
+		if cd < 2.8 and face > 0.6 and not _close_seen:
+			_close_seen = true
+			Game.focus_hunt(1.0)
+		elif cd > 5.0:
+			_close_seen = false
 	# de temps en temps elle change de voie : l'autre banquette, ou elle redescend patauger dans l'eau
 	_lane_cd -= delta
 	if _lane_cd <= 0.0:
@@ -3133,9 +3156,12 @@ func _process(delta: float) -> void:
 	# gouttes qui tombent autour du joueur
 	_drip_cd -= delta
 	if _drip_cd <= 0.0:
-		_drip_cd = randf_range(0.6, 2.5)
-		var p := player.global_position + Vector3(randf_range(-6, 6), 2.6, randf_range(-6, 6))
-		Sound.play_at(Sound.variant("drip", 3), p, randf_range(-14.0, -4.0), randf_range(0.8, 1.3), 2.5, 20.0)
+		_drip_cd = randf_range(0.5, 2.0)
+		var p := player.global_position + Vector3(randf_range(-5, 5), 2.6, randf_range(-5, 5))
+		if walkable(tile_of(p)) and _is_water(p) and randf() < 0.8:
+			_falling_drop(p)
+		else:
+			Sound.play_at(Sound.variant("drip", 3), p, randf_range(-14.0, -4.0), randf_range(0.8, 1.3), 2.5, 20.0)
 	# cri lointain (quelqu'un d'autre est encore en vie ?)
 	_wail_cd -= delta
 	if _wail_cd <= 0.0:
@@ -3601,9 +3627,441 @@ func _lamp_shadows(delta: float) -> void:
 
 ## Un pas de Théo : en courant dans l'eau, ça éclabousse parfois jusqu'à l'objectif.
 func on_footstep(surface: String) -> void:
+	if surface == "water":
+		splash(player.global_position, 1.5 if player.running else (0.6 if player.crouching else 1.0))
 	if surface == "water" and player.running and _splash_cd <= 0.0 and randf() < 0.3:
 		_splash_cd = 6.0
 		Game.lens_splash(randf_range(0.6, 1.0))
+
+
+# ================================================================== eau vivante
+## L'eau réagit : un rond s'élargit à chaque pas (Théo, la créature), sous chaque goutte qui tombe de la
+## voûte, là où une bouteille tombe ; des débris (feuilles, mousse, plastique) dérivent vers la citerne ;
+## une brume basse traîne au ras de la citerne.
+var _water_mat: ShaderMaterial
+var _rings: Array = []  ## [x, z, instant, force]
+var _ring_i := 0
+var _flow := {}  ## case → case suivante vers la citerne (Vector2i(-1, -1) : grille d'évacuation)
+var _sink_dir := {}  ## case qui se jette dans la salle de la citerne → direction de la grille
+var _debris: Array = []  ## [nœud, vitesse, décalage latéral, rotation, phase, âge]
+var _debris_mats: Array[StandardMaterial3D] = []
+var _mist: FogVolume
+const DEBRIS_N := 34
+
+
+func _is_water(pos: Vector3) -> bool:
+	return cell(tile_of(pos)) == "w" or in_channel(pos)
+
+
+## Quelque chose touche l'eau en `pos` : un rond s'élargit à la surface.
+func splash(pos: Vector3, strength := 1.0) -> void:
+	if _water_mat == null or not _is_water(pos):
+		return
+	var r := [pos.x, pos.z, _time, strength]
+	if _rings.size() < 24:
+		_rings.append(r)
+	else:
+		_rings[_ring_i] = r
+		_ring_i = (_ring_i + 1) % 24
+
+
+func _update_rings() -> void:
+	if _water_mat == null:
+		return
+	var arr: Array[Vector4] = []
+	for i in 24:
+		if i < _rings.size() and _time - float(_rings[i][2]) < 2.3:
+			var r: Array = _rings[i]
+			arr.append(Vector4(r[0], r[1], r[2], r[3]))
+		else:
+			arr.append(Vector4.ZERO)
+	_water_mat.set_shader_parameter("rings", arr)
+	_water_mat.set_shader_parameter("ring_now", _time)
+
+
+## Une goutte se détache de la voûte et tombe dans l'eau (on la voit passer dans le faisceau).
+func _falling_drop(p: Vector3) -> void:
+	var top := h_top(tile_of(p)) - 0.05
+	var drop := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.005, 0.03)
+	drop.mesh = q
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.85, 0.9, 0.9, 0.7)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	m.roughness = 0.1
+	drop.material_override = m
+	drop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(drop)
+	drop.global_position = Vector3(p.x, top, p.z)
+	var fall := sqrt(2.0 * maxf(top - WATER_Y, 0.2) / 9.8)
+	var tw := create_tween()
+	tw.tween_property(drop, "global_position:y", WATER_Y, fall).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func() -> void:
+		splash(Vector3(p.x, 0, p.z), 0.55)
+		Sound.play_at(Sound.variant("drip", 3), Vector3(p.x, WATER_Y, p.z), randf_range(-12.0, -4.0), randf_range(0.85, 1.25), 2.5, 20.0)
+		drop.queue_free())
+
+
+## Sens du courant : les cunettes se jettent dans la salle de la citerne (par les grilles au bout).
+func _build_flow() -> void:
+	var dist := {}
+	var queue: Array[Vector2i] = []
+	for z in H:
+		for x in W:
+			var t := Vector2i(x, z)
+			if not has_channel(t):
+				continue
+			for d: Vector2i in DIRS:
+				if is_hall(t + d) or cell(t + d) == "w":
+					dist[t] = 0
+					_flow[t] = Vector2i(-1, -1)
+					_sink_dir[t] = Vector3(d.x, 0, d.y)
+					queue.append(t)
+					break
+	while not queue.is_empty():
+		var t: Vector2i = queue.pop_front()
+		for d: Vector2i in DIRS:
+			var n := t + d
+			if dist.has(n) or not has_channel(n) or not _link(t, d):
+				continue
+			dist[n] = int(dist[t]) + 1
+			_flow[n] = t
+			queue.append(n)
+
+
+func _build_debris() -> void:
+	_build_flow()
+	var tex: Texture2D = load("res://assets/gen/water_debris.png")
+	for k in 4:
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.uv1_scale = Vector3(0.25, 1, 1)
+		m.uv1_offset = Vector3(0.25 * k, 0, 0)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if k in [1, 2] else BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = 0.4
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.roughness = 0.35
+		_debris_mats.append(m)
+	for i in DEBRIS_N:
+		var n := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		n.mesh = q
+		n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(n)
+		_debris.append([n, 0.0, 0.0, 0.0, randf() * TAU, 0.0])
+		_respawn_debris(_debris[i], true)
+	# brume au ras de l'eau de la citerne : plus dense en bas, en volutes, elle dérive lentement
+	_mist = FogVolume.new()
+	_mist.name = "CisternMist"
+	_mist.size = Vector3(5 * T, 0.9, 3 * T)
+	var fm := FogMaterial.new()
+	fm.density = 0.7
+	fm.albedo = Color(0.7, 0.74, 0.7)
+	fm.height_falloff = 2.5
+	fm.edge_fade = 0.5
+	var nt := NoiseTexture3D.new()
+	nt.width = 64
+	nt.height = 16
+	nt.depth = 64
+	nt.seamless = true
+	var fn := FastNoiseLite.new()
+	fn.frequency = 0.06
+	nt.noise = fn
+	fm.density_texture = nt
+	_mist.material = fm
+	add_child(_mist)
+	_mist.position = Vector3(9.5 * T, WATER_Y + 0.4, 8.5 * T)
+
+
+func _respawn_debris(e: Array, anywhere := false) -> void:
+	var n := e[0] as MeshInstance3D
+	var keys := _flow.keys()
+	if keys.is_empty():
+		n.visible = false
+		return
+	var here := player.global_position if player != null else Vector3(10, 0, 10)
+	var t: Vector2i = keys[randi() % keys.size()]
+	for _k in 30:
+		var cand: Vector2i = keys[randi() % keys.size()]
+		var dd := tile_center(cand).distance_to(here)
+		if anywhere or (dd > 4.0 and dd < 13.0):
+			t = cand
+			break
+	var kind := randi() % 100
+	var k := 0 if kind < 40 else (1 if kind < 70 else (2 if kind < 85 else 3))
+	var sizes := [0.07, 0.13, 0.11, 0.06]
+	(n.mesh as QuadMesh).size = Vector2.ONE * float(sizes[k]) * randf_range(0.8, 1.25)
+	n.material_override = _debris_mats[k]
+	n.visible = true
+	e[1] = randf_range(0.06, 0.16)
+	e[2] = randf_range(-0.2, 0.2)
+	e[3] = randf_range(-0.4, 0.4)
+	e[5] = 0.0
+	var c := tile_center(t)
+	n.global_transform = Transform3D(Basis.from_euler(Vector3(-PI * 0.5, randf() * TAU, 0)), Vector3(c.x + randf_range(-0.15, 0.15), WATER_Y + 0.004, c.z + randf_range(-0.15, 0.15)))
+
+
+func _update_debris(delta: float) -> void:
+	if player == null:
+		return
+	var here := player.global_position
+	for e in _debris:
+		var n := e[0] as MeshInstance3D
+		if not n.visible:
+			continue
+		e[5] = float(e[5]) + delta
+		var p := n.global_position
+		var t := tile_of(p)
+		if not _flow.has(t) or p.distance_to(here) > 16.0 or float(e[5]) > 90.0:
+			_respawn_debris(e)
+			continue
+		var nxt: Vector2i = _flow[t]
+		var target: Vector3
+		if nxt == Vector2i(-1, -1):
+			# bout de cunette : le débris file vers la grille et disparaît dessous
+			target = tile_center(t) + (_sink_dir[t] as Vector3) * (T * 0.5)
+			if Vector2(p.x - target.x, p.z - target.z).length() < 0.25:
+				_respawn_debris(e)
+				continue
+		else:
+			target = tile_center(nxt)
+			var along := (target - tile_center(t)).normalized()
+			target += Vector3(-along.z, 0, along.x) * float(e[2])
+		var dir := Vector3(target.x - p.x, 0, target.z - p.z)
+		if dir.length() > 0.001:
+			p += dir.normalized() * float(e[1]) * delta
+		n.global_position = Vector3(p.x, WATER_Y + 0.004 + sin(_time * 1.3 + float(e[4])) * 0.002, p.z)
+		n.rotate_y(float(e[3]) * delta)
+	if _mist != null:
+		_mist.position.x = 9.5 * T + sin(_time * 0.05) * 0.8
+		_mist.position.z = 8.5 * T + cos(_time * 0.037) * 0.5
+
+
+# ================================================================== cafards
+## Des cafards sur les murs et au sol : quand le faisceau les attrape, ils détalent dans tous les sens
+## et disparaissent dans les fissures.
+var _roaches: Array = []
+var _roach_cd := 2.0
+var _skitter_cd := 0.0
+
+
+func _update_roaches(delta: float) -> void:
+	_skitter_cd -= delta
+	_roach_cd -= delta
+	for i in range(_roaches.size() - 1, -1, -1):
+		var r = _roaches[i]
+		if not is_instance_valid(r):
+			_roaches.remove_at(i)
+		elif (r as Node3D).global_position.distance_to(player.global_position) > 15.0:
+			(r as Node3D).queue_free()
+			_roaches.remove_at(i)
+	if _roach_cd > 0.0 or _roaches.size() > 34:
+		return
+	_roach_cd = randf_range(3.0, 7.0)
+	# un groupe à quelques mètres, jamais en plein dans le faisceau
+	for _try in 20:
+		var c := tile_of(player.global_position) + Vector2i(randi_range(-4, 4), randi_range(-4, 4))
+		if not walkable(c) or cell(c) in ["w", "G", "E"]:
+			continue
+		var walls := _wall_tiles(c)
+		if walls.is_empty():
+			continue
+		var d: Vector2i = walls[randi() % walls.size()]
+		var nrm := Vector3(-d.x, 0, -d.y)
+		var tan := Vector3(-d.y, 0, d.x)
+		var on_wall := randf() < 0.6
+		var base := wall_pos(c, d, 0.0, randf_range(-0.9, 0.9))
+		if on_wall:
+			base += Vector3(0, randf_range(0.3, 1.3), 0) + nrm * 0.012
+		else:
+			base += nrm * randf_range(0.3, 0.5)
+			base.y = floor_y(base) + 0.004
+			if _is_water(base):
+				continue
+		var dist := base.distance_to(player.global_position)
+		if dist < 4.0 or dist > 12.0:
+			continue
+		if player.flashlight_on:
+			var to := (base - player.flashlight.global_position).normalized()
+			if (-player.flashlight.global_basis.z).dot(to) > 0.85:
+				continue
+		for k in randi_range(3, 7):
+			var r := Roach.new()
+			r.level = self
+			r.on_wall = on_wall
+			r.normal = nrm if on_wall else Vector3.UP
+			r.u_axis = tan
+			r.v_axis = Vector3.UP if on_wall else nrm
+			r.home = base
+			add_child(r)
+			var off := Vector2(randf_range(-0.35, 0.35), randf_range(-0.25, 0.25))
+			r.global_position = base + tan * off.x + r.v_axis * off.y
+			if on_wall:
+				r.global_position.y = clampf(r.global_position.y, 0.22, 1.5)
+			_roaches.append(r)
+		break
+
+
+func _splash_test() -> void:
+	await wait(1.0)
+	for k in 12:
+		var f := -player.cam.global_basis.z
+		f.y = 0.0
+		splash(player.global_position + f.normalized() * randf_range(1.2, 2.6) + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)), 1.2)
+		await wait(0.35)
+
+
+func _roach_test() -> void:
+	await wait(0.8)
+	var base := player.global_position + Vector3(0, 0.6, 0) - player.cam.global_basis.z * 2.0
+	var right := player.cam.global_basis.x
+	for k in 6:
+		var r := Roach.new()
+		r.level = self
+		r.on_wall = false
+		r.normal = Vector3.UP
+		r.u_axis = Vector3.RIGHT
+		r.v_axis = Vector3.BACK
+		var at := player.global_position - player.cam.global_basis.z * 1.6 + right * (1.3 + randf_range(-0.25, 0.25)) + Vector3(0, 0, randf_range(-0.25, 0.25))
+		at.y = floor_y(at) + 0.004
+		r.home = at
+		add_child(r)
+		r.global_position = at
+		_roaches.append(r)
+	await wait(2.2)
+	# Théo tourne la tête vers eux : le faisceau les attrape
+	var to := (player.global_position + right * 1.3 - player.cam.global_basis.z * 1.6) - player.global_position
+	player.set_look(atan2(-to.x, -to.z), deg_to_rad(-38.0))
+
+
+func roach_skitter(pos: Vector3) -> void:
+	if _skitter_cd > 0.0:
+		return
+	_skitter_cd = 0.6
+	Sound.play_at(Sound.variant("roach_skitter", 3), pos, -14.0, randf_range(0.9, 1.15), 1.0, 7.0)
+
+
+class Roach extends Node3D:
+	var level: Node
+	var on_wall := false
+	var normal := Vector3.UP
+	var u_axis := Vector3.RIGHT  ## axes du plan où il marche (mur : horizontal / vertical ; sol : deux axes au sol)
+	var v_axis := Vector3.FORWARD
+	var home := Vector3.ZERO
+	var anim: AnimationPlayer
+	var model: Node3D
+	var fleeing := false
+	var flee_t := 0.0
+	var dir := Vector2.ZERO
+	var speed := 0.0
+	var pause_t := 0.0
+	var walk_name := ""
+	var idle_name := ""
+
+	func _ready() -> void:
+		var ps: PackedScene = load("res://assets/sketchfab/cockroach/cockroach.glb")
+		model = ps.instantiate() as Node3D
+		add_child(model)
+		# le modèle est un cafard « géant » : 2,2 m de long (antennes comprises) → 3 cm
+		model.scale = Vector3.ONE * (randf_range(0.026, 0.036) / 2.2)
+		var aps := model.find_children("*", "AnimationPlayer", true, false)
+		if not aps.is_empty():
+			anim = aps[0] as AnimationPlayer
+			for a in anim.get_animation_list():
+				if a.ends_with("walking"):
+					walk_name = a
+				elif a.ends_with("idle"):
+					idle_name = a
+			if idle_name != "":
+				anim.play(idle_name)
+				anim.seek(randf() * 1.2, true)
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			var m3 := mi as MeshInstance3D
+			m3.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# brun très foncé et luisant (la texture d'origine tire sur l'orange)
+			for si in m3.mesh.get_surface_count():
+				var mat := m3.get_active_material(si) as StandardMaterial3D
+				if mat != null:
+					var dm := mat.duplicate() as StandardMaterial3D
+					dm.albedo_color = dm.albedo_color * Color(0.45, 0.36, 0.3)
+					dm.roughness = 0.35
+					m3.set_surface_override_material(si, dm)
+		dir = Vector2.from_angle(randf() * TAU)
+		pause_t = randf_range(0.5, 3.0)
+		_orient()
+
+	func _process(delta: float) -> void:
+		var p = level.player
+		if p == null:
+			return
+		if not fleeing and p.flashlight_on and p.flashlight.light_energy > 0.6:
+			var to: Vector3 = global_position - p.flashlight.global_position
+			var dd := to.length()
+			if dd < 7.0 and (-p.flashlight.global_basis.z).dot(to / dd) > 0.91:
+				_flee(p)
+		if fleeing:
+			flee_t -= delta
+			if flee_t <= 0.0:
+				queue_free()
+				return
+		else:
+			# petits déplacements nerveux, puis immobile
+			pause_t -= delta
+			if pause_t <= 0.0:
+				if speed > 0.0:
+					speed = 0.0
+					pause_t = randf_range(1.0, 4.0)
+				else:
+					speed = randf_range(0.03, 0.09)
+					pause_t = randf_range(0.3, 1.2)
+					dir = dir.rotated(randf_range(-1.6, 1.6))
+		if speed > 0.0:
+			var step := (u_axis * dir.x + v_axis * dir.y) * speed * delta
+			var np := global_position + step
+			# rester sur sa surface : sur le mur entre 0,2 et 1,5 m, près de son coin ; au sol, hors de l'eau
+			var off := np - home
+			var bad := absf(off.dot(u_axis)) > 1.2
+			if on_wall:
+				bad = bad or np.y < 0.2 or np.y > 1.55
+			else:
+				bad = bad or absf(off.dot(v_axis)) > 0.7 or level._is_water(np)
+			if bad:
+				dir = -dir.rotated(randf_range(-0.7, 0.7))
+			else:
+				global_position = np
+			if anim != null and walk_name != "":
+				anim.play(walk_name, 0.1, clampf(speed / 0.08, 0.8, 4.0))
+			_orient()
+		elif anim != null and idle_name != "":
+			anim.play(idle_name, 0.2)
+
+	func _flee(p) -> void:
+		fleeing = true
+		flee_t = randf_range(0.9, 2.0)
+		speed = randf_range(0.3, 0.55)
+		pause_t = 99.0
+		# ils fuient le centre du faisceau, chacun un peu de son côté
+		var o: Vector3 = p.flashlight.global_position
+		var bd: Vector3 = -p.flashlight.global_basis.z
+		var center := o + bd * (global_position - o).dot(bd)
+		var away := global_position - center
+		var d2 := Vector2(away.dot(u_axis), away.dot(v_axis))
+		if d2.length() < 0.01:
+			d2 = Vector2.from_angle(randf() * TAU)
+		dir = d2.normalized().rotated(randf_range(-0.6, 0.6))
+		level.roach_skitter(global_position)
+
+	func _orient() -> void:
+		var fwd := (u_axis * dir.x + v_axis * dir.y).normalized()
+		if fwd.length() < 0.5:
+			return
+		# la tête du modèle est vers -Z
+		var y := normal
+		var x := y.cross(-fwd).normalized()
+		var z := x.cross(y).normalized()
+		global_basis = Basis(x, y, z)
 
 
 # ================================================================== rats

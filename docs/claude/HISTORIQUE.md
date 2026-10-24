@@ -65,6 +65,10 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    proches. Carte des égouts du joueur (campement déplacé le 24/10) recopiée dans maps/.
 14. Faux contacts de la lampe plus fréquents ; la créature repasse aussi dans l'eau (un tiers du temps) ;
    poussière plus réaliste et un peu plus dense, avec des « orbes » flous près de l'objectif.
+15. Idées proposées (liste de 12) ; il a choisi : eau vivante (ronds, gouttes, débris, brume), cafards qui fuient
+   le faisceau, exposition automatique qui « pompe » + mise au point qui patine. Faits. Restent en idées : vrais
+   sons partout, voix de Théo (à enregistrer par lui), objets qu'on heurte, mains à l'image, batterie de lampe,
+   retenir sa respiration, cachettes, plus d'histoire à trouver, réglage de qualité graphique.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

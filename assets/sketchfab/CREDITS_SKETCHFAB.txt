@@ -34,3 +34,4 @@ fuse_screw: extrait de "Freebie - Game Art: Vintage Fuse Box" by filip.alecsandr
 sleeping_bag: "Sleeping bag" by Tactical_Beard (https://sketchfab.com/3d-models/sleeping-bag-8098c046310445b6b15c0f1466509e35) — CC Attribution
 flashlight_dead: "Flashlight" by Hepatitis_Bee (https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) — CC Attribution
 broken_bottle: "Broken Wine Bottle" by Ivan_Valbuena (https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) — CC Attribution
+cockroach: "Giant cockroach" by Drillimpact (https://sketchfab.com/3d-models/giant-cockroach-4b19ed8851f74c278eef835250a82896) — CC Attribution

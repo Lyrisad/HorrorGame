@@ -3,7 +3,7 @@ sur des éclats de verre, couinements de rats.
 
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
-   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing"
+   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
 """
@@ -160,7 +160,40 @@ def make_loop(cache, out, name, srcs, length=8.0, fade=0.6):
     print(f"   {name}  {len(body) / SR:.2f}s")
 
 
+# extraits continus (pas d'attaques nettes) : les fenêtres les plus fournies, sans chevauchement
+CLIPS = {
+    "roach_skitter": (("767054", "ThabzMalik"), 3, 0.7),
+}
+
+
+def make_clips(cache, out, name, src, count, length):
+    files = glob.glob(os.path.join(cache, "**", src[0] + ".mp3"), recursive=True)
+    if not files:
+        return
+    x = load(files[0])
+    hop = int(0.02 * SR)
+    e = envelope(x, hop)
+    win = int(length / 0.02)
+    used = np.zeros(len(e), dtype=bool)
+    for i in range(count):
+        best, best_i = -1.0, -1
+        for k in range(0, len(e) - win, 3):
+            if used[k:k + win].any():
+                continue
+            sc = float(np.mean(e[k:k + win]))
+            if sc > best:
+                best, best_i = sc, k
+        if best_i < 0:
+            break
+        used[max(0, best_i - win // 2):best_i + win + win // 2] = True
+        seg = x[best_i * hop: best_i * hop + int(length * SR)].copy()
+        write(os.path.join(out, f"{name}_{i}.wav"), finish(seg, 0.5))
+        print(f"   {name}_{i}  {len(seg) / SR:.2f}s")
+
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
     for nm, src in LOOPS.items():
         make_loop(sys.argv[1], sys.argv[2], nm, src)
+    for nm, (src, count, length) in CLIPS.items():
+        make_clips(sys.argv[1], sys.argv[2], nm, src, count, length)

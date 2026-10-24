@@ -422,6 +422,8 @@ func _locomote(delta: float) -> void:
 		_step_accum = 0.0
 		var vol := -10.0 + clampf(speed / CHASE_SPEED, 0.0, 1.0) * 10.0
 		Sound.play_at(Sound.variant("creature_step", 3), global_position, vol, randf_range(0.85, 1.05), 5.0, 40.0, null, "Creature")
+		if nav != null and nav.has_method("splash"):
+			nav.splash(global_position + fwd * 0.4, 1.4 if state == State.CHASE else 0.9)
 
 
 func _animate() -> void:

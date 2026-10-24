@@ -62,6 +62,16 @@ var _lens_drops := 0.0
 ## Lampes qui font des reflets dans l'objectif quand on les regarde : [lumière, force, couleur]
 var _flares: Array = []
 var _flare_smooth := {}
+## Exposition automatique de la caméra : en retard, elle dépasse un peu puis se stabilise (ressort amorti)
+var _ae := 1.0
+var _ae_vel := 0.0
+var _scene_bright := 0.0
+var _dark_t := 0.0
+## Mise au point : quand ce qui est au centre de l'image saute de loin à tout près (ou l'inverse)
+var _focus := 0.0
+var _focus_t := -1.0
+var _focus_cd := 0.0
+var _focus_dist := 5.0
 
 
 func _ready() -> void:
@@ -354,11 +364,66 @@ func reset_fx() -> void:
 	_lens_fog = 0.0
 	_lens_fog_target = 0.0
 	_lens_drops = 0.0
+	_ae = 1.0
+	_ae_vel = 0.0
+	_scene_bright = 0.0
+	_focus = 0.0
+	_focus_t = -1.0
 	_flares.clear()
 	_flare_smooth.clear()
 	for k in fx_base.keys():
 		post_mat.set_shader_parameter(k, fx_base[k])
 	_push_flares([])
+
+
+## La mise au point de la caméra cherche une fraction de seconde (quelque chose surgit tout près...).
+func focus_hunt(amount := 1.0) -> void:
+	if _focus_cd > 0.0:
+		return
+	_focus_cd = 1.5
+	_focus_t = 0.0
+	_focus = maxf(_focus, amount)
+
+
+func _update_camera_auto(delta: float) -> void:
+	# --- exposition : ce que la caméra « voit » de lumineux (lampes visibles, mur tout près sous la lampe)
+	var bright := _scene_bright
+	var p: Player = level.player if level != null else null
+	if p != null and p.flashlight_on and p.flashlight.light_energy > 0.5:
+		bright += clampf((1.6 - p.aim_raw) / 1.6, 0.0, 1.0) * 1.2
+	# noir complet (lampe éteinte, aucune lampe en vue) : au bout d'un moment, la caméra pousse le gain
+	if bright < 0.05 and (p == null or not p.flashlight_on):
+		_dark_t += delta
+	else:
+		_dark_t = 0.0
+	var target := clampf(1.0 / (1.0 + bright * 0.9), 0.55, 1.0)
+	if _dark_t > 1.5:
+		target = 1.0 + minf((_dark_t - 1.5) * 0.15, 0.25)
+	# ressort un peu mou : elle réagit avec retard et dépasse légèrement avant de se stabiliser
+	var k := 9.0
+	var damp := 3.2
+	_ae_vel += ((target - _ae) * k - _ae_vel * damp) * delta
+	_ae += _ae_vel * delta
+	post_mat.set_shader_parameter("ae_gain", clampf((_ae - 1.0) * 2.0, 0.0, 0.5))
+	# --- mise au point : saut brusque de distance au centre de l'image
+	_focus_cd = maxf(0.0, _focus_cd - delta)
+	if p != null:
+		var d := maxf(p.aim_raw, 0.05)
+		var near := minf(d, _focus_dist)
+		var far := maxf(d, _focus_dist)
+		if near < 1.3 and far / near > 3.0:
+			focus_hunt(0.8)
+		_focus_dist = lerpf(_focus_dist, d, 1.0 - exp(-3.0 * delta))
+	var df := 0.0
+	if _focus_t >= 0.0:
+		_focus_t += delta
+		# flou qui monte vite, revient, ressaute un peu (elle cherche), puis net
+		var t := _focus_t
+		df = _focus * (smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(0.12, 0.38, t)) + 0.35 * smoothstep(0.38, 0.46, t) * (1.0 - smoothstep(0.46, 0.65, t)))
+		if t > 0.7:
+			_focus_t = -1.0
+			_focus = 0.0
+	post_mat.set_shader_parameter("defocus", df)
 
 
 ## Une lampe visible (avec son luminaire) : quand Théo la regarde, elle fait des reflets dans l'objectif.
@@ -390,6 +455,7 @@ func _update_lens(delta: float) -> void:
 
 
 func _update_flares(delta: float) -> void:
+	_scene_bright = 0.0
 	var cam := get_viewport().get_camera_3d()
 	if cam == null or _flares.is_empty() or level == null:
 		_push_flares([])
@@ -442,6 +508,7 @@ func _update_flares(delta: float) -> void:
 		var sm := lerpf(float(_flare_smooth.get(id, 0.0)), float(c[0]), 1.0 - exp(-10.0 * delta))
 		_flare_smooth[id] = sm
 		out.append([c[1], sm, float(c[3]) * clampf(4.0 / maxf(float(c[4]), 1.0), 0.5, 1.6), l2.light_color])
+		_scene_bright += sm
 	for id in _flare_smooth.keys():
 		if not seen.has(id):
 			_flare_smooth.erase(id)
@@ -531,11 +598,12 @@ func _process(delta: float) -> void:
 	post_mat.set_shader_parameter("glitch", _glitch)
 	post_mat.set_shader_parameter("flash", _flash)
 	post_mat.set_shader_parameter("blackout", _blackout)
-	post_mat.set_shader_parameter("exposure", float(fx_base.get("exposure", 1.0)) * float(settings["brightness"]))
+	post_mat.set_shader_parameter("exposure", float(fx_base.get("exposure", 1.0)) * float(settings["brightness"]) * _ae)
 	post_mat.set_shader_parameter("shake_x", (randf() - 0.5) * 0.004 * _shake)
 	if not get_tree().paused:
 		_update_lens(delta)
 		_update_flares(delta)
+		_update_camera_auto(delta)
 	_debug_screenshots()
 	if args.has("timeout") and Time.get_ticks_msec() / 1000.0 > float(args["timeout"]):
 		print("TIMEOUT")

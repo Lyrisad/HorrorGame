@@ -149,6 +149,17 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - nav_path() walks the creature on a LEDGE (0.72 m off the channel, same side most of the time) in straight
   channel corridors, on a "lane" (_ledge_side -1 / +1, or 0 = in the water) that changes every 8-18 s (35 %
   water): the user wants it to still wade sometimes; prints are skipped in water.
+- Living water: shaders/water.gdshader takes `rings[24]` (x, z, birth, strength) + `ring_now`; sewer.splash(pos, k)
+  adds a ring (player steps via on_footstep, creature steps via nav.splash, bottles, falling drops from the vault
+  in _falling_drop). Debris (assets/gen/water_debris.png atlas: leaf, foam, plastic, wrapper) drift along a flow
+  field (_build_flow: BFS from channel tiles touching the cistern hall, they vanish under the end grate).
+  Cistern mist = FogVolume + FogMaterial (density 0.7, height_falloff, NoiseTexture3D), slowly drifting.
+- Cockroaches (sewer.Roach, assets/sketchfab/cockroach "Giant cockroach": its skeleton is 2.2 m long — scale by
+  bone extents, NOT mesh AABB; head = -Z): groups on walls / floor 4-12 m away, flee the beam (cone 24°) and vanish.
+  Skitter = Freesound 767054 clips (real_sounds.py CLIPS). Test flags: --splashtest, --roachtest, --misttest=<density>.
+- Camera auto: Game._update_camera_auto() — exposure spring (lags and overshoots) driven by visible lamps
+  (_scene_bright from the flare pass) + flashlight on a close wall; boosts gain (`ae_gain`) after 1.5 s of total
+  darkness. Focus hunt (`defocus`, mip blur) when the centre distance jumps near↔far or the creature appears < 2.8 m.
 - Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
   and brightness, slow swirls, lit only by lights) + Nature.dust_bokeh (out-of-focus orbs ~1 m in front of the lens,
   distance-faded so they never become bright white balls).

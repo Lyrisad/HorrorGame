@@ -44,6 +44,7 @@ var _dim_t := 0.0  ## baisse de tension : la lampe faiblit puis revient
 var _dim_level := 1.0
 var _body_yaw := 0.0
 var _aim_dist := 6.0  ## distance où le faisceau croise le centre de l'image
+var aim_raw := 6.0  ## distance de ce qui est au centre de l'image (mise au point de la caméra)
 var _tremble := 0.0  ## mains qui tremblent après une poursuite (secondes restantes)
 var _tremble_t := 0.0
 var _scared := false
@@ -369,6 +370,7 @@ func _update_camera(delta: float) -> void:
 	if aim_ray.is_colliding():
 		want_dist = clampf(cam.global_position.distance_to(aim_ray.get_collision_point()), 0.9, 14.0)
 	_aim_dist = lerpf(_aim_dist, want_dist, 1.0 - exp(-8.0 * delta))
+	aim_raw = want_dist
 	var aim_at := head.global_position - head.global_basis.z * _aim_dist
 	var aim_basis := Basis.looking_at(aim_at - hand_pos, head.global_basis.y)
 	_hand_basis = _hand_basis.slerp(aim_basis, 1.0 - exp(-9.0 * delta)).orthonormalized()
