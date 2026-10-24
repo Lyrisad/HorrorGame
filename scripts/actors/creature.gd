@@ -49,6 +49,7 @@ var _chase_run := 0.0
 var _winded := 0.0
 ## 0..3 : fusibles ramassés par Théo — elle s'agite (+5 % de vitesse et +12 % d'ouïe par fusible)
 var aggression := 0
+var _move_speed := 0.0  ## vitesse réellement parcourue (l'animation de marche suit celle-ci)
 var _contacts: Array[int] = []  ## os qui touchent le sol (mains, doigts, pieds, orteils)
 var _contact_hist: Array = []  ## [temps, hauteur la plus basse] sur le dernier pas
 var _clock := 0.0
@@ -274,8 +275,9 @@ func _process(delta: float) -> void:
 	_ground(delta)
 
 
-## Recale le corps pour que ses appuis touchent vraiment le sol : au galop, l'animation d'origine
-## le faisait flotter. On prend l'appui le plus bas sur le dernier pas (pas image par image).
+## Recale le corps pour que ses appuis touchent vraiment le sol : l'animation de galop d'origine bondit,
+## mains et pieds à 30-50 cm du sol presque tout le cycle. On mesure l'appui le plus bas à chaque image
+## et on écrase 75 % de ce bond : il reste une courte suspension, mais les pattes frappent le sol.
 func _ground(delta: float) -> void:
 	if _contacts.is_empty() or actor.skeleton == null:
 		return
@@ -287,13 +289,13 @@ func _ground(delta: float) -> void:
 	# hauteur de l'appui par rapport à l'origine du modèle (sans le recalage déjà appliqué)
 	var rel := low - global_position.y - actor.position.y
 	_contact_hist.append([_clock, rel])
-	while _contact_hist.size() > 1 and _clock - float(_contact_hist[0][0]) > 0.5:
+	while _contact_hist.size() > 1 and _clock - float(_contact_hist[0][0]) > 0.7:
 		_contact_hist.pop_front()
-	var lowest := INF
+	var plant := INF  # hauteur au moment où une patte se pose (le plus bas du dernier cycle)
 	for e in _contact_hist:
-		lowest = minf(lowest, float(e[1]))
-	var want := clampf(0.025 - lowest, -0.6, 0.25)
-	actor.position.y = lerpf(actor.position.y, want, 1.0 - exp(-6.0 * delta))
+		plant = minf(plant, float(e[1]))
+	var want := clampf(0.02 - (plant + 0.25 * maxf(rel - plant, 0.0)), -0.6, 0.25)
+	actor.position.y = lerpf(actor.position.y, want, 1.0 - exp(-30.0 * delta))
 
 
 func _think(delta: float) -> void:
@@ -374,11 +376,15 @@ func _locomote(delta: float) -> void:
 	if _rear > 0.0:
 		_rear -= delta
 		speed = 0.0
+		_move_speed = 0.0
 		return
 	var agit := 1.0 + 0.05 * aggression if state != State.SCRIPTED else 1.0
-	speed = lerpf(speed, target_speed * agit if not path.is_empty() else 0.0, 1.0 - exp(-4.0 * delta))
 	if path.is_empty():
+		# arrivée : elle s'arrête vraiment (plus de pas sur place pendant qu'elle « freine »)
+		speed = lerpf(speed, 0.0, 1.0 - exp(-10.0 * delta))
+		_move_speed = lerpf(_move_speed, 0.0, 1.0 - exp(-14.0 * delta))
 		return
+	speed = lerpf(speed, target_speed * agit, 1.0 - exp(-4.0 * delta))
 	var target := path[0]
 	var to := Vector3(target.x - global_position.x, 0, target.z - global_position.z)
 	var dist := to.length()
@@ -389,8 +395,11 @@ func _locomote(delta: float) -> void:
 	heading = lerp_angle(heading, want, 1.0 - exp(-6.0 * delta))
 	var fwd := Vector3(-sin(heading), 0, -cos(heading))
 	var facing := absf(wrapf(want - heading, -PI, PI))
-	var mv := speed * delta * clampf(1.2 - facing, 0.2, 1.0)
+	# elle ralentit sur le dernier mètre au lieu de piler
+	var arrive := 1.0 if path.size() > 1 else clampf(dist / 1.0, 0.3, 1.0)
+	var mv := speed * delta * clampf(1.2 - facing, 0.2, 1.0) * arrive
 	global_position += fwd * minf(mv, dist)
+	_move_speed = lerpf(_move_speed, minf(mv, dist) / maxf(delta, 0.001), 1.0 - exp(-14.0 * delta))
 	if nav != null and nav.has_method("obstacles"):
 		for o in nav.obstacles():
 			var c: Vector3 = o[0]
@@ -419,7 +428,7 @@ func _animate() -> void:
 	match state:
 		State.CHASE:
 			if _rear <= 0.0:
-				actor.locomote("run", speed, "crouch", 0.25)
+				actor.locomote("run", _move_speed, "crouch", 0.25)
 		State.ATTACK:
 			pass
 		State.STAND:
@@ -427,9 +436,9 @@ func _animate() -> void:
 		State.SEARCH:
 			actor.play("search", 0.5, 1.0)
 		State.SCRIPTED:
-			actor.locomote("run" if target_speed > 2.0 else "stalk", speed, "crouch", 0.25)
+			actor.locomote("run" if target_speed > 2.0 else "stalk", _move_speed, "crouch", 0.25)
 		_:
-			actor.locomote("stalk", speed, "crouch", 0.35)
+			actor.locomote("stalk", _move_speed, "crouch", 0.35)
 
 
 func _vocalize(delta: float) -> void:

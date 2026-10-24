@@ -55,6 +55,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    vieilli (plus le gris uni) ; la créature touche le sol au galop ; campement déplaçable dans l'éditeur ;
    citerne : seulement des quais le long des murs, un socle à chaque poteau ; plantage de la lampe corrigé.
    Sa carte des égouts modifiée le 23/10 (121 objets) est recopiée dans maps/.
+12. Retour : « les nouveaux bruits de pas j'adore », mais pas ceux dans l'eau → remplacés par une marche dans
+   l'eau peu profonde (on brasse l'eau). La créature flottait encore au galop → recalage image par image.
+   Elle piétinait ~0,5 s en s'arrêtant à sa première apparition → animation pilotée par la vitesse réelle.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

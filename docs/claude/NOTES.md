@@ -111,13 +111,18 @@ Keep it current — add a line whenever you learn something non-obvious. History
   removed (user didn't like it).
 - HUD.say kills the previous subtitle fade tween: before, a line said < 0.4 s after the previous one ended
   was faded to invisible (whole conversations "stopped" mid-way).
+- User LOVES the recorded footsteps. Water steps must be WADING (342932 "Wading in Shallow Water"), not
+  puddle slaps — the first puddle recordings were rejected; avoid very bright sources (centroid ~8 kHz).
 - Sounds: footsteps (concrete, wood, gravel, grass, water, glass), rats and the flies loop are REAL CC0
   Freesound recordings (tools/dev/fs_fetch.py downloads HQ previews by search; tools/audio_gen/real_sounds.py
   slices each step on its impact, scores cleanliness, normalizes). generate_sounds.py no longer writes those
   names. I can't listen: pick sources by SNR / waveform plots, prefer most-downloaded.
 - Flashlight energy 3.0, range 22; glitch types: stutter, brownout (_dim_t), blinks, violent 1 s blackout
-  (_lamp_off). Creature `_ground()` re-seats the model each frame so the lowest hand/foot (min over 0.5 s)
-  touches the floor (the native gallop floated). Bodies use Actor.lowest_point(0.06) (6th percentile of
+  (_lamp_off). Creature `_ground()`: the native "run" gallop keeps every hand/foot 30-50 cm above the origin
+  for most of its 0.63 s cycle (it LEAPS). A slow min-over-0.5 s offset wasn't enough (user: "still doesn't
+  touch the ground"); now each frame the model is lowered to plant + 25 % of the current lift (75 % of the
+  bounce squashed). Creature animations are driven by `_move_speed` (distance really travelled) and it slows
+  down over its last metre — `speed` decaying after arrival made it walk on the spot. Bodies use Actor.lowest_point(0.06) (6th percentile of
   vertex heights) so the torso, not a protruding hand, rests on the floor. Flies = GPU particles with
   velocity-aligned crossed ribbons + an attractor sphere.
 - Cistern: hall tiles have NO channel (continuous ledges along the walls, no little islands); every pillar

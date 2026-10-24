@@ -2,7 +2,7 @@
 sur des éclats de verre, couinements de rats.
 
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
-   "footsteps water puddle" "wading water footsteps" "broken glass step" "glass crunch footstep" "rat squeak"
+   "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
    "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
@@ -20,7 +20,8 @@ SR = 44100
 # nom → ([(id Freesound, auteur), ...], nombre de variantes, durée max d'un pas, peak)
 SOURCES = {
     "step_concrete": ([("459964", "florianreichelt")], 4, 0.45, 0.7),
-    "step_water": ([("553238", "NachtmahrTV"), ("531566", "patchytherat"), ("861369", "ChristopherJngs")], 4, 0.7, 0.7),
+    # on marche DANS l'eau (5-10 cm, on la brasse), pas dans une flaque qui claque
+    "step_water": ([("342932", "ryansitz")], 4, 0.6, 0.62),
     "step_glass": ([("164458", "martinimeniscus"), ("164457", "martinimeniscus")], 4, 0.6, 0.6),
     "rat_squeak": ([("463789", "shyguy014"), ("143125", "Zabuhailo"), ("536753", "egomassive")], 3, 0.8, 0.6),
     "step_wood": ([("164315", "Rickmk2"), ("331451", "ralph.whitehead")], 4, 0.4, 0.7),

@@ -303,7 +303,7 @@ func _footstep() -> void:
 		radius = 13.0
 	if surface == "water":
 		radius *= 1.6
-		vol += 3.0
+		vol += 1.0
 	elif surface == "glass":
 		# des éclats de verre : impossible de les écraser sans bruit, même accroupi
 		radius = maxf(radius * 1.3, 7.5)
