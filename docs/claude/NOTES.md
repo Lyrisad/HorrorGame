@@ -57,8 +57,9 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - SecurityFeed renders at 12 fps with a stripped Environment (house 38→90 fps at 1080p).
 - GPUParticles one-shot bursts were unreliable/invisible here; for a handful of objects use tweened meshes
   (Nature.leaves).
-- Public repo hygiene: before committing run `git grep --cached -n -i phari` (a plain path regex misses JSON-escaped
-  `C:\Users\...`). Generated tools/blender_scripts/cfg_*.json hold absolute paths: git-ignored.
+- Public repo hygiene: before committing, grep the staged files for the Windows user name / `Users\` paths
+  (a plain path regex misses JSON-escaped `C:\\Users\\...`). Generated tools/blender_scripts/cfg_*.json hold
+  absolute paths: git-ignored.
 - Don't round-trip French files through PowerShell 5.1 Get-Content/Set-Content (mangles UTF-8). Write .ps1 in ASCII.
 - In Git Bash never call bare `python` (Windows Store stub hangs) — use a venv python. Write patch scripts to a
   file and run them (bash heredocs containing apostrophes inside python heredocs broke).
