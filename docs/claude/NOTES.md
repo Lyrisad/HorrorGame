@@ -144,8 +144,9 @@ Keep it current — add a line whenever you learn something non-obvious. History
   (_zone_audio: vaults long, cistern huge, galleries dry/metallic), creature sounds on bus "Creature"
   (Sound.play_at(..., parent, bus)) low-passed when no line of sight and masked near the steam leak.
   Lens fogs when entering the cistern; running in water may splash the lens.
-- Steam leaks (STEAM_LEAKS, 3 in the technical galleries) sit on a dedicated insulated pipe at 1.48 m with a
-  leaking flange (the zone-C wall pipes are at 2.2 m, nobody saw the steam up there). _steam_dist() = nearest leak.
+- Steam leaks (STEAM_LEAKS, 3 in the technical galleries) come from the EXISTING upper wall pipe (2.22 m,
+  12 cm off the wall) at a leaking sleeve, jet aimed forward + down so it crosses eye level. (An added pipe at
+  1.48 m was rejected: "a lone pipe on the wall" when the upper pipes could do it.) _steam_dist() = nearest leak.
 - nav_path() walks the creature on a LEDGE (0.72 m off the channel, same side most of the time) in straight
   channel corridors, on a "lane" (_ledge_side -1 / +1, or 0 = in the water) that changes every 8-18 s (35 %
   water): the user wants it to still wade sometimes; prints are skipped in water.

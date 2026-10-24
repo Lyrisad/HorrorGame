@@ -1198,52 +1198,39 @@ func has_los(a: Vector3, b: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
-## Fuites de vapeur dans les galeries techniques : une conduite calorifugée à hauteur d'homme, une bride
-## qui fuit et crache un jet qui siffle (il couvre les petits bruits... et ceux de la créature).
+## Fuites de vapeur dans les galeries techniques : sur les canalisations qui courent en haut des murs,
+## un raccord fuit et crache un jet qui siffle vers le bas (il couvre les petits bruits... et ceux de la créature).
 func _build_steam() -> void:
 	_steam_spots.clear()
+	var dark := B.color_mat(Color(0.16, 0.16, 0.15), 0.45, 0.8)
 	for spec in STEAM_LEAKS:
 		var t: Vector2i = spec[0]
 		var d: Vector2i = spec[1]
 		var c := tile_center(t)
 		var dn := Vector3(d.x, 0, d.y)
 		var tan := Vector3(-d.y, 0, d.x)
-		var y := 1.48
-		var pipe_c := c + dn * (T * 0.5 - 0.2) + Vector3(0, y, 0)
-		var steel := B.mat("rusty_metal_02", 0.6, {"metallic": 0.6, "roughness": 0.55, "color": Color(0.5, 0.5, 0.48)})
-		var dark := B.color_mat(Color(0.12, 0.12, 0.12), 0.5, 0.7)
-		# la conduite le long du mur, avec ses colliers et une bride au milieu (celle qui fuit)
-		var pipe := MeshInstance3D.new()
+		# la canalisation basse des deux qui longent le mur (2,22 m, à 12 cm du mur : voir _build_pipes)
+		var leak := c + dn * (T * 0.5 - (PIPE_INSET - 0.1)) + tan * float(spec[2]) + Vector3(0, 2.22, 0)
+		# le raccord qui fuit : un manchon un peu plus gros autour du tuyau existant
+		var sleeve := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
-		cm.top_radius = 0.065
-		cm.bottom_radius = 0.065
-		cm.height = T
-		cm.radial_segments = 14
-		pipe.mesh = cm
-		pipe.material_override = steel
-		add_child(pipe)
-		pipe.global_transform = Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5) if absf(tan.x) > 0.5 else Basis(Vector3(1, 0, 0), PI * 0.5), pipe_c)
-		for k2 in [-1.0, 1.0]:
-			B.box(self, Vector3(0.04, 0.17, 0.04) if absf(tan.x) < 0.5 else Vector3(0.04, 0.17, 0.04), pipe_c + tan * k2 * 1.0 + dn * 0.08, dark, false)
-		var flange := MeshInstance3D.new()
-		var fm := CylinderMesh.new()
-		fm.top_radius = 0.1
-		fm.bottom_radius = 0.1
-		fm.height = 0.05
-		fm.radial_segments = 14
-		flange.mesh = fm
-		flange.material_override = dark
-		add_child(flange)
-		var leak := pipe_c + tan * float(spec[2])
-		flange.global_transform = Transform3D(pipe.global_basis, leak)
-		var out := (-dn + Vector3(0, -0.25, 0) + tan * 0.25).normalized()
-		var jet := Nature.steam(self, leak - dn * 0.08, out)
+		cm.top_radius = 0.042
+		cm.bottom_radius = 0.042
+		cm.height = 0.07
+		cm.radial_segments = 12
+		sleeve.mesh = cm
+		sleeve.material_override = dark
+		add_child(sleeve)
+		sleeve.global_transform = Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5) if absf(tan.x) > 0.5 else Basis(Vector3(1, 0, 0), PI * 0.5), leak)
+		# jet vers l'avant et vers le bas : il descend dans la galerie avant de remonter en nuage
+		var out := (-dn * 0.75 + Vector3(0, -0.55, 0) + tan * 0.2).normalized()
+		var jet := Nature.steam(self, leak - dn * 0.03, out)
 		jet.name = "SteamLeak"
 		Sound.loop_at("steam_hiss_loop", jet, -5.0, 2.0, 16.0)
-		# le mur est mouillé et sale sous la fuite, une flaque au sol
-		B.decal(self, "res://assets/gen/decal_grime.png", leak + dn * 0.17 + Vector3(0, -0.45, 0), -dn, 0.7, 1.0, 0.25, Color(1, 1, 1, 0.7))
-		B.decal(self, "res://assets/gen/decal_puddle.png", Vector3(leak.x, 0.0, leak.z) - dn * 0.5, Vector3.UP, 1.2, 1.0, 0.2, Color(1, 1, 1, 0.85))
-		_steam_spots.append(leak)
+		# le mur ruisselle sous la fuite, une flaque au sol
+		B.decal(self, "res://assets/gen/decal_grime.png", leak + dn * 0.12 + Vector3(0, -0.8, 0), -dn, 0.6, 1.6, 0.2, Color(1, 1, 1, 0.75))
+		B.decal(self, "res://assets/gen/decal_puddle.png", Vector3(leak.x, 0.0, leak.z) - dn * 0.6, Vector3.UP, 1.2, 1.0, 0.2, Color(1, 1, 1, 0.85))
+		_steam_spots.append(Vector3(leak.x, 1.4, leak.z))
 
 
 ## Coup de vent dans la forêt au-dessus d'un puits : le vent siffle dans la grille, quelques feuilles
