@@ -167,8 +167,10 @@ func _ready() -> void:
 	hint_panel.add_theme_stylebox_override("panel", sb)
 	hint_label = _label("", 22)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint_panel.add_child(hint_label)
 	_place(hint_panel, 0.5, 1, 0.5, 1, -500, -360, 500, -310)
+	hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	hint_panel.visible = false
 	root.add_child(hint_panel)
 

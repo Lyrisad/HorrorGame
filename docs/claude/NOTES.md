@@ -129,7 +129,9 @@ Keep it current — add a line whenever you learn something non-obvious. History
   has a footing; pillars/footings/frames use shaders/wet_concrete.gdshader (concrete_wall_006, streaks,
   grime, algae band at the waterline, wet glossy base) via sewer._wet_concrete(water_y, algae_h, submerged).
 - Editor-movable (editobj): "hideout" (whole camp node incl. its Interactable) and "hideout_marks" (tally
-  decal + invisible pick quad; sticks to walls). NPC arms: BreathModifier two-bone IK puts the hands flat on
+  decal + invisible pick quad; sticks to walls). The NPC is seated by its PELVIS (floor + 0.12 m, after
+  anim.advance(0) applies the pose): the lowest vertex was a hand and left his buttocks 12 cm in the air.
+  HUD hints autowrap inside their 1000 px box and grow upward (the mic hint overflowed off-screen). NPC arms: BreathModifier two-bone IK puts the hands flat on
   the floor beside the hips; the NPC talk is a kneeling close-up cinematic (control locked ~32 s).
 - Sewer extras (2026-10-23): dying sewer worker "Lucien Mercier" (`egoutier`, Rocketbox Construction_Male_03,
   static frame 500 of CMU 140_04 + BreathModifier/TwitchModifier) at NPC_POS right outside the cage — talks

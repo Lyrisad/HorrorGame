@@ -48,6 +48,7 @@ const MAP := [
 	"#####################",
 ]
 const GATE := Vector2i(19, 12)
+const MIC_HINT := "Micro ouvert : si tu parles ou cries, la créature t'entend (vumètre MIC en bas à droite).  Paramètres → Micro"
 const EXIT := Vector2i(19, 13)
 
 var W := 0
@@ -191,6 +192,9 @@ func _ready() -> void:
 		_lookcam()
 	if Game.args.has("gust"):
 		_gust_cd = 1.0
+	# test : --hinttest → affiche l'indice du micro (le plus long du jeu)
+	if Game.args.has("hinttest"):
+		Game.hud.hint(MIC_HINT, 8.0)
 	# test : --lenstest → gouttes sur l'objectif dès le départ
 	if Game.args.has("lenstest"):
 		Game.lens_splash(1.0)
@@ -2576,7 +2580,7 @@ func _intro() -> void:
 	_setup_triggers()
 	if Sound.mic_active():
 		await wait(6.0)
-		Game.hud.hint("Ton micro est ouvert : si tu parles ou cries, ça s'entend ici aussi (vumètre MIC en bas à droite).   Paramètres → Micro", 8.0)
+		Game.hud.hint(MIC_HINT, 8.0)
 
 
 ## Reprise juste avant de prendre le coupe-boulons (l'établi, le seau, tout est en place).
@@ -3126,9 +3130,12 @@ func _build_npc() -> void:
 	_npc = Actor.create(self, "egoutier", NPC_POS, PI * 0.5)
 	_npc.play("sit", 0.0)
 	_npc.tint("", Color(0.72, 0.68, 0.64), 0.75)
-	var low := _npc.lowest_point()
-	if low < INF:
-		_npc.global_position.y += floor_y(NPC_POS) + 0.01 - low
+	# assis : ce sont les fesses qui portent (le point le plus bas de la pose d'origine était une main,
+	# il restait 12 cm de vide sous lui) — on pose le bassin à hauteur d'assise
+	if _npc.anim != null:
+		_npc.anim.advance(0.0)  # la pose assise doit être appliquée avant de mesurer
+	var pelvis_y := _npc.bone_position("Pelvis").y
+	_npc.global_position.y += floor_y(NPC_POS) + 0.12 - pelvis_y
 	_npc_twitch = TwitchModifier.new()
 	_npc_twitch.forward_ref = _npc
 	_npc_twitch.twitch_amount = 0.08
