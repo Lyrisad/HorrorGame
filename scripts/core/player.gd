@@ -132,7 +132,7 @@ func _ready() -> void:
 	aim_ray.collision_mask = 1
 	cam.add_child(aim_ray)
 	aim_ray.add_exception(self)
-	_glitch_cd = randf_range(70.0, 160.0)
+	_glitch_cd = randf_range(20.0, 45.0)
 
 	# corps de Théo (agent de sécurité) : visible seulement par les caméras de surveillance
 	body = Actor.create(self, "theo")
@@ -387,7 +387,7 @@ func _update_camera(delta: float) -> void:
 	if flashlight_on and has_flashlight:
 		_glitch_cd -= delta
 		if _glitch_cd <= 0.0 and _flicker_t <= 0.0 and cine_weight <= 0.0:
-			_glitch_cd = randf_range(80.0, 170.0)
+			_glitch_cd = randf_range(25.0, 55.0)
 			_flashlight_glitch()
 	# lampe : vacillement + rendu
 	if flashlight_on:

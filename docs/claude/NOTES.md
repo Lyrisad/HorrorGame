@@ -147,7 +147,11 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - Steam leaks (STEAM_LEAKS, 3 in the technical galleries) sit on a dedicated insulated pipe at 1.48 m with a
   leaking flange (the zone-C wall pipes are at 2.2 m, nobody saw the steam up there). _steam_dist() = nearest leak.
 - nav_path() walks the creature on a LEDGE (0.72 m off the channel, same side most of the time) in straight
-  channel corridors: it only wades at junctions, so its wet prints are actually seen (they're skipped in water).
+  channel corridors, on a "lane" (_ledge_side -1 / +1, or 0 = in the water) that changes every 8-18 s (35 %
+  water): the user wants it to still wade sometimes; prints are skipped in water.
+- Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
+  and brightness, slow swirls, lit only by lights) + Nature.dust_bokeh (out-of-focus orbs ~1 m in front of the lens,
+  distance-faded so they never become bright white balls).
 - _lamp_shadows(): the 9 lamps nearest to Théo get shadows (every 0.4 s); without shadows the omni lights shone
   through walls onto the wet floor of the next corridor. Cost ≈ 210 → 182 fps at 1080p on the dev PC. Sewer is darker (ambient 0.13,
   lamps ×0.7, gain 0.45).

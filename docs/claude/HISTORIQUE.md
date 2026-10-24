@@ -63,6 +63,8 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    une conduite à hauteur d'homme ; on ne voyait pas les traces de la créature (elle marchait dans l'eau) → elle
    longe les banquettes ; la lumière des allées voisines se reflétait à travers les murs → ombres sur les lampes
    proches. Carte des égouts du joueur (campement déplacé le 24/10) recopiée dans maps/.
+14. Faux contacts de la lampe plus fréquents ; la créature repasse aussi dans l'eau (un tiers du temps) ;
+   poussière plus réaliste et un peu plus dense, avec des « orbes » flous près de l'objectif.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

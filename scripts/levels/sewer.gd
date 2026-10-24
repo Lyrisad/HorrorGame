@@ -77,11 +77,13 @@ var _note_read := false
 var _layout: Variant = null  ## disposition personnalisée du décor (éditeur de carte), ou null
 var drone: AudioStreamPlayer
 var dust: GPUParticles3D
+var dust_near: GPUParticles3D
 var pillars: Array = []  ## [centre, rayon] des piliers de la citerne (la créature les contourne)
 var _lost_said := 0.0
 var _shaft_tops: Array = []  ## [centre, hauteur du haut du conduit, lumière de lune] des puits vers la forêt
 var _gust_cd := 25.0
-var _ledge_side := 1.0
+var _ledge_side := 1.0  ## -1 / +1 : une des banquettes ; 0 : dans l'eau, au milieu de la cunette
+var _lane_cd := 10.0
 var _lamp_lights: Array[Light3D] = []  ## luminaires : les plus proches de Théo ont des ombres
 var _shadow_cd := 0.0
 ## Fuites de vapeur des galeries techniques : [case, mur, décalage de la bride le long du mur]
@@ -1155,13 +1157,11 @@ func nav_path(from: Vector3, to: Vector3) -> PackedVector3Array:
 	if astar.is_point_solid(b):
 		return out
 	var ids := astar.get_id_path(a, b, true)
-	# elle marche sur une banquette, toujours la même tant qu'elle peut (parfois elle change de côté)
-	if randf() < 0.25:
-		_ledge_side = -_ledge_side
+	# voie du moment : une banquette, l'autre, ou en plein dans la cunette (voir _process)
 	for i in ids.size():
 		var c := tile_center(ids[i])
 		var kind := corridor_kind(ids[i])
-		if has_channel(ids[i]) and kind != Vector3.ZERO and i < ids.size() - 1:
+		if has_channel(ids[i]) and kind != Vector3.ZERO and i < ids.size() - 1 and _ledge_side != 0.0:
 			c += Vector3(kind.z, 0, kind.x) * 0.72 * _ledge_side
 		if i == 0 and from.distance_to(c) < 1.2:
 			continue
@@ -3099,6 +3099,11 @@ func _process(delta: float) -> void:
 	_zone_audio(delta)
 	_creature_tracks(delta)
 	_lamp_shadows(delta)
+	# de temps en temps elle change de voie : l'autre banquette, ou elle redescend patauger dans l'eau
+	_lane_cd -= delta
+	if _lane_cd <= 0.0:
+		_lane_cd = randf_range(8.0, 18.0)
+		_ledge_side = 0.0 if randf() < 0.35 else (1.0 if randf() < 0.5 else -1.0)
 	# l'égoutier : on le voit depuis la cage ; il parle quand Théo sort et s'approche
 	if _npc_state == 0 and _npc != null:
 		var dn := Vector2(player.global_position.x - NPC_POS.x, player.global_position.z - NPC_POS.z).length()
@@ -3120,8 +3125,11 @@ func _process(delta: float) -> void:
 		_forest_gust(best[0], best[1], best[2])
 	# poussière en suspension autour de Théo (visible dans le faisceau de la lampe)
 	if dust == null:
-		dust = Nature.dust(self, Vector3(5.0, 1.6, 5.0), 1800)
+		dust = Nature.dust(self, Vector3(5.0, 1.6, 5.0), 2600)
+		dust_near = Nature.dust_bokeh(self)
 	dust.global_position = player.global_position + Vector3(0, 1.4, 0)
+	# grains tout près de l'objectif : flous, comme de petites bulles dans le faisceau
+	dust_near.global_position = player.cam.global_position - player.cam.global_basis.z * 1.0
 	# gouttes qui tombent autour du joueur
 	_drip_cd -= delta
 	if _drip_cd <= 0.0:

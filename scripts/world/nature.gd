@@ -261,43 +261,55 @@ static func rain(parent: Node, extents: Vector3, amount := 5000) -> GPUParticles
 static func dust(parent: Node, extents: Vector3, amount := 700) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = amount
-	p.lifetime = 14.0
-	p.preprocess = 14.0
+	p.lifetime = 16.0
+	p.preprocess = 16.0
 	p.local_coords = false
 	p.visibility_aabb = AABB(-extents * 1.5, extents * 3.0)
 	var pm := ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = extents
-	pm.direction = Vector3(0.3, 0.1, 0.2)
+	pm.direction = Vector3(0.3, 0.05, 0.2)
 	pm.spread = 180.0
 	pm.initial_velocity_min = 0.005
-	pm.initial_velocity_max = 0.04
-	pm.gravity = Vector3(0, -0.004, 0)
+	pm.initial_velocity_max = 0.035
+	# un rien plus lourd que l'air : la plupart descendent très lentement, certains remontent
+	pm.gravity = Vector3(0, -0.003, 0)
+	# l'air bouge à peine : lentes volutes, chaque grain dérive à sa façon
 	pm.turbulence_enabled = true
-	pm.turbulence_noise_strength = 0.6
-	pm.turbulence_noise_scale = 2.5
-	pm.turbulence_noise_speed = Vector3(0.02, 0.01, 0.015)
-	pm.turbulence_influence_min = 0.02
-	pm.turbulence_influence_max = 0.06
-	pm.scale_min = 0.5
-	pm.scale_max = 1.4
+	pm.turbulence_noise_strength = 0.9
+	pm.turbulence_noise_scale = 1.6
+	pm.turbulence_noise_speed = Vector3(0.025, 0.012, 0.02)
+	pm.turbulence_influence_min = 0.04
+	pm.turbulence_influence_max = 0.14
+	pm.scale_min = 0.35
+	pm.scale_max = 1.6
+	pm.angle_min = 0.0
+	pm.angle_max = 360.0
+	# éclat variable : poussières, fibres, petites peluches, plus ou moins claires
+	var tint := Gradient.new()
+	tint.set_color(0, Color(0.7, 0.68, 0.62, 0.35))
+	tint.set_color(1, Color(1.0, 0.97, 0.9, 1.0))
+	tint.add_point(0.6, Color(0.88, 0.85, 0.78, 0.7))
+	var tint_t := GradientTexture1D.new()
+	tint_t.gradient = tint
+	pm.color_initial_ramp = tint_t
 	# apparition / disparition en douceur
 	var fade := Gradient.new()
 	fade.set_color(0, Color(1, 1, 1, 0))
 	fade.set_color(1, Color(1, 1, 1, 0))
-	fade.add_point(0.15, Color(1, 1, 1, 1))
-	fade.add_point(0.85, Color(1, 1, 1, 1))
+	fade.add_point(0.12, Color(1, 1, 1, 1))
+	fade.add_point(0.88, Color(1, 1, 1, 1))
 	var ramp := GradientTexture1D.new()
 	ramp.gradient = fade
 	pm.color_ramp = ramp
 	p.process_material = pm
 	var q := QuadMesh.new()
-	q.size = Vector2(0.006, 0.006)
-	# grain rond, bord adouci
+	q.size = Vector2(0.0055, 0.0055)
+	# grain rond, bord adouci (éclairé seulement par la lampe et les luminaires)
 	var dot := Gradient.new()
 	dot.set_color(0, Color(1, 1, 1, 1))
 	dot.set_color(1, Color(1, 1, 1, 0))
-	dot.add_point(0.45, Color(1, 1, 1, 0.85))
+	dot.add_point(0.4, Color(1, 1, 1, 0.8))
 	var disc := GradientTexture2D.new()
 	disc.gradient = dot
 	disc.fill = GradientTexture2D.FILL_RADIAL
@@ -307,7 +319,74 @@ static func dust(parent: Node, extents: Vector3, amount := 700) -> GPUParticles3
 	disc.height = 32
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = disc
-	m.albedo_color = Color(0.85, 0.82, 0.74, 0.6)
+	m.albedo_color = Color(0.9, 0.87, 0.8, 0.7)
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.roughness = 1.0
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	q.material = m
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(p)
+	return p
+
+
+## Quelques grains de poussière tout près de l'objectif : hors de la mise au point, ils deviennent de
+## grosses taches rondes, floues et pâles dans le faisceau (les « orbes » des vidéos de caméra-piéton).
+static func dust_bokeh(parent: Node, amount := 26) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = 9.0
+	p.preprocess = 9.0
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-2, -2, -2), Vector3(4, 4, 4))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.6
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.005
+	pm.initial_velocity_max = 0.03
+	pm.gravity = Vector3(0, -0.002, 0)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.6
+	pm.turbulence_noise_scale = 1.2
+	pm.turbulence_noise_speed = Vector3(0.03, 0.015, 0.03)
+	pm.turbulence_influence_min = 0.05
+	pm.turbulence_influence_max = 0.12
+	pm.scale_min = 0.5
+	pm.scale_max = 1.5
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	fade.add_point(0.25, Color(1, 1, 1, 1))
+	fade.add_point(0.75, Color(1, 1, 1, 1))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	pm.color_ramp = ramp
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.05, 0.05)
+	# disque de flou : plat, bord légèrement plus clair, puis fondu
+	var bok := Gradient.new()
+	bok.set_color(0, Color(1, 1, 1, 0.55))
+	bok.set_color(1, Color(1, 1, 1, 0))
+	bok.add_point(0.7, Color(1, 1, 1, 0.7))
+	bok.add_point(0.85, Color(1, 1, 1, 0.35))
+	var disc := GradientTexture2D.new()
+	disc.gradient = bok
+	disc.fill = GradientTexture2D.FILL_RADIAL
+	disc.fill_from = Vector2(0.5, 0.5)
+	disc.fill_to = Vector2(1.0, 0.5)
+	disc.width = 64
+	disc.height = 64
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = disc
+	m.albedo_color = Color(0.9, 0.88, 0.82, 0.07)
+	# trop près de l'objectif (contre la lampe), ils s'effacent au lieu de faire des billes blanches
+	m.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_PIXEL_ALPHA
+	m.distance_fade_min_distance = 0.35
+	m.distance_fade_max_distance = 1.0
 	m.vertex_color_use_as_albedo = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
