@@ -30,6 +30,9 @@ static func load_entries(map_id: String) -> Variant:
 
 static func spawn(entries: Array, root: Node3D) -> void:
 	for e in entries:
+		# anciennes toiles d'araignée (coins, arêtes) retirées du jeu : seules restent celles qui pendent
+		if str(e.get("model", "")) in ["proc:cobweb_corner", "proc:cobweb_edge"]:
+			continue
 		spawn_entry(e, root)
 
 
@@ -56,9 +59,9 @@ static func spawn_entry(e: Dictionary, root: Node3D) -> Node3D:
 
 
 static func _procedural(model: String, root: Node3D) -> Node3D:
-	if model.begins_with("proc:cobweb_"):
-		var web := Props.cobweb(root, model.trim_prefix("proc:cobweb_"))
-		web.set_meta("spec", {"model": model, "center": false})
+	if model.begins_with("proc:cobweb"):
+		var web := Props.cobweb(root)
+		web.set_meta("spec", {"model": "proc:cobweb_strands", "center": false})
 		return web
 	var n: Node3D = Props.red_cup(root, Vector3.ZERO, model == "proc:red_cup_tipped")
 	n.set_meta("spec", {"model": model})

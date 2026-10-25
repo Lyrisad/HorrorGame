@@ -1346,110 +1346,50 @@ func yaw_facing(dir: Vector3) -> float:
 	return rad_to_deg(atan2(dir.x, dir.z))
 
 
-## Toiles d'araignée : dans les coins des salles et des virages (deux murs + plafond), le long des arêtes
-## des galeries en béton, et des fils qui pendent de la voûte. Ce sont des objets de décor ordinaires :
+## Toiles d'araignée qui pendent de la voûte et des plafonds. Ce sont des objets de décor ordinaires :
 ## l'éditeur (F8) les déplace, les copie, les supprime ; une fois la carte sauvegardée elles en font partie.
 func _seed_cobwebs() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 	var placed: Array[Vector3] = []
-	var far_from := func(p: Vector3, d: float) -> bool:
-		for q in placed:
-			if Vector2(p.x - q.x, p.z - q.z).length() < d:
-				return false
-		for l in _lamp_lights:
-			if is_instance_valid(l) and Vector2(p.x - l.global_position.x, p.z - l.global_position.z).length() < 1.3:
-				return false
-		return true
-	var corners := []
-	var edges := []
 	var tops := []
 	for y in H:
 		for x in W:
 			var t := Vector2i(x, y)
-			if not walkable(t) or cell(t) in ["w", "G", "E"] or t == EXIT or t == CELL:
-				continue
-			# coins à plafond plat (pas sous la voûte en briques, qui s'arrondit contre les murs)
-			if not is_vault(t):
-				for d1: Vector2i in DIRS:
-					for d2: Vector2i in DIRS:
-						if d1.x * d2.x + d1.y * d2.y == 0 and d1 < d2 and not walkable(t + d1) and not walkable(t + d2):
-							corners.append([t, d1, d2])
-			if corridor_kind(t) != Vector3.ZERO and zone_of(t) > 0:
-				for d: Vector2i in DIRS:
-					if not walkable(t + d):
-						edges.append([t, d])
-			tops.append(t)
-	for list in [corners, edges, tops]:
-		for i in range(list.size() - 1, 0, -1):
-			var j := rng.randi_range(0, i)
-			var tmp: Variant = list[i]
-			list[i] = list[j]
-			list[j] = tmp
-	var n_corner := 0
-	for c in corners:
-		if n_corner >= 14:
+			if walkable(t) and not cell(t) in ["w", "G", "E"] and t != EXIT and t != CELL:
+				tops.append(t)
+	for i in range(tops.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: Vector2i = tops[i]
+		tops[i] = tops[j]
+		tops[j] = tmp
+	for t: Vector2i in tops:
+		if placed.size() >= 10:
 			break
-		var t: Vector2i = c[0]
-		var d1: Vector2i = c[1]
-		var d2: Vector2i = c[2]
-		var out := Vector3(d1.x + d2.x, 0, d1.y + d2.y)
-		var k := tile_center(t) + out * (T * 0.5) - out * 0.02
-		var web := MapLayout.spawn_entry({"model": "proc:cobweb_corner"}, self)
-		var sz: Vector3 = web.get_meta("size")
-		k.y = h_top(t) - sz.y - 0.01
-		if not far_from.call(k, 6.0):
-			web.free()
-			continue
-		# mur du fond = d1 ou d2, choisi pour que le repère (X vers la pièce le long du 2e mur) soit direct
-		var bx := -Vector3(d2.x, 0, d2.y)
-		var bz := -Vector3(d1.x, 0, d1.y)
-		if bx.cross(Vector3.UP).dot(bz) < 0.0:
-			var sw := bx
-			bx = bz
-			bz = sw
-		var sc := rng.randf_range(0.8, 1.3)
-		web.transform = Transform3D(Basis(bx, Vector3.UP, bz).scaled(Vector3.ONE * sc), k)
-		web.position.y = h_top(t) - sz.y * sc - 0.01
-		placed.append(k)
-		n_corner += 1
-	var n_edge := 0
-	for e in edges:
-		if n_edge >= 8:
-			break
-		var t2: Vector2i = e[0]
-		var d: Vector2i = e[1]
-		var p := wall_pos(t2, d, 0.02, rng.randf_range(-0.7, 0.7))
-		if not far_from.call(p, 6.0):
-			continue
-		var web2 := MapLayout.spawn_entry({"model": "proc:cobweb_edge"}, self)
-		var sz2: Vector3 = web2.get_meta("size")
-		var sc2 := rng.randf_range(0.8, 1.4)
-		web2.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(yaw_facing(-Vector3(d.x, 0, d.y)))).scaled(Vector3.ONE * sc2), p)
-		web2.position.y = h_top(t2) - sz2.y * sc2 - 0.01
-		placed.append(p)
-		n_edge += 1
-	var n_top := 0
-	for t3: Vector2i in tops:
-		if n_top >= 10:
-			break
-		var ax := corridor_kind(t3)
+		# sous le sommet de la voûte (au milieu du collecteur), loin des lampes et des autres toiles
+		var ax := corridor_kind(t)
 		var along := ax if ax != Vector3.ZERO else Vector3(1, 0, 0)
 		var side := Vector3(-along.z, 0, along.x)
-		var p3 := tile_center(t3) + along * rng.randf_range(-1.0, 1.0) + side * rng.randf_range(-0.15, 0.15)
-		if not far_from.call(p3, 6.0):
-			continue
-		var web3 := MapLayout.spawn_entry({"model": "proc:cobweb_strands"}, self)
-		var sz3: Vector3 = web3.get_meta("size")
-		var sc3 := rng.randf_range(0.7, 1.3)
-		web3.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc3), p3)
-		web3.position.y = h_top(t3) - sz3.y * sc3 - 0.02
-		placed.append(p3)
-		n_top += 1
-	if Game.args.has("webtest"):
-		print("WEBS coins=%d arêtes=%d fils=%d" % [n_corner, n_edge, n_top])
+		var p := tile_center(t) + along * rng.randf_range(-1.0, 1.0) + side * rng.randf_range(-0.15, 0.15)
+		var ok := true
 		for q in placed:
-			print("WEB %.1f,%.1f h=%.2f" % [q.x, q.z, q.y])
+			if Vector2(p.x - q.x, p.z - q.z).length() < 6.0:
+				ok = false
+		for l in _lamp_lights:
+			if is_instance_valid(l) and Vector2(p.x - l.global_position.x, p.z - l.global_position.z).length() < 1.3:
+				ok = false
+		if not ok:
+			continue
+		var web := MapLayout.spawn_entry({"model": "proc:cobweb_strands"}, self)
+		var sz: Vector3 = web.get_meta("size")
+		var sc := rng.randf_range(0.7, 1.3)
+		web.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
+		web.position.y = h_top(t) - sz.y * sc - 0.02
+		placed.append(p)
+	if Game.args.has("webtest"):
+		print("WEBS fils=%d" % placed.size())
+		for q in placed:
+			print("WEB %.1f,%.1f" % [q.x, q.z])
 
 
 ## Objet de décor, déplaçable avec l'éditeur de carte (F8) ; ignoré si le joueur a sauvegardé

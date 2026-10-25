@@ -88,12 +88,14 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 22. Son idée : le téléphone d'Inès posé à côté d'elle (pas ramassable) sonne quand on l'examine, et la créature
    vient voir par curiosité. Toiles d'araignée (coins, arêtes, fils pendants) déplaçables dans l'éditeur ; griffes
    qu'on entend racler les murs quand la créature rôde hors de vue.
+23. Toiles : il ne garde que celles qui pendent du plafond (coins et arêtes retirés du jeu et de sa carte, qu'il
+   avait sauvegardée avec les toiles par défaut ; rien d'autre n'y avait changé). Build pour l'envoyer à un ami.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;
   `tools/dev/package.py` refait le zip après l'export).
-- Les cartes de l'utilisateur (maison, égouts) sont dans `maps/` (identiques à celles de son %APPDATA% au 23/10/2026).
+- Les cartes de l'utilisateur (maison, égouts) sont dans `maps/` (identiques à celles de son %APPDATA% au 25/10/2026).
 
 ## Idées proposées, pas encore faites
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).

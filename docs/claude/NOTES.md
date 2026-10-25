@@ -202,16 +202,15 @@ Keep it current — add a line whenever you learn something non-obvious. History
   → _corridor_lamp_fails(): stutters, nearly dies, comes back, strobes, pops (_lamp_burst: lamp_break_0 + sparks)
   and stays dead (_lamp_off also kills the tube emission and the buzz loop, stored as meta "buzz"); "...Merde.".
   Already dead when starting from a later checkpoint (revealed). _lamp_level(l, e, k) dims light + tube together.
-- Cobwebs: Props.cobweb(kind) = procedural meshes ("corner" two walls + ceiling, apex C pushed 13 cm out because
-  sewer inner corners have a 0.32-0.42 m fillet; "edge" wall/ceiling; "strands" two crossed quads), origin at the
-  bottom against the wall (+Z into the room) so the editor's wall/ceiling placement works; shaders/cobweb.gdshader
-  (blend, cull off, BACKLIGHT, glossy, sway from COLOR.r); textures tools/texture_gen/generate_cobwebs.py (gauze of
-  thousands of short threads + silk film + dust; long straight chords looked like scribbles, sparse k-nearest
-  networks looked like cracks), imported WITH mipmaps (edit the .import). They are ordinary decor ("proc:cobweb_*"
-  in MapLayout._procedural + editor catalog): movable/copyable/deletable. sewer._seed_cobwebs() adds 14 corners /
-  8 edges / 10 strands (fixed seed, not under the brick vault, away from lamps) only while the map file lacks
-  "toiles": true — MapLayout.save() now writes that flag, so after the player saves they belong to his layout.
-  `--webtest` prints their positions.
+- Cobwebs: ONLY webs hanging from the ceiling (user removed the corner and wall/ceiling-edge sheets: "enlève
+  toutes celles qui ne sont pas celles qui pendent du plafond"). Props.cobweb() = two crossed quads, origin at the
+  bottom (editor hangs it under the clicked ceiling/pipe); shaders/cobweb.gdshader (blend, cull off, BACKLIGHT,
+  glossy, the strand ends sway, weight COLOR.r); texture cobweb_strands.png from generate_cobwebs.py (soft strands,
+  some twisted into dusty cords, a gauze tuft at the top), imported WITH mipmaps (edit the .import). Ordinary decor
+  "proc:cobweb_strands" (MapLayout._procedural + editor catalog). MapLayout.spawn() skips old proc:cobweb_corner /
+  proc:cobweb_edge entries. sewer._seed_cobwebs() adds 10 only while the map file lacks "toiles": true;
+  MapLayout.save() writes that flag. The user's layout (saved 25/10 16:12, cleaned of corner/edge webs) has 10.
+  `--webtest` prints positions.
 - Inès's phone (Props.phone next to her hand, cracked screen phone_call_ines.png "Numéro masqué" 03:14): examining
   her (_body on_first callback) → ringtone_1 (her ringtone in the house) + real vibration loop, screen glow;
   _summon_to(): creature brought from a hidden point 16-30 m away if dormant (revealed = true), lured every 3 s at

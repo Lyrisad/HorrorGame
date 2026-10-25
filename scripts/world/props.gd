@@ -86,121 +86,52 @@ static func red_cup(parent: Node, pos: Vector3, tipped := false) -> Node3D:
 	return n
 
 
-## Toile d'araignée (« corner » : coin deux murs + plafond, « edge » : arête mur / plafond, « strands » : fils
-## qui pendent). Origine en bas, contre le mur (comme les appliques) : mur du fond = plan z = 0 (+Z vers la pièce),
-## plafond en haut de la toile. Pour « corner », le second mur est le plan x = 0 (pièce vers +X).
-static func cobweb(parent: Node, kind: String) -> Node3D:
+## Toile d'araignée qui pend du plafond (ou d'un tuyau) : des fils souples et un lambeau de nappe, sur deux plans
+## en croix. Origine en bas, haut de la toile au plafond (l'éditeur la suspend sous la surface visée).
+static func cobweb(parent: Node) -> Node3D:
 	var n := Node3D.new()
 	parent.add_child(n)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var size := Vector3.ONE
-	match kind:
-		"corner":
-			# triangle tendu en travers du coin : B et A accrochés au plafond, C dans l'angle des murs
-			# (un peu en avant : les angles des égouts sont arrondis) ; la nappe pend un peu vers la pièce
-			# (en hamac), ses bords restent collés aux parois
-			var a := 0.48
-			var c := 0.42
-			var A := Vector3(a, c, 0)
-			var Bp := Vector3(0, c, a)
-			var C := Vector3(0.13, 0, 0.13)
-			var G := (A + Bp + C) / 3.0
-			var bulge := ((G - Vector3(0, c, 0)).normalized() + Vector3(0, -0.6, 0)).normalized()
-			var N := 8
-			var idx := {}
-			var k := 0
-			for i in N + 1:
-				for j in N - i + 1:
-					var s := float(i) / N
-					var t := 0.0 if i == N else float(j) / (N - i)
-					var la := (1.0 - s) * t
-					var lb := (1.0 - s) * (1.0 - t)
-					var w := clampf(27.0 * la * lb * s, 0.0, 1.0)
-					st.set_color(Color(w, 0, 0))
-					st.set_uv(Vector2(t, 0).lerp(Vector2(0.5, 1.0), s))
-					st.add_vertex(Bp.lerp(A, t).lerp(C, s) + bulge * 0.07 * w)
-					idx[Vector2i(i, j)] = k
-					k += 1
-			for i in N:
-				for j in N - i:
-					st.add_index(idx[Vector2i(i, j)])
-					st.add_index(idx[Vector2i(i, j + 1)])
-					st.add_index(idx[Vector2i(i + 1, j)])
-					if j < N - i - 1:
-						st.add_index(idx[Vector2i(i, j + 1)])
-						st.add_index(idx[Vector2i(i + 1, j + 1)])
-						st.add_index(idx[Vector2i(i + 1, j)])
-			size = Vector3(a, c, a)
-		"edge":
-			# nappe le long de l'arête : haut au plafond (à d du mur), bas sur le mur (d sous le plafond)
-			var L := 0.95
-			var d := 0.3
-			var U := 12
-			var V := 5
-			for iv in V + 1:
-				for iu in U + 1:
-					var u := float(iu) / U
-					var v := float(iv) / V
-					var w := sin(PI * v) * pow(sin(PI * u), 0.6)
-					st.set_color(Color(w, 0, 0))
-					st.set_uv(Vector2(u, v))
-					var x := (u - 0.5) * L
-					st.add_vertex(Vector3(x, d, d).lerp(Vector3(x, 0, 0), v) + Vector3(0, -0.7, 0.7) * 0.05 * w)
-			for iv in V:
-				for iu in U:
-					var i0 := iv * (U + 1) + iu
-					st.add_index(i0)
-					st.add_index(i0 + 1)
-					st.add_index(i0 + U + 1)
-					st.add_index(i0 + 1)
-					st.add_index(i0 + U + 2)
-					st.add_index(i0 + U + 1)
-			size = Vector3(L, d, d)
-		_:
-			# fils pendants : deux plans en croix, accrochés en haut ; le bas se balance
-			var h := 0.48
-			var hw := 0.12
-			var base := 0
-			for ang in [0.0, PI * 0.5]:
-				var ax := Vector3(cos(ang), 0, sin(ang))
-				for iv in 7:
-					var v := float(iv) / 6.0
-					for iu in 2:
-						st.set_color(Color(v, 0, 0))
-						st.set_uv(Vector2(iu, v))
-						st.add_vertex(ax * (iu * 2.0 - 1.0) * hw + Vector3(0, h * (1.0 - v), 0))
-				for iv in 6:
-					var i0 := base + iv * 2
-					st.add_index(i0)
-					st.add_index(i0 + 1)
-					st.add_index(i0 + 2)
-					st.add_index(i0 + 1)
-					st.add_index(i0 + 3)
-					st.add_index(i0 + 2)
-				base += 14
-			size = Vector3(hw * 2.0, h, hw * 2.0)
+	var h := 0.48
+	var hw := 0.12
+	var base := 0
+	for ang in [0.0, PI * 0.5]:
+		var ax := Vector3(cos(ang), 0, sin(ang))
+		for iv in 7:
+			var v := float(iv) / 6.0
+			for iu in 2:
+				# COLOR.r : plus on descend, plus le fil est libre de se balancer
+				st.set_color(Color(v, 0, 0))
+				st.set_uv(Vector2(iu, v))
+				st.add_vertex(ax * (iu * 2.0 - 1.0) * hw + Vector3(0, h * (1.0 - v), 0))
+		for iv in 6:
+			var i0 := base + iv * 2
+			st.add_index(i0)
+			st.add_index(i0 + 1)
+			st.add_index(i0 + 2)
+			st.add_index(i0 + 1)
+			st.add_index(i0 + 3)
+			st.add_index(i0 + 2)
+		base += 14
 	st.generate_normals()
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
-	mi.material_override = _cobweb_mat(kind)
+	mi.material_override = _cobweb_mat()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.visibility_range_end = 22.0
 	n.add_child(mi)
-	n.set_meta("size", size)
+	n.set_meta("size", Vector3(hw * 2.0, h, hw * 2.0))
 	return n
 
 
-static var _web_mats := {}
+static var _web_mat: ShaderMaterial = null
 
 
-static func _cobweb_mat(kind: String) -> ShaderMaterial:
-	if _web_mats.has(kind):
-		return _web_mats[kind]
-	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/cobweb.gdshader")
-	m.set_shader_parameter("web_tex", load("res://assets/gen/cobweb_%s.png" % kind))
-	m.set_shader_parameter("sway", 0.0 if kind == "strands" else 0.012)
-	m.set_shader_parameter("sway_hang", 0.03 if kind == "strands" else 0.0)
-	_web_mats[kind] = m
-	return m
+static func _cobweb_mat() -> ShaderMaterial:
+	if _web_mat == null:
+		_web_mat = ShaderMaterial.new()
+		_web_mat.shader = load("res://shaders/cobweb.gdshader")
+		_web_mat.set_shader_parameter("web_tex", load("res://assets/gen/cobweb_strands.png"))
+		_web_mat.set_shader_parameter("sway_hang", 0.03)
+	return _web_mat

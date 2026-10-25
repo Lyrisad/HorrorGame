@@ -1,9 +1,5 @@
-"""Toiles d'araignée des égouts (assets/gen/cobweb_*.png) : réseau de fils très fins reliés entre eux
-(comme les toiles « en nappe » des araignées de cave), voile de soie là où c'est dense, poussière accrochée.
-- cobweb_corner.png : nappe triangulaire tendue dans un coin (deux murs + plafond) ; triangle des UV
-  B (0,0) — A (1,0) en haut (accroches au plafond), C (0.5,1) en bas (accroche dans l'angle des murs).
-- cobweb_edge.png : nappe le long de l'arête mur / plafond (haut = plafond, bas = mur), bouts effilochés.
-- cobweb_strands.png : fils qui pendent (d'un tuyau, de la voûte) avec un lambeau de nappe en haut.
+"""Toile d'araignée des égouts qui pend du plafond (assets/gen/cobweb_strands.png) : fils souples, certains
+collés en cordelette poussiéreuse, et un lambeau de nappe en haut (gaze de fils courts, voile de soie, poussière).
 Blanc = fil, alpha = couverture. Dessiné 2x plus grand puis réduit (fils anticrénelés).
 python generate_cobwebs.py [dossier_sortie]
 """
@@ -42,19 +38,6 @@ class Web:
                 x, y = pts[int(rnd.integers(0, len(pts)))]
                 r = rnd.uniform(0.5, 1.8) * SS
                 self.dd.ellipse([x * SS - r, y * SS - r * 0.8, x * SS + r, y * SS + r * 0.8], fill=int(rnd.uniform(80, 190)))
-
-    def network(self, nodes, k, alpha, sag=0.04, dusty=0.35):
-        """Chaque nœud est relié à ses k plus proches voisins : maillage irrégulier, pas de grands traits."""
-        nodes = np.asarray(nodes, np.float32)
-        done = set()
-        for i, p in enumerate(nodes):
-            d = np.hypot(*(nodes - p).T)
-            for j in np.argsort(d)[1:k + 1]:
-                key = (min(i, j), max(i, j))
-                if key in done:
-                    continue
-                done.add(key)
-                self.thread(sagging(tuple(p), tuple(nodes[j]), rnd.uniform(0.0, sag)), rnd.uniform(*alpha), dusty)
 
     def gauze(self, density, count, length, alpha, sag=0.05):
         """La nappe : une multitude de fils courts entrecroisés, répartis selon `density` (0..1, taille de
@@ -106,64 +89,6 @@ def holes(w, h, scale, cut):
     return np.clip((fbm(w, h, scale) - cut) * 5.0, 0, 1)
 
 
-def corner():
-    S = 512
-    w = Web(S, S)
-    A, B, C = np.array([S - 4.0, 4.0]), np.array([4.0, 4.0]), np.array([S / 2, S - 4.0])
-
-    def inside(p):
-        return p[1] >= 4 and abs(p[0] - S / 2) <= (S / 2 - 4) * (1 - p[1] / S)
-
-    yy, xx = np.mgrid[0:S, 0:S]
-    tri = (np.abs(xx - S / 2) <= (S / 2 - 6) * (1 - yy / S)).astype(np.float32)
-    dens = tri * (1.0 - yy / S) ** 1.6 * (0.15 + holes(S, S, 90, 0.42)) + tri * 0.01
-    w.gauze(dens, 2600, (14, 70), (0.07, 0.24), 0.06)
-    # nœuds : quelques fils plus longs qui relient la nappe, serrés près du plafond
-    nodes = []
-    while len(nodes) < 110:
-        p = np.array([rnd.uniform(0, S), S * rnd.random() ** 1.9])
-        if inside(p):
-            nodes.append(p)
-    w.network(nodes, 2, (0.14, 0.35), 0.05)
-    # amarrages : les nœuds proches d'un bord y sont attachés
-    for p in nodes:
-        for e0, e1 in ((A, B), (B, C), (C, A)):
-            v = e1 - e0
-            t = np.clip(np.dot(p - e0, v) / np.dot(v, v), 0, 1)
-            q = e0 + v * t
-            if np.hypot(*(q - p)) < 26 and rnd.random() < 0.7:
-                w.thread(sagging(tuple(p), tuple(q), 0.02), rnd.uniform(0.25, 0.55))
-    # quelques longs fils porteurs, du plafond vers l'angle des murs (pas tous au même point)
-    for _ in range(4):
-        p = B + (A - B) * rnd.uniform(0.15, 0.85)
-        q = C + (np.array([S / 2, 4.0]) - C) * rnd.uniform(0.0, 0.35) + rnd.normal(0, 6, 2)
-        w.thread(sagging(tuple(p), tuple(q), 0.015), rnd.uniform(0.3, 0.5), 0.6)
-    m = np.clip(((S / 2) * (1 - yy / S) + 1 - np.abs(xx - S / 2)) / 3.0, 0, 1).astype(np.float32)
-    w.save("cobweb_corner.png", m, 0.55)
-
-
-def edge():
-    W, H = 1024, 256
-    w = Web(W, H)
-    yy, xx = np.mgrid[0:H, 0:W]
-    dens = np.sin(np.pi * xx / W) ** 0.8 * (1.0 - 0.6 * yy / H) * (0.12 + holes(W, H, 80, 0.45))
-    w.gauze(dens.astype(np.float32), 4200, (14, 70), (0.07, 0.22), 0.07)
-    nodes = []
-    while len(nodes) < 160:
-        x = rnd.uniform(0, W)
-        # le long de l'arête, la nappe est plus fournie au milieu, effilochée aux bouts
-        if rnd.random() < math.sin(math.pi * x / W) ** 0.7:
-            nodes.append(np.array([x, H * rnd.random() ** 1.3]))
-    w.network(nodes, 2, (0.12, 0.32), 0.06)
-    for p in nodes:
-        if p[1] < 22 and rnd.random() < 0.8:
-            w.thread(sagging(tuple(p), (p[0] + rnd.normal(0, 10), 1.5), 0.0), rnd.uniform(0.25, 0.5))
-        elif p[1] > H - 30 and rnd.random() < 0.8:
-            w.thread(sagging(tuple(p), (p[0] + rnd.normal(0, 10), H - 1.5), 0.0), rnd.uniform(0.25, 0.5))
-    m = np.clip(np.minimum(xx, W - xx) / (W * 0.12), 0, 1).astype(np.float32)
-    w.save("cobweb_edge.png", m, 0.5)
-
-
 def strands():
     W, H = 256, 512
     w = Web(W, H)
@@ -192,6 +117,4 @@ def strands():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    corner()
-    edge()
     strands()
