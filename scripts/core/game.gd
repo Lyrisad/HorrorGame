@@ -249,6 +249,16 @@ func start_level(lname: String, params := {}) -> void:
 	# laisse passer quelques images (compilation des shaders) avant de démarrer le chrono
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# anti micro-freezes : tout ce qui apparaîtra plus tard est dessiné une fois, jeu en pause, derrière un écran noir
+	if not params.get("editor", false) and not args.has("noprewarm") and is_instance_valid(lvl):
+		ui.set_cover(true)
+		get_tree().paused = true
+		var t0 := Time.get_ticks_msec()
+		await lvl.prewarm()
+		if args.has("hitch"):
+			print("PRÉCHAUFFAGE %d → %d ms" % [t0, Time.get_ticks_msec()])
+		get_tree().paused = false
+		ui.set_cover(false)
 	ui.set_loading(false)
 	_level_time = 0.0
 	if not unlocked.has(lname):
@@ -589,6 +599,14 @@ func _voice_noise(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	# test : --hitch → signale chaque image trop longue (micro-freeze)
+	if args.has("hitch"):
+		RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+		if delta > 0.04:
+			var vp := get_viewport().get_viewport_rid()
+			print("HITCH %4.0f ms  t=%5.1f  (%d ms)  process=%.0f physique=%.0f rendu_cpu=%.0f rendu_gpu=%.0f prépa=%.0f" % [delta * 1000.0, _level_time, Time.get_ticks_msec(),
+				Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+				RenderingServer.viewport_get_measured_render_time_cpu(vp), RenderingServer.viewport_get_measured_render_time_gpu(vp), RenderingServer.get_frame_setup_time_cpu()])
 	_voice_noise(delta)
 	# (les captures de test continuent pendant l'inventaire, qui met le jeu en pause)
 	if not get_tree().paused or (inventory != null and inventory.is_open):

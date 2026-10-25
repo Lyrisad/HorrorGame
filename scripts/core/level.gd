@@ -38,6 +38,94 @@ func _process(delta: float) -> void:
 
 # ------------------------------------------------------------------ mise en scène
 ## Attend `sec` secondes (en pause si le jeu est en pause ; annulé si le niveau est détruit).
+## Matériaux et modèles des nœuds de préchauffage, gardés en mémoire : Godot jette un shader compilé dès que plus
+## aucun matériau ne s'en sert (il faudrait le recompiler au moment de l'événement).
+var _prewarm_keep: Array = []
+
+
+## Ce que ce niveau fera apparaître plus tard (créature, effets...) : dessiné une fois pendant le préchauffage.
+## Les nœuds créés exprès portent la méta "prewarm_temp" : posés devant la caméra, puis libérés.
+func prewarm_extras() -> Array:
+	return []
+
+
+## Anti micro-freezes. Un matériau, un modèle ou un effet que la carte graphique n'a encore jamais dessiné doit
+## d'abord être compilé : un à-coup de 50 à 150 ms au moment où il apparaît (le premier cafard, la créature qui
+## surgit, la poussière d'un éboulement, l'homme au masque...). Derrière l'écran de chargement (jeu en pause),
+## une caméra temporaire fait le tour complet de la scène (sans occlusion, tout le niveau est dessiné), puis
+## chaque nœud de prewarm_extras() passe devant elle (et revient à sa place). Tout est compilé avant que le
+## joueur ne le croise.
+func prewarm() -> void:
+	# point de vue : la tête de Théo, ou la caméra active (voiture, cinématique de fin)
+	var prev := get_viewport().get_camera_3d()
+	if player == null and prev == null:
+		return
+	var origin := player.head.global_position if player != null else prev.global_position
+	var cam := Camera3D.new()
+	cam.fov = 120.0
+	cam.near = 0.05
+	add_child(cam)
+	cam.global_position = origin
+	cam.make_current()
+	for e: Vector3 in [Vector3.ZERO, Vector3(0, 90, 0), Vector3(0, 180, 0), Vector3(0, 270, 0), Vector3(-80, 0, 0), Vector3(80, 0, 0)]:
+		cam.global_rotation_degrees = e
+		await RenderingServer.frame_post_draw
+	cam.global_rotation_degrees = Vector3(-20, 0, 0)
+	var front := cam.global_position - cam.global_basis.z * 2.0 + Vector3(0, -0.6, 0)
+	# chaque nœud est amené devant la caméra, sous deux lampes à ombres (omni + spot) : la version « ombre »
+	# de ses matériaux est compilée aussi (sinon : à-coup quand la créature entre dans la lumière d'une lampe)
+	var omni := OmniLight3D.new()
+	omni.omni_range = 8.0
+	omni.light_energy = 0.3
+	omni.shadow_enabled = true
+	add_child(omni)
+	omni.global_position = cam.global_position + Vector3(0, 0.5, 0)
+	var spot := SpotLight3D.new()
+	spot.spot_range = 8.0
+	spot.light_energy = 0.3
+	spot.shadow_enabled = true
+	add_child(spot)
+	spot.global_transform = cam.global_transform
+	for n in prewarm_extras():
+		var node := n as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var temp := node.has_meta("prewarm_temp")
+		var was := node.visible
+		var xf := node.global_transform
+		node.visible = true
+		node.global_position = front
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		if not is_instance_valid(node):
+			continue
+		if temp:
+			_keep_resources(node)
+			node.queue_free()
+		else:
+			node.global_transform = xf
+			node.visible = was
+	omni.queue_free()
+	spot.queue_free()
+	cam.queue_free()
+	if is_instance_valid(prev):
+		prev.make_current()
+
+
+func _keep_resources(node: Node) -> void:
+	for n in [node] + node.find_children("*", "", true, false):
+		if n is GPUParticles3D:
+			_prewarm_keep.append_array([(n as GPUParticles3D).process_material, (n as GPUParticles3D).draw_pass_1])
+		if n is GeometryInstance3D and (n as GeometryInstance3D).material_override != null:
+			_prewarm_keep.append((n as GeometryInstance3D).material_override)
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			_prewarm_keep.append(mi.mesh)
+			for si in mi.get_surface_override_material_count():
+				if mi.get_surface_override_material(si) != null:
+					_prewarm_keep.append(mi.get_surface_override_material(si))
+
+
 func wait(sec: float) -> void:
 	var t := Timer.new()
 	t.one_shot = true

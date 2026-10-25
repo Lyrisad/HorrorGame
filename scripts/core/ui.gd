@@ -35,6 +35,7 @@ var death_menu: Control
 var death_sub: Label
 var document_open := false
 var loading_label: Label
+var cover_rect: ColorRect
 var _menu_drone: AudioStreamPlayer
 
 
@@ -55,6 +56,13 @@ func _ready() -> void:
 	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fade_rect)
+	# cache noir indépendant des fondus des niveaux (préchauffage pendant le chargement)
+	cover_rect = ColorRect.new()
+	cover_rect.color = Color(0, 0, 0, 1)
+	cover_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cover_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cover_rect.visible = false
+	add_child(cover_rect)
 
 	card_root = CenterContainer.new()
 	card_root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -418,6 +426,10 @@ func hide_menus() -> void:
 
 func set_loading(on: bool) -> void:
 	loading_label.visible = on
+
+
+func set_cover(on: bool) -> void:
+	cover_rect.visible = on
 
 
 # ------------------------------------------------------------------ fondus & cartons

@@ -4570,7 +4570,7 @@ func _rubble_mat(kind: String) -> StandardMaterial3D:
 
 
 ## Filet de poussière qui tombe de la voûte d'où les morceaux se sont détachés.
-func _dust_trickle(pos: Vector3) -> void:
+func _dust_trickle(pos: Vector3) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = 40
 	p.lifetime = 1.1
@@ -4603,8 +4603,9 @@ func _dust_trickle(pos: Vector3) -> void:
 	add_child(p)
 	p.global_position = pos
 	p.emitting = true
-	get_tree().create_timer(1.4).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
-	get_tree().create_timer(3.0).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+	_after(1.4, p, func(n: GPUParticles3D) -> void: n.emitting = false)
+	_after(3.0, p, func(n: GPUParticles3D) -> void: n.queue_free())
+	return p
 
 
 ## Tache ronde et floue (poussière) pour les particules.
@@ -4763,6 +4764,35 @@ func _corridor_lamp_fails() -> void:
 	Game.hud.say("...Merde.", 1.6)
 
 
+## Préchauffage (voir Level.prewarm) : la créature, les personnages, un cafard, la poussière, les étincelles,
+## les gravats et une toile d'araignée sont dessinés une fois pendant le chargement.
+func prewarm_extras() -> Array:
+	var out: Array = []
+	for n in find_children("*", "Node3D", true, false):
+		if n is Actor:
+			out.append(n)
+	if creature != null:
+		out.append(creature)
+	var temp: Array = []
+	# le modèle du cafard reste chargé (sinon relu sur le disque au premier cafard)
+	_prewarm_keep.append(load("res://assets/sketchfab/cockroach/cockroach.glb"))
+	var r := Roach.new()
+	r.process_mode = Node.PROCESS_MODE_DISABLED
+	add_child(r)
+	temp.append(r)
+	var here := player.global_position
+	for p in [_dust_puff(here), _dust_trickle(here), _sparks(here)]:
+		(p as Node).process_mode = Node.PROCESS_MODE_ALWAYS
+		temp.append(p)
+	for kind in ["brick", "mortar", "concrete", "dirty"]:
+		temp.append(_rock_chunk(Vector3(0.1, 0.07, 0.1), _rubble_mat(kind)))
+	temp.append(Props.cobweb(self))
+	for t in temp:
+		(t as Node).set_meta("prewarm_temp", true)
+	out.append_array(temp)
+	return out
+
+
 ## Une grille d'arrivée d'eau grince toute seule, comme si quelque chose la poussait de l'autre côté.
 func _ev_grate() -> void:
 	var best: Array = []
@@ -4811,7 +4841,7 @@ func _ev_rats() -> void:
 
 
 ## Petit nuage de poussière qui tombe (de la voûte, ou soulevé au sol).
-func _dust_puff(pos: Vector3) -> void:
+func _dust_puff(pos: Vector3) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = 40
 	p.lifetime = 2.6
@@ -4844,12 +4874,13 @@ func _dust_puff(pos: Vector3) -> void:
 	add_child(p)
 	p.global_position = pos
 	p.emitting = true
-	get_tree().create_timer(0.3).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
-	get_tree().create_timer(3.5).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+	_after(0.3, p, func(n: GPUParticles3D) -> void: n.emitting = false)
+	_after(3.5, p, func(n: GPUParticles3D) -> void: n.queue_free())
+	return p
 
 
 ## Gerbe d'étincelles d'une ampoule qui claque.
-func _sparks(pos: Vector3) -> void:
+func _sparks(pos: Vector3) -> GPUParticles3D:
 	var p := GPUParticles3D.new()
 	p.amount = 30
 	p.lifetime = 0.8
@@ -4885,8 +4916,18 @@ func _sparks(pos: Vector3) -> void:
 	add_child(p)
 	p.global_position = pos
 	p.emitting = true
-	get_tree().create_timer(0.15).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
-	get_tree().create_timer(1.5).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+	_after(0.15, p, func(n: GPUParticles3D) -> void: n.emitting = false)
+	_after(1.5, p, func(n: GPUParticles3D) -> void: n.queue_free())
+	return p
+
+
+## Appelle `f(node)` dans `sec` secondes si le nœud existe encore (sans garder de référence vers lui).
+func _after(sec: float, node: Node, f: Callable) -> void:
+	var ref: WeakRef = weakref(node)
+	get_tree().create_timer(sec).timeout.connect(func() -> void:
+		var n: Variant = ref.get_ref()
+		if n != null:
+			f.call(n))
 
 
 # ================================================================== rats

@@ -30,6 +30,7 @@ var drone: AudioStreamPlayer
 var rain_fx: GPUParticles3D
 var lightning: DirectionalLight3D
 var kidnapper: Actor
+var _kidnapper_ready: Actor = null  ## créé (caché) au chargement : il n'a plus qu'à apparaître dans le bureau
 var arrived := false
 var _prev_heading := 0.0
 var _lightning_cd := 14.0
@@ -541,6 +542,10 @@ func _start_parked() -> void:
 		_stairtest()
 	if Game.args.has("tvtest"):
 		_tvtest()
+	# test : --officetest (avec --hwarp=6.0,-3.9 --hyaw=-20) → le bureau s'ouvre, la scène des écrans se lance
+	if Game.args.has("officetest"):
+		await wait(1.0)
+		_office_opens()
 
 
 ## Test --stairtest (sans --shots) : Théo marche vers la porte depuis l'allée et monte le perron.
@@ -969,8 +974,13 @@ func _office_scene() -> void:
 	Game.hud.say("C'est moi... en direct.", 2.5)
 	await wait(2.0)
 	# l'homme au masque apparaît dans l'encadrement, derrière (visible à l'écran)
-	kidnapper = _make_kidnapper()
-	house.inside.add_child(kidnapper)
+	if is_instance_valid(_kidnapper_ready):
+		kidnapper = _kidnapper_ready
+		kidnapper.process_mode = Node.PROCESS_MODE_INHERIT
+		kidnapper.visible = true
+	else:
+		kidnapper = _make_kidnapper()
+		house.inside.add_child(kidnapper)
 	kidnapper.position = Vector3(5.05, 0, -1.3)
 	kidnapper.rotation.y = 0.0
 	kidnapper.play("idle", 0.0, 0.6)
@@ -994,6 +1004,19 @@ func _office_scene() -> void:
 				kidnapper.rotation.y = atan2(-step.x, -step.z)
 				kidnapper.locomote("walk", 0.55, "idle")
 	_abduction()
+
+
+func prewarm_extras() -> Array:
+	var out: Array = []
+	if house != null and not abducted and not is_instance_valid(_kidnapper_ready):
+		_kidnapper_ready = _make_kidnapper()
+		house.inside.add_child(_kidnapper_ready)
+		_kidnapper_ready.visible = false
+		_kidnapper_ready.process_mode = Node.PROCESS_MODE_DISABLED
+		out.append(_kidnapper_ready)
+	if creature != null:
+		out.append(creature)
+	return out
 
 
 func _make_kidnapper() -> Actor:

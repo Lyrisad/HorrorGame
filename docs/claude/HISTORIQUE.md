@@ -93,6 +93,10 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 24. Voix sur les dialogues : je lui ai donné le texte de l'égoutier et un prompt de voix ; il a fourni les 7 répliques
    (tools/voices_src/egoutier), traitées et branchées (le sous-titre suit la voix). Il a demandé d'attendre avant le
    prochain build (« un autre truc à faire »).
+25. Micro-freezes au lancement des scripts (l'homme au masque qui « pop » devant les écrans, événements des égouts) :
+   préchauffage des shaders pendant l'écran de chargement (Level.prewarm). Mesuré : l'apparition du masque (143 ms),
+   la révélation de la créature (116 ms), le téléphone d'Inès (114 ms), la poussière des éboulements (147 ms), le
+   premier cafard (55 ms) → plus d'à-coup. Build pour son ami.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

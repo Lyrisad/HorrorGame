@@ -45,6 +45,20 @@ Keep it current — add a line whenever you learn something non-obvious. History
   Material Icons Apache 2.0). After new textures run `tools/fix_imports.ps1` then reimport.
 
 ## Rendering / engine gotchas
+- MICRO-FREEZES (user: "freeze quand un script se lance, le mec pop"): anything drawn for the first time compiles
+  its shaders/pipelines → 50-150 ms hitch (kidnapper appearing, creature reveal, first roach, first dust puff,
+  creature entering a shadowed lamp). Fix = Level.prewarm(), run by Game.start_level behind ui.set_cover(true) with
+  the tree PAUSED: a temp 120° camera at Théo's head (or the active camera: car, ending) renders 6 directions (no
+  occlusion culling → the whole level), then every node of level.prewarm_extras() is moved in front of it under a
+  temp shadowed omni + spot (2 frames) and put back. Nodes with meta "prewarm_temp" are created just for this and
+  freed, BUT their materials/meshes go to _prewarm_keep (Godot frees a compiled shader as soon as no material uses
+  it → it would recompile at the event). sewer: all Actors, creature, a Roach (+ keeps cockroach.glb loaded), dust
+  puff/trickle, sparks, 4 rubble materials, a cobweb. night: the kidnapper is created HIDDEN (process disabled) at
+  load and reused by _office_scene (no instantiation at the event), plus the creature. ~0.5-1 s extra loading.
+  Effects' timers use _after(sec, node, f) (weakref) so freeing an effect early doesn't spam "Lambda capture freed".
+  Measure with `--hitch` (prints frames > 40 ms with process/render times, and the prewarm span); `--noprewarm`
+  to compare. Screenshots (--shots) themselves cause ~120 ms hitches; rare ~100 ms idle hitches with low
+  process/render time are system-side (not events).
 - B.local_aabb is exact (vertex-based when a node has non-axis-aligned rotation, cached) — inflated AABBs made
   props float. HouseBuilder `put_on()/rest()` props are raycast onto `support()` furniture trimeshes in `settle()`.
 - B._template must clear `scene_file_path` after _clear_owner, otherwise duplicate() re-instantiates AND copies
@@ -242,6 +256,7 @@ Keep it current — add a line whenever you learn something non-obvious. History
   Combine captures into ONE small sheet (`grid2.py`, `sheet.py`) before looking at them (saves budget).
 - Base flags: `--level=drive|house|sewer|ending --windowed --shots=3,8 --shot=<prefix> --quit --timeout=N`
   (house load ≈ 11 s, sewer is slow: timeout ≥ 25). Shots mode ignores mouse/keyboard (the user may be using the PC).
+- House: `--officetest --hwarp=6.0,-3.9 --hyaw=-20` (office opens, screens scene + kidnapper).
 - House: `--hwarp=x,z --hyaw=deg` (forward = (-sin h, -cos h) in house space), --doctest (no --shots),
   --stairtest (no --shots), --tvtest, --invtest, --pantest.
 - Sewer: `--torch --warp=x,z --yaw --pitch --creature=x,z --chase --topdown --bright --nolamp --spots
