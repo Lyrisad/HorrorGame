@@ -28,8 +28,6 @@ def main():
         g.write(f"dying_cough_{i}", g.dying_cough(i), 0.75)
     for i in range(3):
         g.write(f"dying_murmur_{i}", g.dying_murmur(i), 0.55)
-    g.write("dying_breath_loop", g.dying_breath_loop(), 0.6)
-    g.write("death_rattle", g.death_rattle(), 0.6)
     print("OK")
 
 

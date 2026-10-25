@@ -211,9 +211,18 @@ func _ready() -> void:
 		_event_test(str(Game.args["eventtest"]))
 	if Game.args.has("misttest") and _mist != null:
 		(_mist.material as FogMaterial).density = float(Game.args["misttest"])
-	# test : --hinttest → affiche l'indice du micro (le plus long du jeu)
+	# test : --hinttest[=keys|prompt] → affiche l'indice du micro (le plus long du jeu), les touches, ou une invite
 	if Game.args.has("hinttest"):
-		Game.hud.hint(MIC_HINT, 8.0)
+		if str(Game.args["hinttest"]) == "prompt":
+			Game.hud.hint("[Maj] courir   ·   [Échap] pause", 8.0)
+			# un objet factice droit devant ; les captures désactivent les interactions, on les rétablit
+			var ahead := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
+			Interactable.create(self, player.eye_position() + ahead * 0.9 - Vector3(0, 0.2, 0), Vector3(0.6, 0.6, 0.6), "Ramasser le coupe-boulons", func() -> void: pass)
+			Game.args.erase("shots")
+		elif str(Game.args["hinttest"]) == "keys":
+			Game.hud.hint("[F] lampe torche   ·   [C] maintenir pour s'accroupir   ·   [Tab] objectif   ·   [I] inventaire", 8.0)
+		else:
+			Game.hud.hint(MIC_HINT, 8.0)
 	# test : --lenstest → gouttes sur l'objectif dès le départ
 	if Game.args.has("lenstest"):
 		Game.lens_splash(1.0)
@@ -3358,8 +3367,10 @@ func _build_npc() -> void:
 	if params.get("npc", false):
 		_npc_dead_pose()
 		return
-	_npc_breath = Sound.loop_at("dying_breath_loop", _npc, -10.0, 1.6, 9.0)
+	_npc_breath = Sound.loop_at("dying_breath_loop", _npc, -8.0, 1.6, 9.0)
 	_npc_breath.position.y = 0.7
+	# un peu plus grave et plus lent : un homme âgé qui s'épuise
+	_npc_breath.pitch_scale = 0.9
 
 
 func _npc_dead_pose() -> void:
@@ -3413,7 +3424,7 @@ func _npc_talk() -> void:
 	# dernier souffle
 	if is_instance_valid(_npc_breath):
 		Sound.fade(_npc_breath, -60.0, 1.0, true)
-	Sound.play_at("death_rattle", head, -4.0, 1.0, 2.0, 12.0)
+	Sound.play_at("death_rattle", head, -3.0, 0.96, 2.0, 12.0)
 	var tw2 := create_tween().set_parallel()
 	tw2.tween_property(_npc_body, "droop", 1.0, 2.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw2.tween_property(_npc_body, "depth", 0.0, 2.6)

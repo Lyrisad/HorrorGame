@@ -76,6 +76,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    ruée de rats).
 18. Mort simplifiée : la caméra tombe et filme le plafond + un cri (vrai enregistrement). Débris flottants refaits
    (feuille morte réaliste, mousse, brindille, écume ; plus de plastique blanc en hexagone), gravats irréguliers.
+19. Conseils à l'écran refaits : carte sombre arrondie, liseré ambre, titre « CONSEIL », touches dessinées comme
+   des touches de clavier (aussi dans l'invite « E »), largeur ajustée au texte. Essoufflement de Théo, respiration
+   et dernier souffle de l'égoutier : de vrais enregistrements (le souffle de synthèse « saturé » est supprimé).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

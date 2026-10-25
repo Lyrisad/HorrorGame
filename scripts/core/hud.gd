@@ -19,12 +19,14 @@ var device_label: Label
 var mic_bars: Array[ColorRect] = []
 var objective_box: HBoxContainer
 var objective_label: Label
-var prompt_label: Label
+var prompt_label: RichTextLabel
 var hold_bg: ColorRect
 var hold_fill: ColorRect
 var subtitle: RichTextLabel
 var hint_panel: PanelContainer
-var hint_label: Label
+var hint_label: RichTextLabel
+var hint_title: Label
+var _hint_base_top := -360.0
 var live_root: Control
 var live_viewers: Label
 var live_big: Label
@@ -125,9 +127,8 @@ func _ready() -> void:
 	obj_col.add_child(objective_label)
 
 	# --- invite d'interaction
-	prompt_label = _label("", 26)
-	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(prompt_label, 0.5, 0.58, 0.5, 0.58, -500, 0, 500, 40)
+	prompt_label = _rich(26)
+	_place(prompt_label, 0.5, 0.58, 0.5, 0.58, -500, 0, 500, 44)
 	prompt_label.visible = false
 	root.add_child(prompt_label)
 	hold_bg = ColorRect.new()
@@ -166,22 +167,35 @@ func _ready() -> void:
 	_place(osd_top, 0.5, 0, 0.5, 0, -400, 90, 400, 140)
 	root.add_child(osd_top)
 
-	# --- indice (tutoriel)
+	# --- conseil (tutoriel) : une carte sombre aux coins arrondis, liseré ambre, touches dessinées
 	hint_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0, 0, 0, 0.5)
-	sb.border_color = Color(1, 1, 1, 0.4)
-	sb.set_border_width_all(1)
-	sb.content_margin_left = 18
-	sb.content_margin_right = 18
-	sb.content_margin_top = 8
-	sb.content_margin_bottom = 8
+	sb.bg_color = Color(0.03, 0.035, 0.035, 0.8)
+	sb.border_color = Color(1.0, 0.78, 0.42, 0.95)
+	sb.border_width_left = 4
+	sb.set_corner_radius_all(9)
+	sb.shadow_color = Color(0, 0, 0, 0.55)
+	sb.shadow_size = 10
+	sb.content_margin_left = 22
+	sb.content_margin_right = 22
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 12
 	hint_panel.add_theme_stylebox_override("panel", sb)
-	hint_label = _label("", 22)
-	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint_panel.add_child(hint_label)
-	_place(hint_panel, 0.5, 1, 0.5, 1, -500, -360, 500, -310)
+	var hint_col := VBoxContainer.new()
+	hint_col.add_theme_constant_override("separation", 4)
+	hint_panel.add_child(hint_col)
+	hint_title = Label.new()
+	var hls := LabelSettings.new()
+	hls.font = sans
+	hls.font_size = 15
+	hls.font_color = Color(1.0, 0.8, 0.48, 0.9)
+	hint_title.label_settings = hls
+	hint_title.text = "CONSEIL"
+	hint_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_col.add_child(hint_title)
+	hint_label = _rich(22)
+	hint_col.add_child(hint_label)
+	_place(hint_panel, 0.5, 1, 0.5, 1, -450, _hint_base_top, 450, -310)
 	hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	hint_panel.visible = false
 	root.add_child(hint_panel)
@@ -216,6 +230,33 @@ func _ready() -> void:
 
 
 # ------------------------------------------------------------------ helpers
+## Texte riche centré (pour les touches dessinées), même police que les sous-titres.
+func _rich(size: int) -> RichTextLabel:
+	var r := RichTextLabel.new()
+	r.bbcode_enabled = true
+	r.fit_content = true
+	r.scroll_active = false
+	r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.add_theme_font_override("normal_font", sans)
+	r.add_theme_font_size_override("normal_font_size", size)
+	r.add_theme_color_override("default_color", Color(1, 1, 1, 0.92))
+	r.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	r.add_theme_constant_override("outline_size", 5)
+	return r
+
+
+## « [F] lampe » → la touche F dessinée comme une touche de clavier (fond clair, lettre blanche).
+func _keycaps(text: String) -> String:
+	var re := RegEx.new()
+	re.compile("\\[([^\\]]{1,14})\\]")
+	var out := text
+	for m in re.search_all(text):
+		var key := m.get_string(1)
+		out = out.replace("[" + key + "]", "[bgcolor=#ffffff33][color=#ffffff]\u2009" + key + "\u2009[/color][/bgcolor]\u2009")
+	return out.replace("   ·   ", "    [color=#ffffff66]·[/color]    ")
+
+
 func _label(text: String, size: int, color := Color(1, 1, 1, 0.9), font: Font = null) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -337,7 +378,7 @@ func _show_objective(duration: float) -> void:
 
 func prompt(text: String) -> void:
 	prompt_label.visible = text != ""
-	prompt_label.text = "[E]  " + text
+	prompt_label.text = "[center]" + _keycaps("[E]") + "  " + text + "[/center]"
 
 
 func hold(progress: float) -> void:
@@ -364,7 +405,7 @@ func pickup(item_name: String) -> void:
 		root.add_child(_pickup_label)
 	_pickup_id += 1
 	var id := _pickup_id
-	_pickup_label.text = "+ %s      [I] inventaire" % item_name
+	_pickup_label.text = "+ %s      [I] inventaire" % item_name.replace("[", "(").replace("]", ")")
 	_pickup_label.modulate.a = 1.0
 	await get_tree().create_timer(3.2, false).timeout
 	if id == _pickup_id:
@@ -374,11 +415,37 @@ func pickup(item_name: String) -> void:
 func hint(text: String, duration := 6.0) -> void:
 	_hint_id += 1
 	var id := _hint_id
-	hint_label.text = text
+	hint_label.text = "[center]" + _keycaps(text) + "[/center]"
+	# la carte prend la largeur du texte (sans dépasser 900 px)
+	var plain := text.replace("[", " ").replace("]", " ")
+	var w := clampf(sans.get_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 70.0, 300.0, 900.0)
+	hint_label.custom_minimum_size = Vector2(w - 44.0, 0)
+	hint_panel.offset_left = -w * 0.5
+	hint_panel.offset_right = w * 0.5
+	hint_panel.modulate.a = 0.0
 	hint_panel.visible = true
+	# le texte doit être mis en page (une image) avant de connaître la hauteur de la carte
+	await get_tree().process_frame
+	if id != _hint_id:
+		return
+	var h := hint_panel.get_combined_minimum_size().y
+	hint_panel.offset_bottom = -310.0
+	hint_panel.offset_top = -310.0 - h
+	hint_panel.size = Vector2(w, h)
+	# apparition : glisse un peu vers le haut en fondu
+	var final_y := hint_panel.position.y
+	hint_panel.position.y = final_y + 14.0
+	var tw := create_tween().set_parallel()
+	tw.tween_property(hint_panel, "modulate:a", 1.0, 0.25)
+	tw.tween_property(hint_panel, "position:y", final_y, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	Sound.play("ui_beep", -20.0, 1.3, "UI")
 	await get_tree().create_timer(duration, false).timeout
 	if id == _hint_id:
-		hint_panel.visible = false
+		var tw2 := create_tween()
+		tw2.tween_property(hint_panel, "modulate:a", 0.0, 0.45)
+		await tw2.finished
+		if id == _hint_id:
+			hint_panel.visible = false
 
 
 func live_overlay(on: bool, viewers := 2341, big := "") -> void:

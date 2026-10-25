@@ -350,30 +350,6 @@ def flashlight_tap(i):
     return fade_out(y, 0.05)
 
 
-def dying_breath_loop():
-    """Respiration d'un homme qui se vide de son sang : courte, irrégulière, mouillée (gargouillis),
-    avec une plainte à l'expiration."""
-    d = 7.0
-    y = np.zeros(n_samples(d))
-    t = 0.1
-    while t < d - 0.2:
-        ins = rng.uniform(0.35, 0.6)
-        seg = bp(white(ins), 600, 2800) * env_lin(ins, [(0, 0), (ins * 0.6, 1), (ins, 0)]) * 0.5
-        wet = np.abs(_norm_walk(len(seg), rng.uniform(18, 30)))
-        seg *= 0.5 + wet
-        place_wrap(y, seg, t)
-        t += ins + rng.uniform(0.05, 0.15)
-        ex = rng.uniform(0.6, 1.1)
-        f0 = np.linspace(rng.uniform(95, 115), rng.uniform(75, 85), n_samples(ex))
-        moan = formants(glottal(f0, ex, 0.12, 0.6), [450, 900, 2300], [4, 5, 6], [1, 0.5, 0.15]) * 0.06
-        air = bp(white(ex), 300, 1800) * 0.45
-        gurgle = bp(white(ex), 200, 900) * (np.abs(_norm_walk(n_samples(ex), 25)) ** 2) * 0.8
-        seg2 = (moan + air + gurgle) * env_lin(ex, [(0, 0), (0.06, 1), (ex * 0.5, 0.6), (ex, 0)])
-        place_wrap(y, seg2, t)
-        t += ex + rng.uniform(0.5, 1.4)
-    return y
-
-
 def dying_cough(i):
     """Toux grasse, deux ou trois quintes, du sang dans la gorge."""
     d = 1.6
@@ -387,17 +363,6 @@ def dying_cough(i):
         place(y, burst * (1.0 - k * 0.2), at)
         at += c + rng.uniform(0.08, 0.2)
     return fade_out(reverb(y, 0.6, 0.12), 0.1)
-
-
-def death_rattle():
-    """Dernier souffle : une longue expiration qui gargouille et s'éteint."""
-    d = 3.0
-    n = n_samples(d)
-    rattle = bp(white(d), 180, 900) * (np.abs(_norm_walk(n, 14)) ** 1.5) * 1.3
-    air = bp(white(d), 400, 2200) * 0.35
-    moan = formants(glottal(np.linspace(90, 60, n), d, 0.2, 0.7), [400, 850], [4, 5]) * 0.05
-    y = (rattle + air + moan) * env_lin(d, [(0, 0), (0.15, 1), (1.2, 0.7), (2.6, 0.08), (d, 0)])
-    return fade_out(y, 0.2)
 
 
 def dying_murmur(i):
@@ -648,19 +613,6 @@ def heartbeat_loop():
     for at, f, g in ((0.0, 52, 1.0), (0.27, 44, 0.7)):
         b = lp(sine(np.linspace(f * 1.4, f, n_samples(0.18)), 0.18), 120) * env_exp(0.18, 0.006, 0.05) * g
         place(y, b, at)
-    return y
-
-
-def breath_heavy_loop():
-    d = 3.2
-    y = np.zeros(n_samples(d))
-    t = 0.0
-    while t < d:
-        for dur, lo, hi, g in ((0.55, 900, 3500, 0.6), (0.65, 500, 2500, 1.0)):
-            seg = bp(white(dur), lo, hi) * env_lin(dur, [(0, 0), (dur * 0.25, 1), (dur, 0)]) * g
-            seg += formants(glottal(130, dur, 0.04, 0.3), [700, 1200], [5, 5]) * 0.05 * g
-            place_wrap(y, seg, t)
-            t += dur + 0.12
     return y
 
 
@@ -1350,8 +1302,6 @@ def main():
         write(f"dying_cough_{i}", dying_cough(i), 0.75)
     for i in range(3):
         write(f"dying_murmur_{i}", dying_murmur(i), 0.55)
-    write("dying_breath_loop", dying_breath_loop(), 0.6)
-    write("death_rattle", death_rattle(), 0.6)
     write("creature_shriek", creature_shriek(0), 0.95)
     write("creature_attack", creature_attack(0), 0.95)
     write("creature_breath_loop", creature_breath_loop(), 0.8)
@@ -1374,7 +1324,6 @@ def main():
     write("buzz_loop", buzz_loop(), 0.5)
     write("static_loop", static_loop(), 0.5)
     write("heartbeat_loop", heartbeat_loop(), 0.9)
-    write("breath_heavy_loop", breath_heavy_loop(), 0.6)
     write("radio_loop", radio_loop(), 0.55)
     music = party_music_loop()
     write("party_music_loop", music, 0.8)

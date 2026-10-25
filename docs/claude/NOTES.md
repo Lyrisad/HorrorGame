@@ -188,6 +188,18 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - _lamp_shadows(): the 9 lamps nearest to Théo get shadows (every 0.4 s); without shadows the omni lights shone
   through walls onto the wet floor of the next corridor. Cost ≈ 210 → 182 fps at 1080p on the dev PC. Sewer is darker (ambient 0.13,
   lamps ×0.7, gain 0.45).
+- Breathing: synthetic breaths (filtered white noise) were rejected ("horrible", "gros souffle saturé"). Now real
+  recordings via real_sounds.py BREATH_LOOPS (loop cut at the envelope dips between two breaths, end crossfaded
+  into what precedes the start) and EXCERPTS (one window, fades): breath_heavy_loop = 395563 (steady open-mouth
+  panting), death_rattle = 798649 (a gasp then a long fading exhale), dying_breath_loop = 33939 12.2-22.1 s
+  (weak irregular breaths with silences; pitch 0.9 in game). All pass breath_filter (220 Hz high-pass
+  kills mic "pops", 9 kHz low-pass) + declick (peaks > 4x local RMS squashed: mouth clicks). fs_fetch.py has a
+  45 s socket timeout + 120 s budget per file (Freesound CDN sometimes trickles forever).
+- HUD hint card (hud.hint): RichTextLabel inside a PanelContainer (dark, rounded, amber left border, "CONSEIL"
+  title); "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "   ·   " separators dimmed. Its width comes from
+  the text size (300-900 px); the height is only known one frame after the text is set (await process_frame,
+  then offset_top = -310 - get_combined_minimum_size().y) — setting it immediately left a giant empty box.
+  `--hinttest[=keys|mic]` (sewer) shows a hint for captures. The interaction prompt uses the same keycap.
 
 ## Testing
 - Helper: `sh tools/dev/run.sh <dir> <name> <timeout> <args>` → `tools/dev/out/<dir>/<name>_N.png`.

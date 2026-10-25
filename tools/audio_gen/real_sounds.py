@@ -3,7 +3,7 @@ sur des éclats de verre, couinements de rats.
 
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
-   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying"
+   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying" "heavy breathing exhausted" "last breath dying"
    "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak" "man scream"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
@@ -200,8 +200,84 @@ def make_clips(cache, out, name, src, count, length):
         print(f"   {name}_{i}  {len(seg) / SR:.2f}s")
 
 
+def declick(x, ratio=4.0):
+    """Gomme les clics de bouche / de micro : un pic bref bien au-dessus du niveau autour est ramené à ce niveau."""
+    from scipy.ndimage import maximum_filter1d
+    peak = maximum_filter1d(np.abs(x), 45) + 1e-6
+    long = np.sqrt(np.convolve(x * x, np.ones(2205) / 2205, "same")) + 1e-6
+    g = np.minimum(1.0, ratio * long / peak)
+    g = np.convolve(g, np.ones(45) / 45, "same")
+    return x * np.minimum(g, 1.0)
+
+
+def breath_filter(x):
+    """Souffle collé au micro : on retire les « pops » graves et le sifflement trop aigu."""
+    x = sosfilt(butter(2, 220, "highpass", fs=SR, output="sos"), x)
+    return sosfilt(butter(2, 9000, "lowpass", fs=SR, output="sos"), x)
+
+
+# respirations bouclées : (id, auteur), fenêtre gardée dans l'enregistrement (s), peak.
+# La boucle est recoupée aux creux entre deux souffles (pas de double souffle ni de claquement).
+BREATH_LOOPS = {
+    # Théo à bout de souffle : halètement bouche ouverte, régulier (5 cycles), sans souffle dans le micro
+    "breath_heavy_loop": (("395563", "SoundsForHim"), 1.5, 8.75, 0.5),
+    # l'égoutier mourant : souffles faibles et irréguliers séparés de silences (fin d'un enregistrement de récupération)
+    "dying_breath_loop": (("33939", "scarbelly25"), 12.2, 22.1, 0.5),
+}
+
+
+def make_breath_loop(cache, out, name, src, t0, t1, peak):
+    files = glob.glob(os.path.join(cache, "**", src[0] + ".mp3"), recursive=True)
+    if not files:
+        print("   manquant :", src[0])
+        return
+    x = declick(breath_filter(load(files[0])))
+    hop = int(0.01 * SR)
+    e = np.convolve(envelope(x, hop), np.ones(8) / 8, "same")
+
+    def quiet(t):
+        i0, i1 = max(1, int((t - 0.35) / 0.01)), min(len(e) - 1, int((t + 0.35) / 0.01))
+        return (i0 + int(np.argmin(e[i0:i1]))) * hop
+
+    a, b = quiet(t0), quiet(t1)
+    n = int(0.12 * SR)
+    body = x[a:b].copy()
+    # la fin se fond dans ce qui précède le début : la reprise est continue
+    w = np.linspace(0, 1, n)
+    pre = x[max(0, a - n):a]
+    if len(pre) == n:
+        body[-n:] = body[-n:] * np.sqrt(1 - w) + pre * np.sqrt(w)
+    write(os.path.join(out, name + ".wav"), body / (np.max(np.abs(body)) + 1e-9) * peak)
+    print(f"   {name}  {len(body) / SR:.2f}s")
+
+
+# extraits uniques : (id, auteur), début, fin (s), peak — fondu à l'entrée et à la sortie
+EXCERPTS = {
+    # l'égoutier rend l'âme : un hoquet d'air, puis une longue expiration qui s'éteint (pas de râle saturé)
+    "death_rattle": (("798649", "randbsoundbites"), 0.4, 3.0, 0.5),
+}
+
+
+def make_excerpt(cache, out, name, src, t0, t1, peak):
+    files = glob.glob(os.path.join(cache, "**", src[0] + ".mp3"), recursive=True)
+    if not files:
+        print("   manquant :", src[0])
+        return
+    x = declick(breath_filter(load(files[0])))
+    seg = x[int(t0 * SR):int(t1 * SR)].copy()
+    n_in, n_out = int(0.05 * SR), int(min(0.6, (t1 - t0) * 0.3) * SR)
+    seg[:n_in] *= np.linspace(0, 1, n_in)
+    seg[-n_out:] *= np.linspace(1, 0, n_out) ** 1.5
+    write(os.path.join(out, name + ".wav"), seg / (np.max(np.abs(seg)) + 1e-9) * peak)
+    print(f"   {name}  {len(seg) / SR:.2f}s")
+
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
+    for nm, (src, t0, t1, pk) in BREATH_LOOPS.items():
+        make_breath_loop(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
+    for nm, (src, t0, t1, pk) in EXCERPTS.items():
+        make_excerpt(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
     for nm, src in LOOPS.items():
         make_loop(sys.argv[1], sys.argv[2], nm, src)
     for nm, (src, count, length) in CLIPS.items():
