@@ -25,8 +25,7 @@ var hold_fill: ColorRect
 var subtitle: RichTextLabel
 var hint_panel: PanelContainer
 var hint_label: RichTextLabel
-var hint_title: Label
-var _hint_base_top := -360.0
+const HINT_BOTTOM := -44.0  ## bas de la boîte des conseils (sous les sous-titres, au ras de l'écran)
 var live_root: Control
 var live_viewers: Label
 var live_big: Label
@@ -167,35 +166,21 @@ func _ready() -> void:
 	_place(osd_top, 0.5, 0, 0.5, 0, -400, 90, 400, 140)
 	root.add_child(osd_top)
 
-	# --- conseil (tutoriel) : une carte sombre aux coins arrondis, liseré ambre, touches dessinées
+	# --- conseil (tutoriel) : une boîte sombre aux coins arrondis, touches dessinées
 	hint_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.035, 0.035, 0.8)
-	sb.border_color = Color(1.0, 0.78, 0.42, 0.95)
-	sb.border_width_left = 4
 	sb.set_corner_radius_all(9)
 	sb.shadow_color = Color(0, 0, 0, 0.55)
 	sb.shadow_size = 10
 	sb.content_margin_left = 22
 	sb.content_margin_right = 22
 	sb.content_margin_top = 10
-	sb.content_margin_bottom = 12
+	sb.content_margin_bottom = 11
 	hint_panel.add_theme_stylebox_override("panel", sb)
-	var hint_col := VBoxContainer.new()
-	hint_col.add_theme_constant_override("separation", 4)
-	hint_panel.add_child(hint_col)
-	hint_title = Label.new()
-	var hls := LabelSettings.new()
-	hls.font = sans
-	hls.font_size = 15
-	hls.font_color = Color(1.0, 0.8, 0.48, 0.9)
-	hint_title.label_settings = hls
-	hint_title.text = "CONSEIL"
-	hint_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_col.add_child(hint_title)
 	hint_label = _rich(22)
-	hint_col.add_child(hint_label)
-	_place(hint_panel, 0.5, 1, 0.5, 1, -450, _hint_base_top, 450, -310)
+	hint_panel.add_child(hint_label)
+	_place(hint_panel, 0.5, 1, 0.5, 1, -450, HINT_BOTTOM - 50.0, 450, HINT_BOTTOM)
 	hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	hint_panel.visible = false
 	root.add_child(hint_panel)
@@ -246,13 +231,18 @@ func _rich(size: int) -> RichTextLabel:
 	return r
 
 
-## « [F] lampe » → la touche F dessinée comme une touche de clavier (fond clair, lettre blanche).
+## « [F] lampe » → la touche F dessinée comme une touche de clavier (fond clair, lettre blanche) ;
+## « [clic droit] » / « [clic gauche] » → une petite souris, le bouton concerné allumé.
 func _keycaps(text: String) -> String:
 	var re := RegEx.new()
 	re.compile("\\[([^\\]]{1,14})\\]")
 	var out := text
 	for m in re.search_all(text):
 		var key := m.get_string(1)
+		if key in ["clic droit", "clic gauche"]:
+			var icon := "res://assets/gen/icon_mouse_%s.png" % ("right" if key == "clic droit" else "left")
+			out = out.replace("[" + key + "]", "[img=24x34]%s[/img]" % icon)
+			continue
 		out = out.replace("[" + key + "]", "[bgcolor=#ffffff33][color=#ffffff]\u2009" + key + "\u2009[/color][/bgcolor]\u2009")
 	return out.replace("   ·   ", "    [color=#ffffff66]·[/color]    ")
 
@@ -417,7 +407,7 @@ func hint(text: String, duration := 6.0) -> void:
 	var id := _hint_id
 	hint_label.text = "[center]" + _keycaps(text) + "[/center]"
 	# la carte prend la largeur du texte (sans dépasser 900 px)
-	var plain := text.replace("[", " ").replace("]", " ")
+	var plain := text.replace("[clic droit]", "WW").replace("[clic gauche]", "WW").replace("[", " ").replace("]", " ")
 	var w := clampf(sans.get_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 70.0, 300.0, 900.0)
 	hint_label.custom_minimum_size = Vector2(w - 44.0, 0)
 	hint_panel.offset_left = -w * 0.5
@@ -429,8 +419,8 @@ func hint(text: String, duration := 6.0) -> void:
 	if id != _hint_id:
 		return
 	var h := hint_panel.get_combined_minimum_size().y
-	hint_panel.offset_bottom = -310.0
-	hint_panel.offset_top = -310.0 - h
+	hint_panel.offset_bottom = HINT_BOTTOM
+	hint_panel.offset_top = HINT_BOTTOM - h
 	hint_panel.size = Vector2(w, h)
 	# apparition : glisse un peu vers le haut en fondu
 	var final_y := hint_panel.position.y

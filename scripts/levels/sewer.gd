@@ -213,7 +213,10 @@ func _ready() -> void:
 		(_mist.material as FogMaterial).density = float(Game.args["misttest"])
 	# test : --hinttest[=keys|prompt] → affiche l'indice du micro (le plus long du jeu), les touches, ou une invite
 	if Game.args.has("hinttest"):
-		if str(Game.args["hinttest"]) == "prompt":
+		if str(Game.args["hinttest"]) == "bottle":
+			Game.hud.hint("[G] ou [clic droit]  lancer une bouteille pour faire diversion", 8.0)
+			Game.hud.say("Une bouteille... ça peut servir.", 8.0)
+		elif str(Game.args["hinttest"]) == "prompt":
 			Game.hud.hint("[Maj] courir   ·   [Échap] pause", 8.0)
 			# un objet factice droit devant ; les captures désactivent les interactions, on les rétablit
 			var ahead := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
@@ -2279,7 +2282,7 @@ func _build_bottles() -> void:
 			Sound.play("pickup", -10.0, 1.3)
 			Game.hud.pickup("Bouteille vide")
 			if bottles == 1:
-				Game.hud.hint("[G] ou clic droit : lancer une bouteille pour faire diversion", 5.0)
+				Game.hud.hint("[G] ou [clic droit]  lancer une bouteille pour faire diversion", 5.0)
 			if not _bottle_told:
 				_bottle_told = true
 				await wait(0.6)
@@ -3382,10 +3385,13 @@ func _npc_dead_pose() -> void:
 
 
 func _npc_say(text: String, duration: float) -> void:
-	if _npc_state != 2:
-		Sound.play_at(Sound.variant("dying_murmur", 3), _npc.global_position + Vector3(0, 0.8, 0), -6.0, randf_range(0.95, 1.05), 2.0, 12.0)
+	# pas de fausse voix : le sous-titre suffit ; sa respiration s'efface pendant qu'il parle
+	if is_instance_valid(_npc_breath):
+		Sound.fade(_npc_breath, -22.0, 0.3)
 	Game.hud.say(text, duration, "L'égoutier")
 	await wait(duration + 0.25)
+	if is_instance_valid(_npc_breath) and _npc_state == 1:
+		Sound.fade(_npc_breath, -8.0, 0.6)
 
 
 func _npc_talk() -> void:

@@ -25,9 +25,6 @@ def main():
     g.write("owl_hoot", g.owl_hoot(), 0.6)
     for i in range(2):
         g.write(f"flashlight_tap_{i}", g.flashlight_tap(i), 0.5)
-        g.write(f"dying_cough_{i}", g.dying_cough(i), 0.75)
-    for i in range(3):
-        g.write(f"dying_murmur_{i}", g.dying_murmur(i), 0.55)
     print("OK")
 
 

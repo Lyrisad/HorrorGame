@@ -350,42 +350,6 @@ def flashlight_tap(i):
     return fade_out(y, 0.05)
 
 
-def dying_cough(i):
-    """Toux grasse, deux ou trois quintes, du sang dans la gorge."""
-    d = 1.6
-    y = np.zeros(n_samples(d))
-    at = 0.0
-    for k in range(int(rng.integers(2, 4))):
-        c = rng.uniform(0.2, 0.32)
-        burst = bp(white(c), 250, 3500) * env_exp(c, 0.004, 0.07) * 1.2
-        burst += formants(glottal(rng.uniform(120, 160), c, 0.25, 0.8), [550, 1100, 2400], [3, 4, 5], [1, 0.6, 0.2]) * env_exp(c, 0.004, 0.06) * 0.35
-        burst += bp(white(c), 150, 700) * (np.abs(_norm_walk(n_samples(c), 30)) ** 2) * env_exp(c, 0.01, 0.12) * 1.2
-        place(y, burst * (1.0 - k * 0.2), at)
-        at += c + rng.uniform(0.08, 0.2)
-    return fade_out(reverb(y, 0.6, 0.12), 0.1)
-
-
-def dying_murmur(i):
-    """Phrase soufflée, presque sans voix : des voyelles chuchotées, à peine voisées, hachées."""
-    d = [2.2, 2.8, 1.8][i % 3]
-    n = n_samples(d)
-    src = white(d)
-    vowels = [(300, 870), (600, 1000), (700, 1200), (400, 1900), (350, 2200), (500, 800)]
-    y = np.zeros(n)
-    voice = glottal(np.full(n, rng.uniform(95, 110)) * (1 + 0.05 * _norm_walk(n, 3)), d, 0.15, 0.6) * 0.25
-    blk = 2048
-    seq = [vowels[int(rng.integers(0, len(vowels)))] for _ in range(n // blk + 2)]
-    for k in range(0, n, blk):
-        f1, f2 = seq[k // blk]
-        seg = src[max(0, k - 1024) : k + blk] + voice[max(0, k - 1024) : k + blk]
-        out = reso(seg, f1, 5) + reso(seg, f2, 7) * 0.7
-        y[k : k + blk] = out[-len(y[k : k + blk]) :]
-    syll = np.clip(np.sin(2 * np.pi * rng.uniform(3.2, 4.5) * tt(d) + rng.uniform(0, 6)), 0, 1) ** 0.6
-    hiss = hp(src, 4000) * (np.clip(np.sin(2 * np.pi * 1.1 * tt(d) + 1.0), 0, 1) ** 6) * 0.3
-    y = (y * syll + hiss) * env_lin(d, [(0, 0), (0.15, 1), (d * 0.7, 0.8), (d, 0)])
-    return reverb(y, 0.6, 0.15)
-
-
 def creature_step(i):
     d = 0.6
     thud = sine(np.linspace(65, 38, n_samples(d)), d) * env_exp(d, 0.002, 0.09) * 1.5
@@ -1299,9 +1263,6 @@ def main():
         write(f"drip_{i}", drip(i), 0.5)
     for i in range(2):
         write(f"flashlight_tap_{i}", flashlight_tap(i), 0.5)
-        write(f"dying_cough_{i}", dying_cough(i), 0.75)
-    for i in range(3):
-        write(f"dying_murmur_{i}", dying_murmur(i), 0.55)
     write("creature_shriek", creature_shriek(0), 0.95)
     write("creature_attack", creature_attack(0), 0.95)
     write("creature_breath_loop", creature_breath_loop(), 0.8)

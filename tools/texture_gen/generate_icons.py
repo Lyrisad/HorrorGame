@@ -1,6 +1,7 @@
 """
 Icônes de téléphone (pictogrammes Material Icons de Google, licence Apache 2.0) dessinées depuis leurs
 tracés vectoriels SVG : décrocher, raccrocher, micro coupé, clavier, haut-parleur.
+Plus une souris (clic gauche / droit) dessinée à la main pour les conseils.
 
 Usage :  python generate_icons.py <dossier_sortie>
 """
@@ -119,10 +120,44 @@ def icon(name, size=128, color=(255, 255, 255, 255), angle=0):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def mouse(button, h=112):
+    """Souris vue de dessus (contour blanc), le bouton gauche ou droit rempli : pour les conseils « clic droit »."""
+    k = 8
+    w = int(h * 0.7)
+    W, H = w * k, h * k
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    lw = int(W * 0.085)
+    pad = lw // 2 + k
+    box = (pad, pad, W - pad, H - pad)
+    r = int(W * 0.46)
+    split = int(H * 0.44)  # bas des boutons
+    # bouton allumé : la moitié haute du côté choisi, prise dans la forme arrondie
+    fill = Image.new("L", (W, H), 0)
+    fd = ImageDraw.Draw(fill)
+    fd.rounded_rectangle(box, r, fill=255)
+    half = Image.new("L", (W, H), 0)
+    hd = ImageDraw.Draw(half)
+    if button == "right":
+        hd.rectangle((W // 2, 0, W, split), fill=255)
+    else:
+        hd.rectangle((0, 0, W // 2, split), fill=255)
+    from PIL import ImageChops
+    img.paste((255, 255, 255, 235), (0, 0), ImageChops.multiply(fill, half))
+    # contour, séparation des boutons, molette
+    d.rounded_rectangle(box, r, outline=(255, 255, 255, 255), width=lw)
+    d.line((pad, split, W - pad, split), fill=(255, 255, 255, 255), width=lw)
+    d.line((W // 2, pad, W // 2, split), fill=(255, 255, 255, 255), width=lw)
+    return img.resize((w, h), Image.LANCZOS)
+
+
 def main():
     for n in PATHS:
         icon(n).save(os.path.join(OUT, n + ".png"))
         print("  ", n + ".png")
+    for b in ("left", "right"):
+        mouse(b).save(os.path.join(OUT, "icon_mouse_%s.png" % b))
+        print("   icon_mouse_%s.png" % b)
 
 
 if __name__ == "__main__":

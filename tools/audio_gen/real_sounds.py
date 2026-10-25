@@ -3,7 +3,7 @@ sur des éclats de verre, couinements de rats.
 
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
-   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying" "heavy breathing exhausted" "last breath dying"
+   "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying" "heavy breathing exhausted" "last breath dying" "man coughing weak"
    "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak" "man scream"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
@@ -251,19 +251,24 @@ def make_breath_loop(cache, out, name, src, t0, t1, peak):
     print(f"   {name}  {len(body) / SR:.2f}s")
 
 
-# extraits uniques : (id, auteur), début, fin (s), peak — fondu à l'entrée et à la sortie
+# extraits uniques : (id, auteur), début, fin (s), peak, gommer les clics — fondu à l'entrée et à la sortie
 EXCERPTS = {
     # l'égoutier rend l'âme : un hoquet d'air, puis une longue expiration qui s'éteint (pas de râle saturé)
-    "death_rattle": (("798649", "randbsoundbites"), 0.4, 3.0, 0.5),
+    "death_rattle": (("798649", "randbsoundbites"), 0.4, 3.0, 0.5, True),
+    # sa toux : courte, essoufflée (les attaques de toux ne doivent pas passer au « déclicker »)
+    "dying_cough_0": (("318079", "Drkvixn91"), 0.4, 1.95, 0.5, False),
+    "dying_cough_1": (("318079", "Drkvixn91"), 2.0, 3.25, 0.5, False),
 }
 
 
-def make_excerpt(cache, out, name, src, t0, t1, peak):
+def make_excerpt(cache, out, name, src, t0, t1, peak, clean=True):
     files = glob.glob(os.path.join(cache, "**", src[0] + ".mp3"), recursive=True)
     if not files:
         print("   manquant :", src[0])
         return
-    x = declick(breath_filter(load(files[0])))
+    x = breath_filter(load(files[0]))
+    if clean:
+        x = declick(x)
     seg = x[int(t0 * SR):int(t1 * SR)].copy()
     n_in, n_out = int(0.05 * SR), int(min(0.6, (t1 - t0) * 0.3) * SR)
     seg[:n_in] *= np.linspace(0, 1, n_in)
@@ -276,8 +281,8 @@ if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
     for nm, (src, t0, t1, pk) in BREATH_LOOPS.items():
         make_breath_loop(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
-    for nm, (src, t0, t1, pk) in EXCERPTS.items():
-        make_excerpt(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
+    for nm, (src, t0, t1, pk, clean) in EXCERPTS.items():
+        make_excerpt(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk, clean)
     for nm, src in LOOPS.items():
         make_loop(sys.argv[1], sys.argv[2], nm, src)
     for nm, (src, count, length) in CLIPS.items():

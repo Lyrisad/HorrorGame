@@ -79,6 +79,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 19. Conseils à l'écran refaits : carte sombre arrondie, liseré ambre, titre « CONSEIL », touches dessinées comme
    des touches de clavier (aussi dans l'invite « E »), largeur ajustée au texte. Essoufflement de Théo, respiration
    et dernier souffle de l'égoutier : de vrais enregistrements (le souffle de synthèse « saturé » est supprimé).
+20. Boîte des conseils : sans liseré ni titre (juste le texte), tout en bas de l'écran sous les sous-titres ; icône
+   de souris « clic droit » pour le lancer de bouteille. Le PNJ n'a plus de fausse voix de synthèse à chaque
+   réplique (affreuse) ; sa respiration baisse quand il parle ; sa toux est un vrai enregistrement.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

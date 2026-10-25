@@ -195,11 +195,17 @@ Keep it current — add a line whenever you learn something non-obvious. History
   (weak irregular breaths with silences; pitch 0.9 in game). All pass breath_filter (220 Hz high-pass
   kills mic "pops", 9 kHz low-pass) + declick (peaks > 4x local RMS squashed: mouth clicks). fs_fetch.py has a
   45 s socket timeout + 120 s budget per file (Freesound CDN sometimes trickles forever).
-- HUD hint card (hud.hint): RichTextLabel inside a PanelContainer (dark, rounded, amber left border, "CONSEIL"
-  title); "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "   ·   " separators dimmed. Its width comes from
-  the text size (300-900 px); the height is only known one frame after the text is set (await process_frame,
-  then offset_top = -310 - get_combined_minimum_size().y) — setting it immediately left a giant empty box.
-  `--hinttest[=keys|mic]` (sewer) shows a hint for captures. The interaction prompt uses the same keycap.
+- HUD hint box (hud.hint): RichTextLabel inside a dark rounded PanelContainer, at the very bottom of the screen
+  (HINT_BOTTOM = -44, under the subtitles). User REJECTED the amber left border and the "CONSEIL" title: text only.
+  "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "[clic droit]"/"[clic gauche]" → mouse icon
+  (assets/gen/icon_mouse_right|left.png, generate_icons.py mouse()); "   ·   " separators dimmed. Width from the
+  text size (300-900 px); the height is only known one frame after the text is set (await process_frame, then
+  offset_top = HINT_BOTTOM - get_combined_minimum_size().y) — setting it immediately left a giant empty box.
+  `--hinttest[=keys|mic|bottle|prompt]` (sewer) shows a hint for captures ("prompt" spawns a dummy Interactable
+  and erases args["shots"], because can_act() is false during captures). The interaction prompt uses the keycap.
+- Dying NPC: NO voice under his subtitles any more (the synthetic dying_murmur_* "voice" was horrible, deleted);
+  his breathing loop is ducked to -22 dB while he speaks. dying_cough_0/1 = real 318079 (EXCERPTS with
+  clean=False: the declicker would flatten cough attacks).
 
 ## Testing
 - Helper: `sh tools/dev/run.sh <dir> <name> <timeout> <args>` → `tools/dev/out/<dir>/<name>_N.png`.
