@@ -167,14 +167,14 @@ def friend_lock(name, owner, seed, hue, notes):
     print("  ", name)
 
 
-def friend_call(name):
+def friend_call(name, clock="23:52", cracked=False):
     w, h = 360, 720
     img = Image.new("RGB", (w, h), (18, 20, 26))
     d = ImageDraw.Draw(img)
     for yy in range(h):
         k = yy / h
         d.line([(0, yy), (w, yy)], fill=(int(30 + 20 * k), int(22 + 10 * k), int(30 + 30 * k)))
-    status_bar(d, w, "23:52")
+    status_bar(d, w, clock)
     f = font("segoeui.ttf", 30)
     big = font("segoeuisl.ttf", 40)
     d.ellipse([w / 2 - 70, 120, w / 2 + 70, 260], fill=(90, 92, 100))
@@ -190,6 +190,20 @@ def friend_call(name):
         img.paste(ic, (int(cx - 29), h - 169), ic)
     d.text((w * 0.27 - 50, h - 80), "Refuser", font=font("segoeui.ttf", 22), fill=(220, 220, 220))
     d.text((w * 0.73 - 50, h - 80), "Accepter", font=font("segoeui.ttf", 22), fill=(220, 220, 220))
+    if cracked:
+        # écran fêlé (le téléphone est tombé) : une étoile d'impact dans un coin et ses fissures
+        cx, cy = w * 0.78, h * 0.18
+        for k in range(11):
+            ang = k / 11 * math.tau + rng.uniform(-0.2, 0.2)
+            x, y = cx, cy
+            pts = [(x, y)]
+            for _ in range(int(rng.integers(4, 9))):
+                ang += rng.uniform(-0.35, 0.35)
+                step = rng.uniform(25, 70)
+                x, y = x + math.cos(ang) * step, y + math.sin(ang) * step
+                pts.append((x, y))
+            d.line(pts, fill=(235, 238, 245), width=1)
+        d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=(200, 205, 215))
     img.save(os.path.join(OUT, name))
     print("  ", name)
 
@@ -222,5 +236,6 @@ friend_lock("phone_lock_0.png", "Max", 1, (0.30, 0.12, 0.10), [("Théo", "j'arri
 friend_lock("phone_lock_1.png", "Inès", 2, (0.28, 0.10, 0.30), [("Maman", "tu rentres à quelle heure ?"), MISSED])
 friend_lock("phone_lock_2.png", "Karim", 3, (0.08, 0.22, 0.20), [("Théo", "?? réponds"), MISSED])
 friend_call("phone_call.png")
+friend_call("phone_call_ines.png", "03:14", True)
 friend_watch("phone_watch.png")
 print("OK")

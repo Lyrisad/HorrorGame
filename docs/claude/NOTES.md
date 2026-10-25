@@ -202,6 +202,24 @@ Keep it current — add a line whenever you learn something non-obvious. History
   → _corridor_lamp_fails(): stutters, nearly dies, comes back, strobes, pops (_lamp_burst: lamp_break_0 + sparks)
   and stays dead (_lamp_off also kills the tube emission and the buzz loop, stored as meta "buzz"); "...Merde.".
   Already dead when starting from a later checkpoint (revealed). _lamp_level(l, e, k) dims light + tube together.
+- Cobwebs: Props.cobweb(kind) = procedural meshes ("corner" two walls + ceiling, apex C pushed 13 cm out because
+  sewer inner corners have a 0.32-0.42 m fillet; "edge" wall/ceiling; "strands" two crossed quads), origin at the
+  bottom against the wall (+Z into the room) so the editor's wall/ceiling placement works; shaders/cobweb.gdshader
+  (blend, cull off, BACKLIGHT, glossy, sway from COLOR.r); textures tools/texture_gen/generate_cobwebs.py (gauze of
+  thousands of short threads + silk film + dust; long straight chords looked like scribbles, sparse k-nearest
+  networks looked like cracks), imported WITH mipmaps (edit the .import). They are ordinary decor ("proc:cobweb_*"
+  in MapLayout._procedural + editor catalog): movable/copyable/deletable. sewer._seed_cobwebs() adds 14 corners /
+  8 edges / 10 strands (fixed seed, not under the brick vault, away from lamps) only while the map file lacks
+  "toiles": true — MapLayout.save() now writes that flag, so after the player saves they belong to his layout.
+  `--webtest` prints their positions.
+- Inès's phone (Props.phone next to her hand, cracked screen phone_call_ines.png "Numéro masqué" 03:14): examining
+  her (_body on_first callback) → ringtone_1 (her ringtone in the house) + real vibration loop, screen glow;
+  _summon_to(): creature brought from a hidden point 16-30 m away if dormant (revealed = true), lured every 3 s at
+  INVESTIGATE_SPEED (curious, ~14 s to arrive); if it reaches the phone it smashes it, else voicemail after 20 s.
+  Story: her phone was on the table at the house, so the kidnappers brought it down — the watchers call it.
+  `--inestest`.
+- Claws: _update_claws() — creature active, 2.5-12 m away and NOT in line of sight → claw_0..3 (real 830466 /
+  354094) on the "Creature" bus (muffled through the wall), every 4-10 s, sometimes twice.
 - HUD hint box (hud.hint): RichTextLabel inside a dark rounded PanelContainer, at the very bottom of the screen
   (HINT_BOTTOM = -44, under the subtitles). User REJECTED the amber left border and the "CONSEIL" title: text only.
   "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "[clic droit]"/"[clic gauche]" → mouse icon

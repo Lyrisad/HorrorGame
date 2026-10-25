@@ -85,6 +85,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 21. Gravats « trop luisants » : morceaux mats à facettes, sombres, briques et mortier ou béton selon la voûte,
    gravillons, petit rebond, filet de poussière. La baladeuse du couloir avant la première apparition grésille,
    se coupe, se rallume puis claque (étincelles) et reste éteinte.
+22. Son idée : le téléphone d'Inès posé à côté d'elle (pas ramassable) sonne quand on l'examine, et la créature
+   vient voir par curiosité. Toiles d'araignée (coins, arêtes, fils pendants) déplaçables dans l'éditeur ; griffes
+   qu'on entend racler les murs quand la créature rôde hors de vue.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

@@ -73,6 +73,8 @@ var _presence_cd := 0.0
 var _time := 0.0
 var _breath_noise_cd := 0.0
 var _unseen := 0.0
+var _ines_phone: Node3D = null  ## posé à côté d'Inès : il sonne quand on l'examine
+var _claw_cd := 6.0
 var _note_read := false
 var _layout: Variant = null  ## disposition personnalisée du décor (éditeur de carte), ou null
 var drone: AudioStreamPlayer
@@ -149,6 +151,9 @@ func _ready() -> void:
 	_build_glass()
 	if _layout != null:
 		MapLayout.spawn(_layout, self)
+	# toiles d'araignée par défaut, tant que la disposition du joueur ne les contient pas déjà
+	if not MapLayout.has_flag("egouts", "toiles"):
+		_seed_cobwebs()
 	MapLayout.apply_cams("egouts", self)
 	MapLayout.apply_objs("egouts", self)
 
@@ -211,6 +216,9 @@ func _ready() -> void:
 		_roach_test()
 	if Game.args.has("eventtest"):
 		_event_test(str(Game.args["eventtest"]))
+	# test : --inestest → on examine Inès (le téléphone sonne, la créature vient voir)
+	if Game.args.has("inestest"):
+		_ines_test()
 	if Game.args.has("misttest") and _mist != null:
 		(_mist.material as FogMaterial).density = float(Game.args["misttest"])
 	# test : --hinttest[=keys|prompt] → affiche l'indice du micro (le plus long du jeu), les touches, ou une invite
@@ -1338,6 +1346,112 @@ func yaw_facing(dir: Vector3) -> float:
 	return rad_to_deg(atan2(dir.x, dir.z))
 
 
+## Toiles d'araignée : dans les coins des salles et des virages (deux murs + plafond), le long des arêtes
+## des galeries en béton, et des fils qui pendent de la voûte. Ce sont des objets de décor ordinaires :
+## l'éditeur (F8) les déplace, les copie, les supprime ; une fois la carte sauvegardée elles en font partie.
+func _seed_cobwebs() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var placed: Array[Vector3] = []
+	var far_from := func(p: Vector3, d: float) -> bool:
+		for q in placed:
+			if Vector2(p.x - q.x, p.z - q.z).length() < d:
+				return false
+		for l in _lamp_lights:
+			if is_instance_valid(l) and Vector2(p.x - l.global_position.x, p.z - l.global_position.z).length() < 1.3:
+				return false
+		return true
+	var corners := []
+	var edges := []
+	var tops := []
+	for y in H:
+		for x in W:
+			var t := Vector2i(x, y)
+			if not walkable(t) or cell(t) in ["w", "G", "E"] or t == EXIT or t == CELL:
+				continue
+			# coins à plafond plat (pas sous la voûte en briques, qui s'arrondit contre les murs)
+			if not is_vault(t):
+				for d1: Vector2i in DIRS:
+					for d2: Vector2i in DIRS:
+						if d1.x * d2.x + d1.y * d2.y == 0 and d1 < d2 and not walkable(t + d1) and not walkable(t + d2):
+							corners.append([t, d1, d2])
+			if corridor_kind(t) != Vector3.ZERO and zone_of(t) > 0:
+				for d: Vector2i in DIRS:
+					if not walkable(t + d):
+						edges.append([t, d])
+			tops.append(t)
+	for list in [corners, edges, tops]:
+		for i in range(list.size() - 1, 0, -1):
+			var j := rng.randi_range(0, i)
+			var tmp: Variant = list[i]
+			list[i] = list[j]
+			list[j] = tmp
+	var n_corner := 0
+	for c in corners:
+		if n_corner >= 14:
+			break
+		var t: Vector2i = c[0]
+		var d1: Vector2i = c[1]
+		var d2: Vector2i = c[2]
+		var out := Vector3(d1.x + d2.x, 0, d1.y + d2.y)
+		var k := tile_center(t) + out * (T * 0.5) - out * 0.02
+		var web := MapLayout.spawn_entry({"model": "proc:cobweb_corner"}, self)
+		var sz: Vector3 = web.get_meta("size")
+		k.y = h_top(t) - sz.y - 0.01
+		if not far_from.call(k, 6.0):
+			web.free()
+			continue
+		# mur du fond = d1 ou d2, choisi pour que le repère (X vers la pièce le long du 2e mur) soit direct
+		var bx := -Vector3(d2.x, 0, d2.y)
+		var bz := -Vector3(d1.x, 0, d1.y)
+		if bx.cross(Vector3.UP).dot(bz) < 0.0:
+			var sw := bx
+			bx = bz
+			bz = sw
+		var sc := rng.randf_range(0.8, 1.3)
+		web.transform = Transform3D(Basis(bx, Vector3.UP, bz).scaled(Vector3.ONE * sc), k)
+		web.position.y = h_top(t) - sz.y * sc - 0.01
+		placed.append(k)
+		n_corner += 1
+	var n_edge := 0
+	for e in edges:
+		if n_edge >= 8:
+			break
+		var t2: Vector2i = e[0]
+		var d: Vector2i = e[1]
+		var p := wall_pos(t2, d, 0.02, rng.randf_range(-0.7, 0.7))
+		if not far_from.call(p, 6.0):
+			continue
+		var web2 := MapLayout.spawn_entry({"model": "proc:cobweb_edge"}, self)
+		var sz2: Vector3 = web2.get_meta("size")
+		var sc2 := rng.randf_range(0.8, 1.4)
+		web2.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(yaw_facing(-Vector3(d.x, 0, d.y)))).scaled(Vector3.ONE * sc2), p)
+		web2.position.y = h_top(t2) - sz2.y * sc2 - 0.01
+		placed.append(p)
+		n_edge += 1
+	var n_top := 0
+	for t3: Vector2i in tops:
+		if n_top >= 10:
+			break
+		var ax := corridor_kind(t3)
+		var along := ax if ax != Vector3.ZERO else Vector3(1, 0, 0)
+		var side := Vector3(-along.z, 0, along.x)
+		var p3 := tile_center(t3) + along * rng.randf_range(-1.0, 1.0) + side * rng.randf_range(-0.15, 0.15)
+		if not far_from.call(p3, 6.0):
+			continue
+		var web3 := MapLayout.spawn_entry({"model": "proc:cobweb_strands"}, self)
+		var sz3: Vector3 = web3.get_meta("size")
+		var sc3 := rng.randf_range(0.7, 1.3)
+		web3.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc3), p3)
+		web3.position.y = h_top(t3) - sz3.y * sc3 - 0.02
+		placed.append(p3)
+		n_top += 1
+	if Game.args.has("webtest"):
+		print("WEBS coins=%d arêtes=%d fils=%d" % [n_corner, n_edge, n_top])
+		for q in placed:
+			print("WEB %.1f,%.1f h=%.2f" % [q.x, q.z, q.y])
+
+
 ## Objet de décor, déplaçable avec l'éditeur de carte (F8) ; ignoré si le joueur a sauvegardé
 ## sa propre disposition (elle est recréée depuis le fichier).
 func deco(slug: String, pos: Vector3, yaw := 0.0, fit := {}) -> Node3D:
@@ -1713,8 +1827,12 @@ func _build_items() -> void:
 	# les corps : Karim au fond de l'impasse, Inès au bord de la citerne (Max reste introuvable)
 	_body("karim", tile_center(Vector2i(14, 11)) + Vector3(-0.2, 0.0, 0.25), 2.4,
 		["Karim...", "Non... non, non, non. KARIM !", "...Il a essayé d'atteindre l'écluse. Comme moi."])
-	_body("ines", wall_pos(Vector2i(6, 8), Vector2i(-1, 0), 0.75), PI * 0.5,
-		["Inès ?!", "...Elle est froide.", "C'est son nid. Il les ramène ici."])
+	var ines_pos := wall_pos(Vector2i(6, 8), Vector2i(-1, 0), 0.75)
+	_body("ines", ines_pos, PI * 0.5,
+		["Inès ?!", "...Elle est froide.", "C'est son nid. Il les ramène ici."], _ines_phone_rings)
+	# son téléphone, rapporté de la maison et posé près de sa main : écran fêlé, éteint, on ne peut pas le prendre
+	_ines_phone = Props.phone(self, ines_pos + Vector3(0.62, 0, -0.5), 200.0, Color(0.7, 0.68, 0.66), "res://assets/gen/phone_call_ines.png")
+	_ines_phone.position.y = floor_y(_ines_phone.position) + 0.002
 
 	# local technique : établi, étagères, coupe-boulons, journal d'entretien
 	var tc := tile_center(Vector2i(17, 1))
@@ -2893,7 +3011,7 @@ func _reveal_far() -> void:
 
 
 ## Corps d'un des amis (personnage Rocketbox figé dans une pose au sol) + sang + réaction de Théo.
-func _body(who: String, pos: Vector3, yaw: float, lines: Array) -> void:
+func _body(who: String, pos: Vector3, yaw: float, lines: Array, on_first := Callable()) -> void:
 	var a := Actor.create(self, who, pos, yaw)
 	a.play("dead", 0.0)
 	a.tint("", Color(0.62, 0.58, 0.56), 0.55)
@@ -2915,10 +3033,131 @@ func _body(who: String, pos: Vector3, yaw: float, lines: Array) -> void:
 		Sound.play("stinger_soft", -6.0)
 		Game.glitch(0.3)
 		player.danger = maxf(player.danger, 0.4)
+		if on_first.is_valid():
+			on_first.call()
+			return
 		for l in lines:
 			Game.hud.say(l, 3.2)
 			await wait(3.4))
 	it.name = "Body_" + who
+
+
+## Théo se penche sur Inès... et le téléphone posé à côté d'elle se met à sonner : numéro masqué, comme à la
+## maison. Ceux qui regardent le direct l'appellent exprès. La créature vient voir ce qui fait ce bruit — par
+## curiosité, à pas mesurés, sans savoir que Théo est là. Il a quelques secondes pour s'éloigner ou se cacher.
+func _ines_phone_rings() -> void:
+	Game.hud.say("Inès ?!", 2.0)
+	await wait(1.7)
+	var ph := _ines_phone
+	if not is_instance_valid(ph) or dying:
+		return
+	var scr := ph.get_meta("screen") as StandardMaterial3D
+	scr.emission_energy_multiplier = 0.9
+	var glow := B.omni(self, ph.global_position + Vector3(0, 0.1, 0), Color(0.72, 0.8, 1.0), 0.18, 1.8)
+	var ring := Sound.loop_at("ringtone_1", ph, 0.0, 3.0, 45.0)
+	var buzz := Sound.loop_at("phone_vibrate_loop", ph, -2.0, 1.5, 14.0)
+	Game.glitch(0.3)
+	Game.shake(0.2)
+	player.danger = maxf(player.danger, 0.75)
+	await wait(1.0)
+	Game.hud.say("Son téléphone ?! Numéro masqué... Non, non, non !", 2.6)
+	_summon_to(ph.global_position)
+	await wait(2.8)
+	Game.hud.say("Il va l'entendre. Faut que je dégage. Vite.", 2.6)
+	var t := 0.0
+	var relure := 3.0
+	var smashed := false
+	while t < 20.0 and not dying:
+		await ticked
+		var dt := get_process_delta_time()
+		t += dt
+		# l'écran éclaire le sol par à-coups, au rythme du vibreur
+		if is_instance_valid(glow):
+			glow.light_energy = 0.14 + 0.06 * sin(t * 7.0)
+		relure -= dt
+		if relure <= 0.0:
+			relure = 3.0
+			_summon_to(ph.global_position)
+		if creature.visible and creature.global_position.distance_to(ph.global_position) < 1.15:
+			smashed = true
+			break
+	for snd in [ring, buzz]:
+		if is_instance_valid(snd):
+			snd.queue_free()
+	if smashed:
+		# elle l'écrase : le verre craque, l'écran meurt, elle fouille les environs
+		Sound.play_at(Sound.variant("step_glass", 4), ph.global_position, 4.0, 0.75, 3.0, 25.0)
+		Sound.play_at("hit_impact", ph.global_position, -8.0, 1.4, 3.0, 20.0)
+		scr.emission_energy_multiplier = 0.0
+		if is_instance_valid(glow):
+			glow.queue_free()
+		ph.rotation_degrees.z = randf_range(-12.0, 12.0)
+		return
+	# messagerie : l'écran reste allumé un instant, puis s'éteint
+	await wait(2.0)
+	scr.emission_energy_multiplier = 0.0
+	if is_instance_valid(glow):
+		glow.queue_free()
+
+
+## Attire la créature vers un bruit qu'elle va inspecter tranquillement (elle n'a pas entendu Théo).
+## Si elle n'est pas encore apparue, elle arrive de loin, d'un endroit que Théo ne voit pas.
+func _summon_to(pos: Vector3) -> void:
+	if creature == null or escaping:
+		return
+	if creature.state == Creature.State.DORMANT:
+		revealed = true
+		creature.player = player
+		creature.global_position = _hidden_point(pos, 16.0, 30.0)
+		creature.activate(Creature.State.PATROL)
+	if creature.state in [Creature.State.STAND, Creature.State.SCRIPTED, Creature.State.ATTACK, Creature.State.CHASE]:
+		return
+	lure_noise(pos, 90.0)
+	creature.target_speed = Creature.INVESTIGATE_SPEED
+
+
+## Case praticable à bonne distance de `pos`, hors de la vue de Théo.
+func _hidden_point(pos: Vector3, dmin: float, dmax: float) -> Vector3:
+	var best := random_point(pos, 9)
+	for _i in 80:
+		var c := tile_center(Vector2i(randi_range(0, W - 1), randi_range(0, H - 1)))
+		var t := tile_of(c)
+		if not walkable(t) or cell(t) == "w" or astar.is_point_solid(t):
+			continue
+		var d := Vector2(c.x - pos.x, c.z - pos.z).length()
+		if d < dmin or d > dmax:
+			continue
+		if has_los(player.eye_position(), c + Vector3(0, 1.0, 0)):
+			continue
+		return c
+	return best
+
+
+## Griffes contre les parois : quand la créature rôde tout près mais hors de vue, on l'entend racler le mur
+## de l'autre côté (étouffé par la paroi : le bus « Creature » coupe les aigus sans ligne de vue).
+func _update_claws(delta: float) -> void:
+	if creature == null or not creature.visible or dying:
+		return
+	if creature.state in [Creature.State.DORMANT, Creature.State.STAND, Creature.State.SCRIPTED, Creature.State.ATTACK]:
+		return
+	_claw_cd -= delta
+	if _claw_cd > 0.0:
+		return
+	var d := creature.global_position.distance_to(player.global_position)
+	if d < 2.5 or d > 12.0:
+		return
+	if has_los(player.eye_position(), creature.head_position()):
+		return
+	_claw_cd = randf_range(4.0, 10.0)
+	var to := player.global_position - creature.global_position
+	to.y = 0.0
+	var at := creature.global_position + to.normalized() * 0.6 + Vector3(0, randf_range(0.5, 1.8), 0)
+	Sound.play_at(Sound.variant("claw", 4), at, 0.0, randf_range(0.8, 1.05), 3.0, 22.0, null, "Creature")
+	# parfois deux coups de griffe à la suite
+	if randf() < 0.4:
+		await wait(randf_range(0.5, 1.0))
+		if is_instance_valid(creature):
+			Sound.play_at(Sound.variant("claw", 4), at + Vector3(randf_range(-0.4, 0.4), randf_range(-0.3, 0.3), 0), -3.0, randf_range(0.8, 1.05), 3.0, 22.0, null, "Creature")
 
 
 func _read_max_phone() -> void:
@@ -3226,6 +3465,7 @@ func _process(delta: float) -> void:
 	_update_debris(delta)
 	_update_roaches(delta)
 	_update_events(delta)
+	_update_claws(delta)
 	# la caméra garde en mémoire ses 12 dernières secondes de trajet (rembobinage à la mort)
 	_hist_t += delta
 	if _hist_t >= 1.0 / 30.0 and not dying:
@@ -4033,6 +4273,15 @@ func _update_roaches(delta: float) -> void:
 			r.global_position = at
 			_roaches.append(r)
 		break
+
+
+func _ines_test() -> void:
+	await wait(1.0)
+	(find_child("Body_ines", false, false) as Interactable).trigger()
+	for i in 14:
+		await wait(1.5)
+		print("INESTEST t=%.1f créature=%s dist_tél=%.1f dist_théo=%.1f vitesse=%.1f" % [1.5 * (i + 1), Creature.State.keys()[creature.state],
+			creature.global_position.distance_to(_ines_phone.global_position), creature.global_position.distance_to(player.global_position), creature.speed])
 
 
 func _event_test(kind: String) -> void:

@@ -344,6 +344,9 @@ func _build_catalog() -> void:
 			_catalog.append([d.replace("_", " "), slug, ""])
 	_catalog.append(["gobelet rouge", "proc:red_cup", ""])
 	_catalog.append(["gobelet rouge renversé", "proc:red_cup_tipped", ""])
+	_catalog.append(["toile d'araignée (coin : deux murs + plafond)", "proc:cobweb_corner", ""])
+	_catalog.append(["toile d'araignée (arête mur / plafond)", "proc:cobweb_edge", ""])
+	_catalog.append(["toile d'araignée (fils qui pendent)", "proc:cobweb_strands", ""])
 	_catalog.sort_custom(func(a: Array, b: Array) -> bool: return str(a[0]).to_lower() < str(b[0]).to_lower())
 	_filter(search.text)
 

@@ -56,6 +56,10 @@ static func spawn_entry(e: Dictionary, root: Node3D) -> Node3D:
 
 
 static func _procedural(model: String, root: Node3D) -> Node3D:
+	if model.begins_with("proc:cobweb_"):
+		var web := Props.cobweb(root, model.trim_prefix("proc:cobweb_"))
+		web.set_meta("spec", {"model": model, "center": false})
+		return web
 	var n: Node3D = Props.red_cup(root, Vector3.ZERO, model == "proc:red_cup_tipped")
 	n.set_meta("spec", {"model": model})
 	n.set_meta("size", Vector3(0.1, 0.12, 0.1))
@@ -94,6 +98,12 @@ static func movables(root: Node3D) -> Array[Node3D]:
 		if n.has_meta("editobj"):
 			out.append(n)
 	return out
+
+
+## Réglage booléen rangé dans le fichier de la carte (ex. « toiles » : les toiles d'araignée par défaut
+## ont déjà été posées et font partie de la disposition du joueur).
+static func has_flag(map_id: String, key: String) -> bool:
+	return bool(_data(map_id).get(key, false))
 
 
 static func _data(map_id: String) -> Dictionary:
@@ -163,7 +173,7 @@ static func save(map_id: String, root: Node3D) -> String:
 	var objs := []
 	for n in movables(root):
 		objs.append({"id": n.get_meta("editobj"), "xf": _xf_to(inv * n.global_transform)})
-	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs}, "\t")
+	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs, "toiles": true}, "\t")
 	DirAccess.make_dir_recursive_absolute(USER_DIR)
 	var f := FileAccess.open(USER_DIR + map_id + ".json", FileAccess.WRITE)
 	f.store_string(txt)

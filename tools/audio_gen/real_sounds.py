@@ -4,6 +4,7 @@ sur des éclats de verre, couinements de rats.
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
    "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying" "heavy breathing exhausted" "last breath dying" "man coughing weak"
+   "phone vibrating table" "claws scratching wall" "scratching concrete"
    "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak" "man scream"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
@@ -277,8 +278,35 @@ def make_excerpt(cache, out, name, src, t0, t1, peak, clean=True):
     print(f"   {name}  {len(seg) / SR:.2f}s")
 
 
+# découpes brutes (sans filtre de souffle) : (id, auteur), début, fin (s), peak
+CUTS = {
+    # vibreur d'un téléphone posé sur le béton : un « bzzz » de 1,5 s puis le silence (bouclé avec la sonnerie)
+    "phone_vibrate_loop": (("349483", "ThePacifist"), 0.05, 2.45, 0.6),
+    # griffes qui raclent une paroi (on les entend de l'autre côté du mur)
+    "claw_0": (("830466", "Wigglesworth"), 0.45, 1.15, 0.6),
+    "claw_1": (("830466", "Wigglesworth"), 1.45, 2.2, 0.6),
+    "claw_2": (("354094", "Bini_trns"), 1.3, 2.5, 0.6),
+    "claw_3": (("354094", "Bini_trns"), 9.5, 10.7, 0.6),
+}
+
+
+def make_cut(cache, out, name, src, t0, t1, peak):
+    files = glob.glob(os.path.join(cache, "**", src[0] + ".mp3"), recursive=True)
+    if not files:
+        print("   manquant :", src[0])
+        return
+    seg = load(files[0])[int(t0 * SR):int(t1 * SR)].copy()
+    n_in, n_out = int(0.01 * SR), int(0.06 * SR)
+    seg[:n_in] *= np.linspace(0, 1, n_in)
+    seg[-n_out:] *= np.linspace(1, 0, n_out)
+    write(os.path.join(out, name + ".wav"), seg / (np.max(np.abs(seg)) + 1e-9) * peak)
+    print(f"   {name}  {len(seg) / SR:.2f}s")
+
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
+    for nm, (src, t0, t1, pk) in CUTS.items():
+        make_cut(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
     for nm, (src, t0, t1, pk) in BREATH_LOOPS.items():
         make_breath_loop(sys.argv[1], sys.argv[2], nm, src, t0, t1, pk)
     for nm, (src, t0, t1, pk, clean) in EXCERPTS.items():
