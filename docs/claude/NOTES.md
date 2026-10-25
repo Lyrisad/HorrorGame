@@ -177,11 +177,14 @@ Keep it current — add a line whenever you learn something non-obvious. History
   transforms (_cam_hist, 30 Hz) played backwards ×5 with the `rewind` shader (shifted lines + rolling noise bar,
   desaturated), clock running backwards, REC hidden, then Game.retry_from_checkpoint() (no death menu any more).
 - Random events (_update_events every 25-55 s once out of the cage): pipe water hammer (pipe_bang_*, echoes along
-  the pipe, dust from the vault), debris falling in view (rubble_*, irregular faceted chunks from _rock_chunk —
-  cubes looked ugly — that stay), a lamp popping for good
+  the pipe, dust from the vault), debris falling in view (rubble_*; _drop_rubble: flat-shaded low-poly chunks from
+  _rock_chunk (cubes and smooth blobs looked fake) + gravel, tumble, small hop, rest on their largest face exactly on
+  the floor; _rubble_mat = object-space triplanar, roughness 1, NO roughness map, specular 0.15, DARK albedo
+  ~0.25-0.35 — the first version was "trop luisant" (bright + concrete roughness map); brick/mortar in zone 0, concrete
+  elsewhere; gravel freed after 120 s; plus a faint dust trickle. Test: --eventtest=debrisnear), a lamp popping for good
   (lamp_break_0, sparks, fixture emission off; max 3, never the red/gate lamps), a culvert grate creaking
   (grate_creak_*), a rat stampede along a nav path through Théo (Rat.run_path). Loud ones lure the creature.
-  Test: --eventtest=bang|debris|lamp|grate|rats.
+  Test: --eventtest=bang|debris|debrisnear|lamp|grate|rats.
 - Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
   and brightness, slow swirls, lit only by lights) + Nature.dust_bokeh (out-of-focus orbs ~1 m in front of the lens,
   distance-faded so they never become bright white balls).
@@ -195,6 +198,10 @@ Keep it current — add a line whenever you learn something non-obvious. History
   (weak irregular breaths with silences; pitch 0.9 in game). All pass breath_filter (220 Hz high-pass
   kills mic "pops", 9 kHz low-pass) + declick (peaks > 4x local RMS squashed: mouth clicks). fs_fetch.py has a
   45 s socket timeout + 120 s budget per file (Freesound CDN sometimes trickles forever).
+- Corridor lamp (hanging lamp at tile (4,3), on the way from the cell to the first reveal): trigger 4.5 m around it
+  → _corridor_lamp_fails(): stutters, nearly dies, comes back, strobes, pops (_lamp_burst: lamp_break_0 + sparks)
+  and stays dead (_lamp_off also kills the tube emission and the buzz loop, stored as meta "buzz"); "...Merde.".
+  Already dead when starting from a later checkpoint (revealed). _lamp_level(l, e, k) dims light + tube together.
 - HUD hint box (hud.hint): RichTextLabel inside a dark rounded PanelContainer, at the very bottom of the screen
   (HINT_BOTTOM = -44, under the subtitles). User REJECTED the amber left border and the "CONSEIL" title: text only.
   "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "[clic droit]"/"[clic gauche]" → mouse icon

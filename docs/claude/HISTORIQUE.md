@@ -82,6 +82,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 20. Boîte des conseils : sans liseré ni titre (juste le texte), tout en bas de l'écran sous les sous-titres ; icône
    de souris « clic droit » pour le lancer de bouteille. Le PNJ n'a plus de fausse voix de synthèse à chaque
    réplique (affreuse) ; sa respiration baisse quand il parle ; sa toux est un vrai enregistrement.
+21. Gravats « trop luisants » : morceaux mats à facettes, sombres, briques et mortier ou béton selon la voûte,
+   gravillons, petit rebond, filet de poussière. La baladeuse du couloir avant la première apparition grésille,
+   se coupe, se rallume puis claque (étincelles) et reste éteinte.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

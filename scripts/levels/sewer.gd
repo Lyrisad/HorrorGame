@@ -88,6 +88,8 @@ var _close_seen := false
 var _cam_hist: Array[Transform3D] = []  ## dernières secondes filmées (pour le rembobinage)
 var _hist_t := 0.0
 var _lamp_lights: Array[Light3D] = []  ## luminaires : les plus proches de Théo ont des ombres
+var _corridor_lamp: Light3D = null  ## baladeuse du couloir avant la première apparition : elle claque
+var _rubble_mats := {}
 var _shadow_cd := 0.0
 ## Fuites de vapeur des galeries techniques : [case, mur, décalage de la bride le long du mur]
 const STEAM_LEAKS := [[Vector2i(19, 8), Vector2i(1, 0), 0.35], [Vector2i(16, 4), Vector2i(0, -1), -0.4], [Vector2i(16, 12), Vector2i(0, 1), 0.3]]
@@ -1505,11 +1507,13 @@ func _build_lights() -> void:
 		_lamp_lights.append(l)
 		l.set_meta("fixture", fixture)
 		var glow := _own_emissive(fixture)
-		Sound.loop_at("buzz_loop", fixture, -22.0, 1.5, 8.0)
+		if glow != null:
+			l.set_meta("glow", glow)
+		l.set_meta("buzz", Sound.loop_at("buzz_loop", fixture, -22.0, 1.5, 8.0))
 		if s[1]:
 			flicker_lights.append(l)
-			if glow != null:
-				l.set_meta("glow", glow)
+		if t == Vector2i(4, 3):
+			_corridor_lamp = l
 	# B : appliques murales au sodium (déplaçables dans l'éditeur : leur lumière les suit)
 	var lamp_i := 0
 	for s in [[Vector2i(8, 5), Vector2i(0, -1), true], [Vector2i(9, 3), Vector2i(0, -1), false], [Vector2i(6, 8), Vector2i(-1, 0), false], [Vector2i(12, 9), Vector2i(1, 0), false], [Vector2i(10, 12), Vector2i(0, -1), false]]:
@@ -1542,7 +1546,7 @@ func _build_lights() -> void:
 		Game.add_flare(l3, 0.9, 1.4)
 		_lamp_lights.append(l3)
 		l3.set_meta("fixture", fluo)
-		Sound.loop_at("buzz_loop", fluo, -18.0, 2.0, 9.0)
+		l3.set_meta("buzz", Sound.loop_at("buzz_loop", fluo, -18.0, 2.0, 9.0))
 		if s[1]:
 			flicker_lights.append(l3)
 	# feu de secours rouge devant l'écluse : un vrai hublot au mur, ampoule teintée
@@ -2772,6 +2776,12 @@ func _pick_torch(torch: Node3D, torch_light: Node3D) -> void:
 func _setup_triggers() -> void:
 	add_trigger(Vector3(4.5 * T, 0, 1.5 * T), 2.6, func() -> void:
 		Game.hud.say("« Il entend tout »... Qui ça, « il » ?", 3.0))
+	# la baladeuse du couloir lâche juste avant que Théo passe dessous (déjà morte si on reprend plus loin)
+	if _corridor_lamp != null and is_instance_valid(_corridor_lamp) and _corridor_lamp.visible:
+		if revealed:
+			_lamp_off(_corridor_lamp)
+		else:
+			add_trigger(_corridor_lamp.global_position, 4.5, _corridor_lamp_fails)
 	# première apparition, mise en scène : elle traverse le croisement au bout du collecteur
 	for t in [Vector2i(4, 5), Vector2i(5, 5), Vector2i(4, 6)]:
 		add_trigger(tile_center(t), 1.5, _reveal_cross)
@@ -4032,6 +4042,8 @@ func _event_test(kind: String) -> void:
 			_ev_pipe_bang()
 		"debris":
 			_ev_debris()
+		"debrisnear":
+			_ev_debris(true)
 		"lamp":
 			_ev_lamp_pop()
 		"grate":
@@ -4279,12 +4291,14 @@ func _ev_pipe_bang() -> void:
 
 ## Des gravats se détachent de la voûte : quelques morceaux de béton tombent (on les voit), un nuage de
 ## poussière, et ils restent là.
-func _ev_debris() -> void:
+func _ev_debris(near := false) -> void:
 	var at := Vector3.INF
 	var fwd := -player.cam.global_basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized()
-	for _try in 30:
+	if near:
+		at = player.global_position + fwd * 1.6  # (test : juste devant la caméra)
+	for _try in (0 if near else 30):
 		var cand := player.global_position + fwd.rotated(Vector3.UP, randf_range(-0.9, 0.9)) * randf_range(3.5, 9.0)
 		if walkable(tile_of(cand)) and has_los(player.eye_position(), cand + Vector3(0, 0.3, 0)):
 			at = cand
@@ -4293,36 +4307,139 @@ func _ev_debris() -> void:
 		return
 	var top := h_top(tile_of(at)) - 0.05
 	_dust_puff(Vector3(at.x, top, at.z))
+	_dust_trickle(Vector3(at.x, top, at.z))
 	Sound.play_at(Sound.variant("rubble", 3), at + Vector3(0, 1.0, 0), 2.0, randf_range(0.9, 1.1), 6.0, 45.0)
-	var rock := B.mat("hacked_concrete", 0.5, {"color": Color(0.36, 0.35, 0.32)})
-	for k in randi_range(4, 8):
-		var sz := Vector3(randf_range(0.05, 0.13), randf_range(0.04, 0.09), randf_range(0.05, 0.12))
-		var p0 := at + Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
-		var land_y := floor_y(p0) + sz.y * 0.5  # au sol, ou au fond de la cunette
-		var chunk := _rock_chunk(sz, rock)
-		chunk.position = Vector3(p0.x, top, p0.z)
-		chunk.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
-		var fall := sqrt(2.0 * maxf(top - land_y, 0.3) / 9.8)
-		var tw := create_tween()
-		tw.tween_interval(randf_range(0.0, 0.35))
-		tw.tween_property(chunk, "position:y", land_y, fall).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.parallel().tween_property(chunk, "rotation:x", chunk.rotation.x + randf_range(-3.0, 3.0), fall)
-		tw.tween_callback(func() -> void:
-			splash(Vector3(p0.x, 0, p0.z), 0.9)
-			chunk.rotation.x = 0.0
-			chunk.rotation.z = 0.0)
+	# ce qui se détache de la voûte au-dessus : briques et mortier dans le vieux réseau, béton ailleurs
+	var kinds: Array = ["brick", "brick", "mortar"] if zone_of(tile_of(at)) == 0 else ["concrete", "concrete", "dirty"]
+	for k in randi_range(4, 7):
+		var s := randf_range(0.045, 0.12)
+		var sz := Vector3(s * randf_range(0.8, 1.3), s * randf_range(0.45, 0.75), s * randf_range(0.8, 1.2))
+		_drop_rubble(at, top, sz, _rubble_mat(kinds[randi() % kinds.size()]), randf_range(0.0, 0.35), 5)
+	# et une poignée de gravillons
+	for k in randi_range(10, 18):
+		var s2 := randf_range(0.012, 0.03)
+		_drop_rubble(at, top, Vector3(s2, s2 * 0.7, s2), _rubble_mat(kinds[randi() % kinds.size()]), randf_range(0.05, 0.6), 4)
 	await wait(0.8)
 	_dust_puff(Vector3(at.x, 0.15, at.z))
 	lure_noise(at, 12.0)
 
 
-## Morceau de béton cassé : une sphère grossière déformée au hasard, à facettes (pas un cube).
-func _rock_chunk(size: Vector3, mat: Material) -> MeshInstance3D:
+## Un morceau tombe en tournant, rebondit un peu et se couche sur sa plus grande face, posé pile sur le sol
+## (ou au fond de la cunette). Les gravillons disparaissent quand Théo est passé depuis longtemps.
+func _drop_rubble(at: Vector3, top: float, sz: Vector3, mat: Material, delay: float, seg: int) -> void:
+	var p0 := at + Vector3(randf_range(-0.4, 0.4), 0, randf_range(-0.4, 0.4))
+	var chunk := _rock_chunk(sz, mat, seg)
+	chunk.position = Vector3(p0.x, top, p0.z)
+	chunk.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
+	var rest := Basis(Vector3.UP, randf() * TAU) * Basis(Vector3.RIGHT, randf_range(-0.15, 0.15))
+	var lift := -(Transform3D(rest, Vector3.ZERO) * chunk.mesh.get_aabb()).position.y
+	var land_y := floor_y(p0) + lift
+	var hop := Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)) * clampf(sz.x, 0.02, 0.1)
+	if absf(floor_y(p0 + hop) - floor_y(p0)) > 0.03:
+		hop = Vector3.ZERO  # pas de rebond par-dessus le bord de la cunette
+	var fall := sqrt(2.0 * maxf(top - land_y, 0.3) / 9.8)
+	var tw := create_tween()
+	tw.tween_interval(delay)
+	tw.tween_property(chunk, "position:y", land_y, fall).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(chunk, "rotation", chunk.rotation + Vector3(randf_range(-4.0, 4.0), randf_range(-2.0, 2.0), randf_range(-4.0, 4.0)), fall)
+	tw.tween_callback(func() -> void: splash(Vector3(p0.x, 0, p0.z), 0.9 if sz.x > 0.04 else 0.35))
+	tw.tween_property(chunk, "position", Vector3(p0.x + hop.x * 0.5, land_y + sz.y * 0.5, p0.z + hop.z * 0.5), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(chunk, "quaternion", rest.get_rotation_quaternion(), 0.2)
+	tw.tween_property(chunk, "position", Vector3(p0.x + hop.x, land_y, p0.z + hop.z), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if sz.x < 0.04:
+		get_tree().create_timer(120.0, false).timeout.connect(func() -> void: if is_instance_valid(chunk): chunk.queue_free())
+
+
+## Matière des gravats : texture de béton dans le repère du morceau (elle ne glisse pas pendant la chute),
+## mate et sèche — aucun reflet (la carte de rugosité du béton les faisait luire).
+func _rubble_mat(kind: String) -> StandardMaterial3D:
+	if _rubble_mats.has(kind):
+		return _rubble_mats[kind]
+	var spec: Array = {"brick": ["dirty_concrete", Color(0.34, 0.22, 0.16)], "mortar": ["hacked_concrete", Color(0.36, 0.35, 0.32)],
+		"concrete": ["hacked_concrete", Color(0.34, 0.335, 0.31)], "dirty": ["cracked_concrete", Color(0.25, 0.245, 0.22)]}[kind]
+	var src := B.mat(spec[0], 1.0)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = src.albedo_texture
+	m.albedo_color = spec[1]
+	if src.normal_texture != null:
+		m.normal_enabled = true
+		m.normal_texture = src.normal_texture
+		m.normal_scale = 0.6
+	m.roughness = 1.0
+	m.metallic_specular = 0.15
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * 3.0
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_rubble_mats[kind] = m
+	return m
+
+
+## Filet de poussière qui tombe de la voûte d'où les morceaux se sont détachés.
+func _dust_trickle(pos: Vector3) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 40
+	p.lifetime = 1.1
+	p.visibility_aabb = AABB(Vector3(-1, -3.5, -1), Vector3(2, 4, 2))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.1
+	pm.direction = Vector3(0, -1, 0)
+	pm.spread = 8.0
+	pm.initial_velocity_min = 0.2
+	pm.initial_velocity_max = 0.6
+	pm.gravity = Vector3(0, -3.0, 0)
+	pm.damping_min = 0.4
+	pm.damping_max = 1.0
+	pm.scale_min = 0.4
+	pm.scale_max = 1.0
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	fade.add_point(0.15, Color(1, 1, 1, 0.6))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	pm.color_ramp = ramp
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.04, 0.04)
+	q.material = _soft_dot_mat(Color(0.5, 0.48, 0.44, 0.22))
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	get_tree().create_timer(1.4).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
+	get_tree().create_timer(3.0).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+
+
+## Tache ronde et floue (poussière) pour les particules.
+func _soft_dot_mat(col: Color) -> StandardMaterial3D:
+	var puff := Gradient.new()
+	puff.set_color(0, Color(1, 1, 1, 1))
+	puff.set_color(1, Color(1, 1, 1, 0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = puff
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.albedo_color = col
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	return m
+
+
+## Morceau de béton ou de brique cassé : une sphère grossière déformée au hasard, à facettes nettes
+## (cassure franche, pas un galet lisse ni un cube).
+func _rock_chunk(size: Vector3, mat: Material, seg := 5) -> MeshInstance3D:
 	var sm := SphereMesh.new()
 	sm.radius = 0.5
 	sm.height = 1.0
-	sm.radial_segments = 7
-	sm.rings = 4
+	sm.radial_segments = seg
+	sm.rings = maxi(2, seg - 2)
 	var arr := sm.get_mesh_arrays()
 	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
@@ -4331,10 +4448,11 @@ func _rock_chunk(size: Vector3, mat: Material) -> MeshInstance3D:
 	for i in verts.size():
 		var key := Vector3i((verts[i] * 1000.0).round())
 		if not disp.has(key):
-			disp[key] = randf_range(0.6, 1.3)
+			disp[key] = randf_range(0.65, 1.25)
 		verts[i] = verts[i] * float(disp[key]) * size
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
 	for t in idx:
 		st.add_vertex(verts[t])
 	st.generate_normals()
@@ -4371,13 +4489,38 @@ func _ev_lamp_pop() -> void:
 	while t < 0.9:
 		await ticked
 		t += get_process_delta_time()
-		l.light_energy = e * (0.0 if randf() < 0.5 else randf_range(0.4, 1.6))
+		_lamp_level(l, e, 0.0 if randf() < 0.5 else randf_range(0.4, 1.6))
+	await _lamp_burst(l, e)
+	lure_noise(l.global_position, 10.0)
+	if randf() < 0.5:
+		await wait(0.8)
+		Game.hud.say(["...Génial.", "Non, non, non... pas maintenant.", "Encore une de moins."][randi() % 3], 2.2)
+
+
+## Intensité d'un luminaire (et de son tube / ampoule) : k = 1 normal, 0 éteint.
+func _lamp_level(l: Light3D, e: float, k: float) -> void:
+	l.light_energy = e * k
+	if l.has_meta("glow"):
+		var g := l.get_meta("glow") as StandardMaterial3D
+		if not g.has_meta("base"):
+			g.set_meta("base", g.emission_energy_multiplier)
+		g.emission_energy_multiplier = float(g.get_meta("base")) * clampf(k, 0.02, 1.5)
+
+
+## L'ampoule claque : verre qui éclate, étincelles, un dernier éclair, puis plus rien.
+func _lamp_burst(l: Light3D, e: float) -> void:
 	Sound.play_at("lamp_break_0", l.global_position, 0.0, randf_range(0.9, 1.1), 4.0, 35.0)
 	_sparks(l.global_position)
 	l.light_energy = e * 3.0
 	await wait(0.06)
+	_lamp_off(l)
+
+
+## Luminaire mort : lumière, tube / ampoule et grésillement coupés, plus d'ombre ni d'événement dessus.
+func _lamp_off(l: Light3D) -> void:
+	flicker_lights.erase(l)
+	_lamp_lights.erase(l)
 	l.visible = false
-	# le luminaire lui-même s'éteint aussi (tube, ampoule)
 	if l.has_meta("glow"):
 		(l.get_meta("glow") as StandardMaterial3D).emission_energy_multiplier = 0.0
 	else:
@@ -4386,10 +4529,43 @@ func _ev_lamp_pop() -> void:
 			var g := _own_emissive(fix)
 			if g != null:
 				g.emission_energy_multiplier = 0.0
-	lure_noise(l.global_position, 10.0)
-	if randf() < 0.5:
-		await wait(0.8)
-		Game.hud.say(["...Génial.", "Non, non, non... pas maintenant.", "Encore une de moins."][randi() % 3], 2.2)
+	if l.has_meta("buzz") and is_instance_valid(l.get_meta("buzz")):
+		Sound.fade(l.get_meta("buzz"), -60.0, 0.1, true)
+
+
+## La baladeuse du couloir, juste avant la première apparition : elle grésille, a des ratés, se coupe,
+## se rallume... puis claque au moment où Théo arrive dessous. Le couloir est noir pour la suite.
+func _corridor_lamp_fails() -> void:
+	var l := _corridor_lamp
+	if l == null or not is_instance_valid(l) or not l.visible:
+		return
+	_lamp_lights.erase(l)
+	flicker_lights.erase(l)
+	var e := l.light_energy
+	var buzz: Node = l.get_meta("buzz") if l.has_meta("buzz") else null
+	if is_instance_valid(buzz):
+		Sound.fade(buzz, -9.0, 0.6)
+	# premiers ratés
+	var t := 0.0
+	while t < 1.4:
+		await ticked
+		t += get_process_delta_time()
+		_lamp_level(l, e, 0.12 if randf() < 0.22 else randf_range(0.75, 1.1))
+	# elle se coupe presque... et se rallume
+	_lamp_level(l, e, 0.04)
+	await wait(0.55)
+	_lamp_level(l, e, 1.0)
+	await wait(0.6)
+	# stroboscope qui s'emballe, puis elle claque
+	t = 0.0
+	while t < 0.7:
+		await ticked
+		t += get_process_delta_time()
+		_lamp_level(l, e, 0.0 if randf() < 0.5 else randf_range(0.5, 1.8))
+	await _lamp_burst(l, e)
+	Game.shake(0.3)
+	await wait(1.1)
+	Game.hud.say("...Merde.", 1.6)
 
 
 ## Une grille d'arrivée d'eau grince toute seule, comme si quelque chose la poussait de l'autre côté.
@@ -4467,22 +4643,7 @@ func _dust_puff(pos: Vector3) -> void:
 	p.process_material = pm
 	var q := QuadMesh.new()
 	q.size = Vector2(0.25, 0.25)
-	var puff := Gradient.new()
-	puff.set_color(0, Color(1, 1, 1, 1))
-	puff.set_color(1, Color(1, 1, 1, 0))
-	var tex := GradientTexture2D.new()
-	tex.gradient = puff
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(1.0, 0.5)
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = tex
-	m.albedo_color = Color(0.6, 0.57, 0.52, 0.35)
-	m.vertex_color_use_as_albedo = true
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	q.material = m
+	q.material = _soft_dot_mat(Color(0.6, 0.57, 0.52, 0.35))
 	p.draw_pass_1 = q
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(p)
