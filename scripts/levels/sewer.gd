@@ -3104,82 +3104,39 @@ func _on_caught() -> void:
 	Sound.play("creature_attack", 4.0)
 	Game.glitch(1.0, false)
 	Game.shake(3.0)
-	await wait(0.55)
-	Sound.play("hit_impact", 0.0)
-	Game.flash(0.5)
-	# la caméra est arrachée du torse : elle valdingue derrière Théo et retombe couchée sur le côté,
-	# l'objectif tourné vers lui
-	var away := Vector3(player.global_position.x - creature.global_position.x, 0, player.global_position.z - creature.global_position.z)
-	away = away.normalized() if away.length() > 0.01 else Vector3(0, 0, 1)
-	var rest_pos := player.global_position + away * 0.3
-	for dist in [1.4, 1.1, 0.8, 0.5]:
-		var cand: Vector3 = player.global_position + away * dist + Vector3(-away.z, 0, away.x) * 0.25
-		if walkable(tile_of(cand)) and has_los(player.global_position + Vector3(0, 0.3, 0), cand + Vector3(0, 0.3, 0)):
-			rest_pos = cand
-			break
-	rest_pos.y = maxf(floor_y(rest_pos), WATER_Y) + 0.07
-	var look_pt := player.global_position + Vector3(0, 0.25, 0)
-	var rest := Transform3D(Basis.looking_at(look_pt - rest_pos, Vector3.UP) * Basis(Vector3(0, 0, 1), deg_to_rad(76.0)), rest_pos)
+	await wait(0.35)
+	# Théo hurle, la caméra est arrachée et tombe au sol : elle ne filme plus que le plafond
+	Sound.play(Sound.variant("theo_scream", 2), 2.0, randf_range(0.95, 1.05))
+	Sound.play("hit_impact", -2.0)
+	Game.flash(0.4)
+	var ground := player.global_position + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25))
+	ground.y = maxf(floor_y(ground), WATER_Y) + 0.06
+	var ahead := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
+	var up_basis := Basis.looking_at(Vector3.UP, ahead) * Basis(Vector3(1, 0, 0), randf_range(-0.2, 0.2)) * Basis(Vector3(0, 0, 1), randf_range(-0.6, 0.6))
+	var floor_t := Transform3D(up_basis, ground)
 	var tw2 := create_tween()
-	tw2.tween_method(func(w: float) -> void:
-		var tr := face.interpolate_with(rest, w)
-		# elle tourne sur elle-même en tombant
-		player.set_cinematic(Transform3D(tr.basis * Basis(Vector3(0, 0, 1), (1.0 - w) * 5.5), tr.origin + Vector3(0, sin(w * PI) * 0.35, 0)), 1.0), 0.0, 1.0, 0.6).set_ease(Tween.EASE_IN)
-	await wait(0.6)
-	Sound.play("hit_impact", -6.0, 0.6)
+	tw2.tween_method(func(w: float) -> void: player.set_cinematic(face.interpolate_with(floor_t, w), 1.0), 0.0, 1.0, 0.45).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	await wait(0.45)
 	Sound.play("body_fall", -2.0)
-	Game.shake(1.2)
-	Game.glitch(0.8, false)
-	# Théo est à terre, devant la caméra
-	player.body_free = true
-	var body := player.body
-	body.set_layers(1 | 2)
-	body.play("dead", 0.0)
-	body.global_position = player.global_position
-	body.rotation.y = atan2(away.x, away.z)
-	var low := body.lowest_point(0.06)
-	if low < INF:
-		body.global_position.y += maxf(floor_y(body.global_position), WATER_Y) + 0.01 - low
-	# la créature penchée sur lui
-	creature.global_position = player.global_position - away * 0.9
-	creature.stand_and_watch(body, "search", 1.0)
-	Sound.play_at(Sound.variant("creature_growl", 3), creature.head_position(), 2.0, 0.8, 6.0, 40.0, null, "Creature")
-	Sound.muffle_master(2500.0, 0.8)
-	await wait(1.3)
-	# elle l'emporte en le traînant, hors du champ
-	var target := player.global_position - away * 6.0
-	for k2 in [0.0, 1.0, -1.0]:
-		var dirk: Vector3 = (-away).rotated(Vector3.UP, k2 * PI * 0.5)
-		var far := player.global_position
-		for st in 12:
-			var nxt := far + dirk * 0.5
-			if not walkable(tile_of(nxt)):
-				break
-			far = nxt
-		if far.distance_to(player.global_position) > 3.0:
-			target = far
-			break
-	creature.script_walk(nav_path(creature.global_position, target), 1.6)
-	var drag := Sound.loop_at("body_drag_loop", body, -2.0, 2.0, 14.0)
-	var t := 0.0
-	while t < 3.6:
-		await ticked
-		var dt := get_process_delta_time()
-		t += dt
-		# le corps suit, tiré par saccades
-		var fwd := Vector3(-sin(creature.heading), 0, -cos(creature.heading))
-		var want := creature.global_position - fwd * 1.1
-		var pull := 0.5 + 0.5 * maxf(0.0, sin(t * 7.0))
-		var np := body.global_position.lerp(Vector3(want.x, body.global_position.y, want.z), 1.0 - exp(-4.0 * pull * dt))
-		np.y = lerpf(np.y, maxf(floor_y(np), WATER_Y) + 0.01 + (body.global_position.y - maxf(floor_y(body.global_position), WATER_Y) - 0.01), 0.5)
-		body.global_position = np
-		body.rotation.y = lerp_angle(body.rotation.y, creature.heading + PI, 1.0 - exp(-3.0 * dt))
+	Game.shake(1.0)
+	Game.glitch(0.6, false)
+	# hors du champ : on l'entend traîner Théo au loin
+	var back := Vector3(creature.global_position.x - player.global_position.x, 0, creature.global_position.z - player.global_position.z)
+	back = back.normalized() if back.length() > 0.01 else -ahead
+	var drag_node := Node3D.new()
+	add_child(drag_node)
+	drag_node.global_position = player.global_position + Vector3(0, 0.2, 0)
+	var drag := Sound.loop_at("body_drag_loop", drag_node, -3.0, 2.0, 16.0)
+	Sound.play_at(Sound.variant("creature_growl", 3), creature.head_position(), 2.0, 0.85, 6.0, 40.0, null, "Creature")
+	var tw3 := create_tween()
+	tw3.tween_property(drag_node, "global_position", drag_node.global_position + back * 6.0, 3.0)
+	await wait(0.3)
+	creature.deactivate()
+	Sound.muffle_master(3000.0, 1.2)
+	await wait(2.7)
 	if is_instance_valid(drag):
 		Sound.fade(drag, -60.0, 0.6, true)
-	body.visible = false
-	creature.deactivate()
-	# le couloir vide, encore quelques secondes
-	await wait(1.6)
+	await wait(0.8)
 	Sound.play("signal_lost", -4.0, 1.0, "UI")
 	Game.hud.osd("SIGNAL PERDU")
 	Game.glitch(1.0, false)
@@ -3880,7 +3837,7 @@ func _build_debris() -> void:
 		m.albedo_texture = tex
 		m.uv1_scale = Vector3(0.25, 1, 1)
 		m.uv1_offset = Vector3(0.25 * k, 0, 0)
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if k in [1, 2] else BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if k in [1, 3] else BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 		m.alpha_scissor_threshold = 0.4
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		m.roughness = 0.35
@@ -3931,8 +3888,8 @@ func _respawn_debris(e: Array, anywhere := false) -> void:
 			t = cand
 			break
 	var kind := randi() % 100
-	var k := 0 if kind < 40 else (1 if kind < 70 else (2 if kind < 85 else 3))
-	var sizes := [0.07, 0.13, 0.11, 0.06]
+	var k := 0 if kind < 35 else (1 if kind < 70 else (2 if kind < 85 else 3))
+	var sizes := [0.055, 0.13, 0.09, 0.16]
 	(n.mesh as QuadMesh).size = Vector2.ONE * float(sizes[k]) * randf_range(0.8, 1.25)
 	n.material_override = _debris_mats[k]
 	n.visible = true
@@ -4320,13 +4277,14 @@ func _ev_debris() -> void:
 	var top := h_top(tile_of(at)) - 0.05
 	_dust_puff(Vector3(at.x, top, at.z))
 	Sound.play_at(Sound.variant("rubble", 3), at + Vector3(0, 1.0, 0), 2.0, randf_range(0.9, 1.1), 6.0, 45.0)
-	var rock := B.mat("hacked_concrete", 0.5, {"color": Color(0.5, 0.49, 0.46)})
+	var rock := B.mat("hacked_concrete", 0.5, {"color": Color(0.36, 0.35, 0.32)})
 	for k in randi_range(4, 8):
-		var sz := Vector3(randf_range(0.03, 0.1), randf_range(0.02, 0.06), randf_range(0.03, 0.09))
+		var sz := Vector3(randf_range(0.05, 0.13), randf_range(0.04, 0.09), randf_range(0.05, 0.12))
 		var p0 := at + Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
 		var land_y := floor_y(p0) + sz.y * 0.5  # au sol, ou au fond de la cunette
-		var chunk := B.box(self, sz, Vector3(p0.x, top, p0.z), rock, false, Vector3(randf_range(0, 360), randf_range(0, 360), randf_range(0, 360)))
-		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var chunk := _rock_chunk(sz, rock)
+		chunk.position = Vector3(p0.x, top, p0.z)
+		chunk.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
 		var fall := sqrt(2.0 * maxf(top - land_y, 0.3) / 9.8)
 		var tw := create_tween()
 		tw.tween_interval(randf_range(0.0, 0.35))
@@ -4339,6 +4297,36 @@ func _ev_debris() -> void:
 	await wait(0.8)
 	_dust_puff(Vector3(at.x, 0.15, at.z))
 	lure_noise(at, 12.0)
+
+
+## Morceau de béton cassé : une sphère grossière déformée au hasard, à facettes (pas un cube).
+func _rock_chunk(size: Vector3, mat: Material) -> MeshInstance3D:
+	var sm := SphereMesh.new()
+	sm.radius = 0.5
+	sm.height = 1.0
+	sm.radial_segments = 7
+	sm.rings = 4
+	var arr := sm.get_mesh_arrays()
+	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+	# même écrasement pour les sommets confondus (sinon le bloc se fendrait aux coutures)
+	var disp := {}
+	for i in verts.size():
+		var key := Vector3i((verts[i] * 1000.0).round())
+		if not disp.has(key):
+			disp[key] = randf_range(0.6, 1.3)
+		verts[i] = verts[i] * float(disp[key]) * size
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in idx:
+		st.add_vertex(verts[t])
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	return mi
 
 
 ## Une lampe grésille, claque (verre qui éclate, étincelles) et ne se rallumera plus.

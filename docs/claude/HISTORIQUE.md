@@ -74,6 +74,8 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
 17. Mort vue par la caméra tombée (Théo traîné hors du champ, SIGNAL PERDU, rembobinage façon cassette jusqu'au
    point de reprise) ; événements au hasard (coups de bélier, gravats, lampe qui éclate, grille qui grince,
    ruée de rats).
+18. Mort simplifiée : la caméra tombe et filme le plafond + un cri (vrai enregistrement). Débris flottants refaits
+   (feuille morte réaliste, mousse, brindille, écume ; plus de plastique blanc en hexagone), gravats irréguliers.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

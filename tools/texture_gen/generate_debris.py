@@ -1,5 +1,5 @@
 """Débris qui flottent dans les cunettes (assets/gen/water_debris.png, 4 cases de 128 px) :
-feuille morte · mousse sale · bout de sac plastique · emballage froissé.
+feuille morte détrempée · mousse sale · brindille · voile d'écume.
 python generate_debris.py [dossier_sortie]
 """
 import math
@@ -20,32 +20,43 @@ def noise(size, scale):
 
 
 def leaf():
-    img = Image.new("RGBA", (C, C), (0, 0, 0, 0))
+    """Feuille morte détrempée, brun sombre, pointue, nervure centrale et nervures latérales, bord rongé."""
+    S = 4
+    img = Image.new("L", (C * S, C * S), 0)
     d = ImageDraw.Draw(img)
-    pts = []
-    for k in range(40):
-        t = k / 39 * math.pi
-        r = math.sin(t) * (0.32 + 0.04 * math.sin(t * 6))
-        pts.append((C / 2 + r * C * math.cos(0) * (1 if k < 20 else 1), 0))
-    # silhouette de feuille : ellipse pointue, bord un peu dentelé
-    poly = []
-    for k in range(64):
-        a = k / 64 * 2 * math.pi
-        rx, ry = 0.24 * C, 0.42 * C
-        r = 1.0 + 0.06 * math.sin(a * 9)
-        x = C / 2 + math.cos(a) * rx * r * (0.55 + 0.45 * abs(math.sin(a)))
-        y = C / 2 + math.sin(a) * ry * r
-        poly.append((x, y))
-    d.polygon(poly, fill=(92, 58, 26, 255))
-    d.line([(C / 2, C * 0.1), (C / 2, C * 0.92)], fill=(60, 36, 16, 255), width=2)
-    for k in range(5):
-        y = C * (0.25 + k * 0.12)
-        d.line([(C / 2, y), (C / 2 - 18, y - 12)], fill=(66, 40, 18, 255), width=1)
-        d.line([(C / 2, y), (C / 2 + 18, y - 12)], fill=(66, 40, 18, 255), width=1)
-    a = np.array(img, dtype=np.float32)
-    shade = 0.75 + noise(C, 16)[..., None] * 0.45
-    a[..., :3] *= shade
-    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    pts_l, pts_r = [], []
+    for k in range(41):
+        y = k / 40
+        w = math.sin(math.pi * y) ** 0.75 * (1.0 - 0.25 * y) * 0.27
+        yy = (0.1 + y * 0.78) * C * S
+        pts_l.append((C * S / 2 - w * C * S, yy))
+        pts_r.append((C * S / 2 + w * C * S, yy))
+    d.polygon(pts_l + pts_r[::-1], fill=255)
+    mask = np.array(img.resize((C, C), Image.LANCZOS), dtype=np.float32) / 255.0
+    # bord rongé, petits trous de décomposition
+    mask *= np.clip((noise(C, 7) - 0.03) * 5.0, 0, 1)
+    yy, xx = np.mgrid[0:C, 0:C]
+    col = np.zeros((C, C, 3), dtype=np.float32)
+    base = np.array([62, 44, 24], dtype=np.float32)
+    mott = 0.75 + noise(C, 10)[..., None] * 0.45 + noise(C, 3)[..., None] * 0.15
+    col[:] = base * mott
+    # nervures plus sombres
+    vein = np.exp(-((xx - C / 2) ** 2) / 2.0)
+    for k in range(6):
+        y0 = C * (0.25 + k * 0.1)
+        for sgn in (-1, 1):
+            # de la nervure centrale vers le bord, en remontant vers la pointe (un seul côté à la fois)
+            side = (xx - C / 2) * sgn
+            dist = np.abs((yy - y0) + side * 0.7) / 1.2
+            vein = np.maximum(vein, np.exp(-dist ** 2) * (side > 0) * (side < C * 0.22))
+    col *= (1.0 - vein[..., None] * 0.35)
+    rgba = np.zeros((C, C, 4), dtype=np.uint8)
+    rgba[..., :3] = np.clip(col, 0, 255)
+    rgba[..., 3] = (np.clip(mask, 0, 1) * 255).astype(np.uint8)
+    # petite tige
+    im = Image.fromarray(rgba)
+    ImageDraw.Draw(im).line([(C / 2, C * 0.88), (C / 2 + 3, C * 0.97)], fill=(50, 36, 20, 255), width=2)
+    return im
 
 
 def foam():
@@ -53,42 +64,49 @@ def foam():
     yy, xx = np.mgrid[0:C, 0:C]
     r = np.hypot(xx - C / 2, yy - C / 2) / (C * 0.45)
     m = np.clip((n - 0.35 - r * 0.45) * 3.0, 0, 1)
-    # petites bulles
     bub = (noise(C, 2) > 0.72).astype(np.float32) * (m > 0.2)
     col = np.zeros((C, C, 4), dtype=np.float32)
-    col[..., 0] = 196 - 40 * n
-    col[..., 1] = 188 - 40 * n
-    col[..., 2] = 160 - 40 * n
-    col[..., 3] = np.clip(m * 220 + bub * 30, 0, 255)
+    col[..., 0] = 170 - 40 * n
+    col[..., 1] = 165 - 40 * n
+    col[..., 2] = 140 - 40 * n
+    col[..., 3] = np.clip(m * 200 + bub * 30, 0, 255)
     return Image.fromarray(col.astype(np.uint8))
 
 
-def plastic():
+def twig():
+    """Brindille : un petit bout de bois tordu, écorce sombre."""
     img = Image.new("RGBA", (C, C), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    poly = [(C * 0.18, C * 0.3), (C * 0.55, C * 0.12), (C * 0.86, C * 0.35), (C * 0.78, C * 0.8), (C * 0.4, C * 0.9), (C * 0.12, C * 0.62)]
-    d.polygon(poly, fill=(214, 214, 205, 150))
-    for _ in range(9):
-        x0, y0 = rnd.uniform(C * 0.2, C * 0.8), rnd.uniform(C * 0.2, C * 0.8)
-        d.line([(x0, y0), (x0 + rnd.uniform(-30, 30), y0 + rnd.uniform(-30, 30))], fill=(240, 240, 235, 190), width=1)
-    return img.filter(ImageFilter.GaussianBlur(0.6))
-
-
-def wrapper():
-    img = Image.new("RGBA", (C, C), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    poly = [(C * 0.25, C * 0.32), (C * 0.75, C * 0.28), (C * 0.8, C * 0.68), (C * 0.22, C * 0.72)]
-    d.polygon(poly, fill=(150, 30, 26, 255))
-    d.rectangle([C * 0.3, C * 0.45, C * 0.7, C * 0.55], fill=(210, 200, 170, 255))
+    pts = []
+    for k in range(12):
+        t = k / 11
+        pts.append((C * (0.12 + 0.76 * t), C * (0.5 + 0.06 * math.sin(t * 5.0) + (t - 0.5) * 0.25)))
+    for i in range(len(pts) - 1):
+        d.line([pts[i], pts[i + 1]], fill=(58, 42, 28, 255), width=max(2, int(5 - i * 0.25)))
+    d.line([pts[5], (pts[5][0] + 14, pts[5][1] - 16)], fill=(55, 40, 26, 255), width=2)
     a = np.array(img, dtype=np.float32)
-    a[..., :3] *= (0.6 + noise(C, 8)[..., None] * 0.6)
+    a[..., :3] *= (0.7 + noise(C, 3)[..., None] * 0.5)
     return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
+def scum():
+    """Voile d'écume grise-verdâtre qui flotte, à peine opaque."""
+    n = noise(C, 14) * 0.6 + noise(C, 5) * 0.4
+    yy, xx = np.mgrid[0:C, 0:C]
+    r = np.hypot(xx - C / 2, yy - C / 2) / (C * 0.48)
+    m = np.clip((n - 0.3 - r * 0.5) * 2.5, 0, 1)
+    col = np.zeros((C, C, 4), dtype=np.float32)
+    col[..., 0] = 92 + 30 * n
+    col[..., 1] = 98 + 30 * n
+    col[..., 2] = 78 + 20 * n
+    col[..., 3] = m * 120
+    return Image.fromarray(col.astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0))
 
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     atlas = Image.new("RGBA", (C * 4, C), (0, 0, 0, 0))
-    for i, f in enumerate([leaf, foam, plastic, wrapper]):
+    for i, f in enumerate([leaf, foam, twig, scum]):
         atlas.paste(f(), (i * C, 0))
     atlas.save(os.path.join(OUT, "water_debris.png"))
     print("ok")

@@ -4,7 +4,7 @@ sur des éclats de verre, couinements de rats.
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
    "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying"
-   "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak"
+   "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak" "man scream"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
 """
@@ -171,6 +171,7 @@ CLIPS = {
     "lamp_break": (("558969", "sandb1ns"), 1, 2.8),
     "grate_creak": (("207993", "unfa"), 3, 2.2),
     "rubble": (("381645", "AlanCat"), 3, 2.0),
+    "theo_scream": (("325548", "Archeos"), 2, 2.2),
 }
 
 
