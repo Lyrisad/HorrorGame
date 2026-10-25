@@ -99,6 +99,8 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    premier cafard (55 ms) → plus d'à-coup. Build pour son ami.
 26. « Non, non, non... pas maintenant » au hasard : c'était la lampe qui éclate hors de vue ; Théo ne commente
    plus que s'il l'a vue. Je lui ai donné les 102 répliques de Théo à enregistrer (theo_001 à theo_102).
+27. Touches réattribuables (Paramètres → Touches) ; bouteilles à ramasser posables dans l'éditeur. Il trouve la
+   surface (forêt de fin) vide : idées proposées.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

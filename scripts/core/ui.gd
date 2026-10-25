@@ -36,6 +36,11 @@ var death_sub: Label
 var document_open := false
 var loading_label: Label
 var cover_rect: ColorRect
+var controls_menu: Control  ## Paramètres → Touches (par-dessus le menu principal ou la pause)
+var _bind_buttons := {}  ## action → bouton qui affiche sa touche
+var _rebinding := ""  ## action en attente d'une nouvelle touche
+var _controls_hint: Label
+var _doc_close: Label
 var _menu_drone: AudioStreamPlayer
 
 
@@ -92,6 +97,7 @@ func _ready() -> void:
 
 	_build_document()
 	_build_main_menu()
+	_build_controls_menu()
 	_build_pause_menu()
 	_build_death_menu()
 
@@ -205,9 +211,108 @@ Vos modifications sont gardées pour les prochaines parties.", 18, Color(0.7, 0.
 	settings_main.visible = false
 	col.add_child(settings_main)
 
-	var controls := _title_label("ZQSD / WASD  se déplacer   ·   Souris  regarder   ·   Maj  courir\nC  s'accroupir   ·   F  lampe torche   ·   E  interagir   ·   Tab  objectif   ·   F8  éditeur de carte", 18, Color(0.6, 0.6, 0.6))
-	col.add_child(controls)
+	_controls_hint = _title_label("", 18, Color(0.6, 0.6, 0.6))
+	col.add_child(_controls_hint)
+	_refresh_controls_hint()
 	col.add_child(_title_label("Jeu d'horreur  ·  casque fortement recommandé", 15, Color(0.45, 0.45, 0.45)))
+
+
+func _refresh_controls_hint() -> void:
+	var k := func(a: String) -> String: return Game.key_label(a)
+	_controls_hint.text = "%s %s %s %s  se déplacer   ·   Souris  regarder   ·   %s  courir\n%s  s'accroupir   ·   %s  lampe torche   ·   %s  interagir   ·   %s  objectif   ·   F8  éditeur de carte" % [
+		k.call("move_forward"), k.call("move_left"), k.call("move_back"), k.call("move_right"), k.call("run"),
+		k.call("crouch"), k.call("flashlight"), k.call("interact"), k.call("objective")]
+
+
+# ------------------------------------------------------------------ touches
+func _build_controls_menu() -> void:
+	controls_menu = _fullscreen_menu()
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	controls_menu.add_child(center)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.custom_minimum_size.x = 640
+	center.add_child(col)
+	col.add_child(_title_label("TOUCHES", 34))
+	col.add_child(_title_label("Clique sur une action, puis appuie sur la nouvelle touche (ou un bouton de la souris).\nÉchap : annuler. Une touche déjà prise échange sa place.", 16, Color(0.65, 0.65, 0.65)))
+	for e in Game.REBINDABLE:
+		var action: String = e[0]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		col.add_child(row)
+		var name_lbl := Label.new()
+		name_lbl.text = e[1]
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name_lbl)
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(240, 0)
+		b.pressed.connect(func() -> void:
+			Sound.play("flashlight_click", -8.0, 1.0, "UI")
+			_rebinding = action
+			_refresh_bindings())
+		row.add_child(b)
+		_bind_buttons[action] = b
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 16)
+	col.add_child(bottom)
+	var reset := _button("RÉINITIALISER", func() -> void:
+		_rebinding = ""
+		Game.reset_keys()
+		_refresh_bindings())
+	reset.custom_minimum_size = Vector2(312, 0)
+	bottom.add_child(reset)
+	var back := _button("RETOUR", func() -> void: _close_controls())
+	back.custom_minimum_size = Vector2(312, 0)
+	bottom.add_child(back)
+
+
+func show_controls() -> void:
+	_rebinding = ""
+	_refresh_bindings()
+	move_child(controls_menu, get_child_count() - 1)  # par-dessus le menu pause aussi
+	controls_menu.visible = true
+
+
+func _close_controls() -> void:
+	_rebinding = ""
+	controls_menu.visible = false
+	_refresh_controls_hint()
+
+
+func _refresh_bindings() -> void:
+	for action in _bind_buttons:
+		(_bind_buttons[action] as Button).text = "…  appuie sur une touche  …" if action == _rebinding else Game.key_label(action)
+
+
+## Pendant l'attente d'une touche : la prochaine touche (ou bouton de souris, sauf le clic gauche et la molette)
+## devient celle de l'action. Échap annule.
+func _capture_binding(event: InputEvent) -> bool:
+	if _rebinding == "":
+		return false
+	var ev: InputEvent = null
+	if event is InputEventKey and event.pressed and not event.echo:
+		if (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+			_rebinding = ""
+			_refresh_bindings()
+			return true
+		var k := InputEventKey.new()
+		k.physical_keycode = (event as InputEventKey).physical_keycode
+		ev = k
+	elif event is InputEventMouseButton and event.pressed:
+		var bi := (event as InputEventMouseButton).button_index
+		if bi in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+			return false
+		var mb := InputEventMouseButton.new()
+		mb.button_index = bi
+		ev = mb
+	if ev == null:
+		return false
+	Game.rebind(_rebinding, ev)
+	Sound.play("ui_beep", -10.0, 1.2, "UI")
+	_rebinding = ""
+	_refresh_bindings()
+	return true
 
 
 func _show_panel(which: String) -> void:
@@ -328,6 +433,7 @@ func _build_settings(on_back: Callable) -> VBoxContainer:
 	fs.button_pressed = Game.settings.get("fullscreen", true)
 	fs.toggled.connect(func(on: bool) -> void: Game.set_setting("fullscreen", on))
 	box.add_child(fs)
+	box.add_child(_button("TOUCHES", func() -> void: show_controls()))
 	box.add_child(_button("RETOUR", on_back))
 	box.visibility_changed.connect(func() -> void:
 		if box.visible:
@@ -510,11 +616,12 @@ func _build_document() -> void:
 	doc_text.scroll_active = false
 	doc_text.custom_minimum_size = Vector2(680, 0)
 	doc_panel.add_child(doc_text)
-	var close := _title_label("[E] ou clic pour fermer", 18, Color(0.7, 0.7, 0.7))
-	col.add_child(close)
+	_doc_close = _title_label("", 18, Color(0.7, 0.7, 0.7))
+	col.add_child(_doc_close)
 
 
 func show_document(text: String, style := "paper") -> void:
+	_doc_close.text = Game.with_keys("[E] ou clic pour fermer").replace("[", "").replace("]", "")
 	var sb := StyleBoxFlat.new()
 	sb.set_content_margin_all(44)
 	var font: Font = hand
@@ -565,6 +672,13 @@ func blocks_interaction() -> bool:
 
 
 func _input(event: InputEvent) -> void:
+	if controls_menu != null and controls_menu.visible:
+		if _capture_binding(event):
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("pause"):
+			_close_controls()
+			get_viewport().set_input_as_handled()
+		return
 	if not document_open:
 		return
 	var close := event.is_action_pressed("interact") or event.is_action_pressed("pause")

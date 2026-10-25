@@ -116,6 +116,15 @@ func _parse_args() -> void:
 			_shot_times.append(float(s))
 
 
+## Actions qu'on peut réattribuer (Paramètres → Touches), dans l'ordre affiché. Échap (pause) et F11 restent fixes.
+const REBINDABLE := [["move_forward", "Avancer"], ["move_back", "Reculer"], ["move_left", "Aller à gauche"],
+	["move_right", "Aller à droite"], ["run", "Courir"], ["crouch", "S'accroupir"], ["flashlight", "Lampe torche"],
+	["interact", "Interagir"], ["throw", "Lancer une bouteille"], ["objective", "Objectif"], ["inventory", "Inventaire"]]
+## Touches telles qu'écrites dans les textes du jeu (« [F] lampe torche ») → action : on affiche la touche choisie.
+const KEY_TOKENS := {"F": "flashlight", "C": "crouch", "Tab": "objective", "I": "inventory", "G": "throw", "E": "interact", "Maj": "run"}
+var _default_keys := {}  ## action → touche principale d'origine (pour « Réinitialiser »)
+
+
 func _setup_input() -> void:
 	_bind("move_forward", [KEY_W, KEY_UP])
 	_bind("move_back", [KEY_S, KEY_DOWN])
@@ -133,6 +142,98 @@ func _setup_input() -> void:
 	var rmb := InputEventMouseButton.new()
 	rmb.button_index = MOUSE_BUTTON_RIGHT
 	InputMap.action_add_event("throw", rmb)
+	for e in REBINDABLE:
+		_default_keys[e[0]] = primary_event(e[0]).duplicate()
+
+
+## Touche principale d'une action (la première ; les autres — flèches, clic droit pour lancer — restent actives).
+func primary_event(action: String) -> InputEvent:
+	var evs := InputMap.action_get_events(action)
+	return evs[0] if not evs.is_empty() else null
+
+
+## Nouvelle touche pour une action ; si elle servait déjà à une autre action, les deux échangent leurs touches.
+func rebind(action: String, ev: InputEvent) -> void:
+	var old := primary_event(action)
+	for e in REBINDABLE:
+		var other: String = e[0]
+		if other != action and _same_input(primary_event(other), ev) and old != null:
+			_set_primary(other, old.duplicate())
+	_set_primary(action, ev)
+	_save()
+
+
+func reset_keys() -> void:
+	for e in REBINDABLE:
+		_set_primary(e[0], (_default_keys[e[0]] as InputEvent).duplicate())
+	_save()
+
+
+func _set_primary(action: String, ev: InputEvent) -> void:
+	var evs := InputMap.action_get_events(action)
+	InputMap.action_erase_events(action)
+	InputMap.action_add_event(action, ev)
+	for i in range(1, evs.size()):
+		if not _same_input(evs[i], ev):
+			InputMap.action_add_event(action, evs[i])
+
+
+func _same_input(a: InputEvent, b: InputEvent) -> bool:
+	if a is InputEventKey and b is InputEventKey:
+		return (a as InputEventKey).physical_keycode == (b as InputEventKey).physical_keycode
+	if a is InputEventMouseButton and b is InputEventMouseButton:
+		return (a as InputEventMouseButton).button_index == (b as InputEventMouseButton).button_index
+	return false
+
+
+## Nom lisible de la touche d'une action, selon le clavier du joueur (Z sur un AZERTY, W sur un QWERTY).
+func key_label(action: String) -> String:
+	return event_label(primary_event(action))
+
+
+func event_label(ev: InputEvent) -> String:
+	if ev is InputEventKey:
+		var s := OS.get_keycode_string(DisplayServer.keyboard_get_keycode_from_physical((ev as InputEventKey).physical_keycode))
+		return {"Shift": "Maj", "Space": "Espace", "Escape": "Échap", "Enter": "Entrée", "Backspace": "Retour",
+			"CapsLock": "Verr. Maj", "Up": "Haut", "Down": "Bas", "Left": "Gauche", "Right": "Droite"}.get(s, s)
+	if ev is InputEventMouseButton:
+		return {MOUSE_BUTTON_LEFT: "clic gauche", MOUSE_BUTTON_RIGHT: "clic droit", MOUSE_BUTTON_MIDDLE: "clic molette",
+			MOUSE_BUTTON_XBUTTON1: "souris 4", MOUSE_BUTTON_XBUTTON2: "souris 5"}.get((ev as InputEventMouseButton).button_index, "souris")
+	return "?"
+
+
+## « [F] lampe torche » → la touche que le joueur a choisie pour la lampe.
+func with_keys(text: String) -> String:
+	var re := RegEx.new()
+	re.compile("\\[([^\\]]{1,14})\\]")
+	var out := ""
+	var last := 0
+	for m in re.search_all(text):
+		out += text.substr(last, m.get_start() - last)
+		var tok := m.get_string(1)
+		out += "[" + key_label(KEY_TOKENS[tok]) + "]" if KEY_TOKENS.has(tok) else m.get_string()
+		last = m.get_end()
+	out += text.substr(last)
+	# lancer réattribué au clic droit : « [clic droit] ou [clic droit] » → une seule fois
+	return out.replace("[clic droit] ou [clic droit]", "[clic droit]")
+
+
+func _encode_input(ev: InputEvent) -> String:
+	if ev is InputEventMouseButton:
+		return "m:%d" % (ev as InputEventMouseButton).button_index
+	return "k:%d" % (ev as InputEventKey).physical_keycode if ev is InputEventKey else ""
+
+
+func _decode_input(s: String) -> InputEvent:
+	if s.begins_with("m:"):
+		var mb := InputEventMouseButton.new()
+		mb.button_index = int(s.substr(2)) as MouseButton
+		return mb
+	if s.begins_with("k:"):
+		var k := InputEventKey.new()
+		k.physical_keycode = int(s.substr(2)) as Key
+		return k
+	return null
 
 
 ## Touches physiques : "W" = touche en haut à gauche, donc Z sur un clavier AZERTY.
@@ -153,6 +254,10 @@ func _load_save() -> void:
 	unlocked = cfg.get_value("progression", "chapitres", ["drive"])
 	for k in settings.keys():
 		settings[k] = cfg.get_value("reglages", k, settings[k])
+	for e in REBINDABLE:
+		var ev := _decode_input(str(cfg.get_value("touches", e[0], "")))
+		if ev != null:
+			_set_primary(e[0], ev)
 
 
 func _save() -> void:
@@ -160,6 +265,8 @@ func _save() -> void:
 	cfg.set_value("progression", "chapitres", unlocked)
 	for k in settings.keys():
 		cfg.set_value("reglages", k, settings[k])
+	for e in REBINDABLE:
+		cfg.set_value("touches", e[0], _encode_input(primary_event(e[0])))
 	cfg.save(SAVE_PATH)
 
 

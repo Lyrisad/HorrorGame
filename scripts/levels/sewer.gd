@@ -216,6 +216,12 @@ func _ready() -> void:
 		_roach_test()
 	if Game.args.has("eventtest"):
 		_event_test(str(Game.args["eventtest"]))
+	# test : --keytest → réattribue la lampe à H (textes mis à jour), ouvre le menu des touches, puis remet tout
+	if Game.args.has("keytest"):
+		_key_test()
+	# test : --propbottletest → une bouteille de l'éditeur devant Théo, ramassée
+	if Game.args.has("propbottletest"):
+		_prop_bottle_test()
 	# test : --inestest → on examine Inès (le téléphone sonne, la créature vient voir)
 	if Game.args.has("inestest"):
 		_ines_test()
@@ -2337,18 +2343,27 @@ func _build_bottles() -> void:
 		var pos: Vector3 = tile_center(spec[0]) + Vector3(off.x, 0.0, off.y)
 		var b := B.model(self, "sf:beer_bottle", pos + Vector3(0, 0.035, 0), randf_range(0, 360), {"width": 0.24, "rot": Vector3(0, 0, 90)})
 		var it := Interactable.create(self, pos + Vector3(0, 0.1, 0), Vector3(0.45, 0.3, 0.45), "Ramasser la bouteille", Callable())
-		it.on_use = func() -> void:
-			b.queue_free()
-			it.queue_free()
-			bottles += 1
-			Sound.play("pickup", -10.0, 1.3)
-			Game.hud.pickup("Bouteille vide")
-			if bottles == 1:
-				Game.hud.hint("[G] ou [clic droit]  lancer une bouteille pour faire diversion", 5.0)
-			if not _bottle_told:
-				_bottle_told = true
-				await wait(0.6)
-				Game.hud.say("Une bouteille vide... Si je la lance assez loin, il ira voir là-bas.", 3.4)
+		it.on_use = func() -> void: pick_bottle(b, it)
+
+
+## Ramasser une bouteille : celles du niveau, ou celles ajoutées dans l'éditeur (Props.bottle). Ces dernières
+## sont seulement cachées : elles restent dans la carte, si le joueur sauvegarde ensuite dans l'éditeur.
+func pick_bottle(node: Node3D, it: Node) -> void:
+	if is_instance_valid(it):
+		it.queue_free()
+	if node.has_meta("decor"):
+		node.visible = false
+	else:
+		node.queue_free()
+	bottles += 1
+	Sound.play("pickup", -10.0, 1.3)
+	Game.hud.pickup("Bouteille vide")
+	if bottles == 1:
+		Game.hud.hint("[G] ou [clic droit]  lancer une bouteille pour faire diversion", 5.0)
+	if not _bottle_told:
+		_bottle_told = true
+		await wait(0.6)
+		Game.hud.say("Une bouteille vide... Si je la lance assez loin, il ira voir là-bas.", 3.4)
 
 
 func _throw_bottle() -> void:
@@ -4219,6 +4234,36 @@ func _update_roaches(delta: float) -> void:
 			r.global_position = at
 			_roaches.append(r)
 		break
+
+
+func _key_test() -> void:
+	await wait(1.0)
+	var h := InputEventKey.new()
+	h.physical_keycode = KEY_H
+	Game.rebind("flashlight", h)
+	print("KEYTEST lampe=%s  texte=%s" % [Game.key_label("flashlight"), Game.with_keys("[F] lampe torche   ·   [G] ou [clic droit]  lancer")])
+	var g := InputEventKey.new()
+	g.physical_keycode = KEY_C
+	Game.rebind("flashlight", g)
+	print("KEYTEST échange : lampe=%s accroupi=%s" % [Game.key_label("flashlight"), Game.key_label("crouch")])
+	Game.hud.hint("[F] lampe torche   ·   [C] maintenir pour s'accroupir   ·   [Tab] objectif   ·   [I] inventaire", 8.0)
+	Game.ui.show_controls()
+	await wait(2.0)
+	Game.reset_keys()
+	print("KEYTEST remis : lampe=%s accroupi=%s avancer=%s" % [Game.key_label("flashlight"), Game.key_label("crouch"), Game.key_label("move_forward")])
+
+
+func _prop_bottle_test() -> void:
+	await wait(1.0)
+	var b := MapLayout.spawn_entry({"model": "proc:bottle"}, self)
+	b.global_position = player.global_position + Vector3(-sin(player.yaw), 0, -cos(player.yaw)) * 1.2
+	await wait(1.0)
+	var before := bottles
+	for c in b.get_children():
+		if c is Interactable:
+			(c as Interactable).trigger()
+	await wait(0.2)
+	print("BOTTLETEST bouteilles %d → %d, toujours dans la carte=%s, visible=%s" % [before, bottles, MapLayout.collect(self).has(b), b.visible])
 
 
 func _ines_test() -> void:

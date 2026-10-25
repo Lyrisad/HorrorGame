@@ -234,6 +234,7 @@ func _rich(size: int) -> RichTextLabel:
 ## « [F] lampe » → la touche F dessinée comme une touche de clavier (fond clair, lettre blanche) ;
 ## « [clic droit] » / « [clic gauche] » → une petite souris, le bouton concerné allumé.
 func _keycaps(text: String) -> String:
+	text = Game.with_keys(text)
 	var re := RegEx.new()
 	re.compile("\\[([^\\]]{1,14})\\]")
 	var out := text
@@ -407,7 +408,7 @@ func hint(text: String, duration := 6.0) -> void:
 	var id := _hint_id
 	hint_label.text = "[center]" + _keycaps(text) + "[/center]"
 	# la carte prend la largeur du texte (sans dépasser 900 px)
-	var plain := text.replace("[clic droit]", "WW").replace("[clic gauche]", "WW").replace("[", " ").replace("]", " ")
+	var plain := Game.with_keys(text).replace("[clic droit]", "WW").replace("[clic gauche]", "WW").replace("[", " ").replace("]", " ")
 	var w := clampf(sans.get_string_size(plain, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x + 70.0, 300.0, 900.0)
 	hint_label.custom_minimum_size = Vector2(w - 44.0, 0)
 	hint_panel.offset_left = -w * 0.5

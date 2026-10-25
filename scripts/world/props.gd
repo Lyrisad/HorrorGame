@@ -86,6 +86,20 @@ static func red_cup(parent: Node, pos: Vector3, tipped := false) -> Node3D:
 	return n
 
 
+## Bouteille vide couchée par terre, à ramasser pour la lancer (dans les égouts : le niveau a pick_bottle()).
+## Objet de décor : l'éditeur (F8) en pose autant qu'on veut. Origine au sol.
+static func bottle(parent: Node) -> Node3D:
+	var n := Node3D.new()
+	parent.add_child(n)
+	B.model(n, "sf:beer_bottle", Vector3(0, 0.035, 0), randf_range(0, 360), {"width": 0.24, "rot": Vector3(0, 0, 90)})
+	n.set_meta("size", Vector3(0.24, 0.07, 0.24))
+	var lvl := Game.level
+	if lvl != null and lvl.has_method("pick_bottle"):
+		var it := Interactable.create(n, Vector3(0, 0.1, 0), Vector3(0.45, 0.3, 0.45), "Ramasser la bouteille", Callable())
+		it.on_use = func() -> void: lvl.pick_bottle(n, it)
+	return n
+
+
 ## Toile d'araignée qui pend du plafond (ou d'un tuyau) : des fils souples et un lambeau de nappe, sur deux plans
 ## en croix. Origine en bas, haut de la toile au plafond (l'éditeur la suspend sous la surface visée).
 static func cobweb(parent: Node) -> Node3D:

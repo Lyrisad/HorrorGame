@@ -13,6 +13,7 @@ var grid: GridContainer
 var empty_label: Label
 var detail_name: Label
 var detail_desc: Label
+var close_hint: Label
 var docs_box: VBoxContainer
 var docs_title: Label
 var objective_label: Label
@@ -46,7 +47,8 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
-	head.add_child(_label("[I] / [Échap]  fermer", 18, DIM))
+	close_hint = _label("", 18, DIM)
+	head.add_child(close_hint)
 	objective_label = _label("", 18, Color(1.0, 0.82, 0.48, 0.9))
 	col.add_child(objective_label)
 	col.add_child(_separator())
@@ -114,6 +116,7 @@ func toggle() -> void:
 
 
 func open() -> void:
+	close_hint.text = Game.with_keys("[I] / Échap  fermer").replace("[", "").replace("]", "")
 	is_open = true
 	get_tree().paused = true
 	Game.capture_mouse(false)
@@ -205,7 +208,7 @@ func _show_detail() -> void:
 		return
 	var it: Dictionary = _items[_selected]
 	detail_name.text = str(it["name"]) + ("  ×%d" % int(it["count"]) if int(it.get("count", 1)) > 1 else "")
-	detail_desc.text = str(it.get("desc", ""))
+	detail_desc.text = Game.with_keys(str(it.get("desc", ""))).replace("[", "").replace("]", "")
 	for k in grid.get_child_count():
 		var b := grid.get_child(k) as Button
 		var st := b.get_theme_stylebox("hover")

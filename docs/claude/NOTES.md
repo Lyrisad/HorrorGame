@@ -234,6 +234,16 @@ Keep it current — add a line whenever you learn something non-obvious. History
   `--inestest`.
 - Claws: _update_claws() — creature active, 2.5-12 m away and NOT in line of sight → claw_0..3 (real 830466 /
   354094) on the "Creature" bus (muffled through the wall), every 4-10 s, sometimes twice.
+- Key rebinding: Paramètres → TOUCHES (ui.controls_menu, full-screen, moved on top so it also works from the pause
+  menu). Game.REBINDABLE (11 actions; Échap/F11 fixed), rebind() swaps with an action already using the key,
+  only the PRIMARY event is replaced (arrows / right-click-to-throw stay), stored in sauvegarde.cfg [touches] as
+  "k:<physical keycode>" / "m:<mouse button>". Labels follow the keyboard layout (Z on AZERTY). Texts keep writing
+  the default keys ("[F] lampe", "[E]", "[G] ou [clic droit]"): Game.with_keys() maps those tokens (KEY_TOKENS) to
+  the chosen keys (HUD hints/prompt, inventory descriptions and header, document "close" line, main menu line).
+  `--keytest` rebinds then resets (it WRITES sauvegarde.cfg: back it up first).
+- Editor bottles: catalog "bouteille à ramasser" = proc:bottle (Props.bottle): in a level that has pick_bottle()
+  (sewer) it gets an Interactable; picking hides it (not freed) so a later editor save keeps it in the layout.
+  The original BOTTLE_SPOTS bottles are still placed by code. `--propbottletest`.
 - HUD hint box (hud.hint): RichTextLabel inside a dark rounded PanelContainer, at the very bottom of the screen
   (HINT_BOTTOM = -44, under the subtitles). User REJECTED the amber left border and the "CONSEIL" title: text only.
   "[F] lampe" → keycap via _keycaps() (bgcolor BBCode); "[clic droit]"/"[clic gauche]" → mouse icon
