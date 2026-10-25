@@ -90,6 +90,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    qu'on entend racler les murs quand la créature rôde hors de vue.
 23. Toiles : il ne garde que celles qui pendent du plafond (coins et arêtes retirés du jeu et de sa carte, qu'il
    avait sauvegardée avec les toiles par défaut ; rien d'autre n'y avait changé). Build pour l'envoyer à un ami.
+24. Voix sur les dialogues : je lui ai donné le texte de l'égoutier et un prompt de voix ; il a fourni les 7 répliques
+   (tools/voices_src/egoutier), traitées et branchées (le sous-titre suit la voix). Il a demandé d'attendre avant le
+   prochain build (« un autre truc à faire »).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

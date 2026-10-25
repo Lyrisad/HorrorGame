@@ -227,7 +227,13 @@ Keep it current — add a line whenever you learn something non-obvious. History
   offset_top = HINT_BOTTOM - get_combined_minimum_size().y) — setting it immediately left a giant empty box.
   `--hinttest[=keys|mic|bottle|prompt]` (sewer) shows a hint for captures ("prompt" spawns a dummy Interactable
   and erases args["shots"], because can_act() is false during captures). The interaction prompt uses the keycap.
-- Dying NPC: NO voice under his subtitles any more (the synthetic dying_murmur_* "voice" was horrible, deleted);
+- Voiced dialogue: the user supplies recordings (AI voices made from a prompt I wrote: dying 50-year-old sewer worker,
+  weak, hoarse, breathy, never shouting). Sources go in tools/voices_src/<who>/<line>.mp3 (tools/ has .gdignore: not
+  imported, not exported); tools/audio_gen/process_voices.py trims silences, HP 90 Hz / LP 9 kHz, evens loudness
+  (-20 dBFS RMS on speech, peaks < -1 dB) → assets/audio/dialogues/<who>/<line>.wav. sewer._npc_say(text, dur,
+  voice) plays it at the NPC's mouth (3D, unit 2.5) and keeps the subtitle for the voice's length (lines are much
+  longer than the old fixed durations: up to 9.8 s). Théo is not voiced (subtitles only) for now.
+- Dying NPC: NO synthetic voice under his subtitles any more (the synthetic dying_murmur_* "voice" was horrible, deleted);
   his breathing loop is ducked to -22 dB while he speaks. dying_cough_0/1 = real 318079 (EXCERPTS with
   clean=False: the declicker would flatten cough attacks).
 

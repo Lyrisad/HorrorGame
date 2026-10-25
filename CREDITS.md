@@ -55,6 +55,9 @@ monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhail
 egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054), PostProdDog (578493),
 plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993), Archeos (325548), SoundsForHim (395563), scarbelly25 (33939), randbsoundbites (798649), Drkvixn91 (318079), ThePacifist (349483), Wigglesworth (830466), Bini_trns (354094) — https://freesound.org/s/<numéro>/
 
+## Voix
+Voix de l'égoutier : fournies par l'auteur du jeu (voix de synthèse), nettoyées par `tools/audio_gen/process_voices.py`.
+
 ## Captures de mouvement — CMU Graphics Lab Motion Capture Database
 The data used in this project was obtained from mocap.cs.cmu.edu.
 The database was created with funding from NSF EIA-0196217.

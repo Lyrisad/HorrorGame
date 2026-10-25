@@ -3574,12 +3574,18 @@ func _npc_dead_pose() -> void:
 	_npc_twitch.look_weight = 0.0
 
 
-func _npc_say(text: String, duration: float) -> void:
-	# pas de fausse voix : le sous-titre suffit ; sa respiration s'efface pendant qu'il parle
+## Une réplique de l'égoutier : sa voix enregistrée (assets/audio/dialogues/egoutier/<voice>.wav) part de sa
+## bouche, le sous-titre reste affiché tant qu'il parle. Sa respiration s'efface pendant qu'il parle.
+func _npc_say(text: String, duration: float, voice := "") -> void:
 	if is_instance_valid(_npc_breath):
 		Sound.fade(_npc_breath, -22.0, 0.3)
-	Game.hud.say(text, duration, "L'égoutier")
-	await wait(duration + 0.25)
+	var length := duration
+	var stream := Sound.stream("dialogues/egoutier/" + voice) if voice != "" else null
+	if stream != null:
+		length = stream.get_length()
+		Sound.play_at("dialogues/egoutier/" + voice, _npc.global_position + Vector3(0, 0.75, 0), 0.0, 1.0, 2.5, 18.0)
+	Game.hud.say(text, length + 0.4, "L'égoutier")
+	await wait(length + 0.25)
 	if is_instance_valid(_npc_breath) and _npc_state == 1:
 		Sound.fade(_npc_breath, -8.0, 0.6)
 
@@ -3604,19 +3610,19 @@ func _npc_talk() -> void:
 	tw.tween_property(_npc_body, "droop", 0.15, 1.6).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(_npc_twitch, "look_weight", 0.85, 1.6).set_trans(Tween.TRANS_SINE)
 	await wait(1.6)
-	await _npc_say("Toi... t'es réveillé...", 2.2)
+	await _npc_say("Toi... t'es réveillé...", 2.2, "egoutier_01")
 	Game.hud.say("Monsieur ? Vous êtes blessé... attendez, je—", 2.4)
 	await wait(2.5)
-	await _npc_say("Laisse... Écoute-moi. La seule sortie, c'est l'écluse 3. La grille, tout au fond, vers l'est.", 4.0)
-	await _npc_say("Ils l'ont fermée avec une chaîne. Y a des pinces dans le local technique... au nord.", 3.6)
+	await _npc_say("Laisse... Écoute-moi. La seule sortie, c'est l'écluse 3. La grille, tout au fond, vers l'est.", 4.0, "egoutier_02")
+	await _npc_say("Ils l'ont fermée avec une chaîne. Y a des pinces dans le local technique... au nord.", 3.6, "egoutier_03")
 	Sound.play_at(Sound.variant("dying_cough", 2), head, -6.0, 1.05, 2.0, 14.0)
 	await wait(0.9)
-	await _npc_say("Et ils ont coupé le courant. Les trois fusibles de l'armoire... ils les ont balancés dans le réseau.", 4.0)
-	await _npc_say("Un dans chaque partie des égouts. Bertrand est parti les chercher... il est jamais revenu.", 3.8)
-	await _npc_say("La chose, là-dedans... elle voit rien. Elle entend. Quand elle clique... tu bouges plus.", 4.0)
+	await _npc_say("Et ils ont coupé le courant. Les trois fusibles de l'armoire... ils les ont balancés dans le réseau.", 4.0, "egoutier_04")
+	await _npc_say("Un dans chaque partie des égouts. Bertrand est parti les chercher... il est jamais revenu.", 3.8, "egoutier_05")
+	await _npc_say("La chose, là-dedans... elle voit rien. Elle entend. Quand elle clique... tu bouges plus.", 4.0, "egoutier_06")
 	Game.hud.say("Tenez bon, je vais chercher de l'aide—", 2.0)
 	await wait(2.1)
-	await _npc_say("...Les fusibles...", 1.8)
+	await _npc_say("...Les fusibles...", 1.8, "egoutier_07")
 	# dernier souffle
 	if is_instance_valid(_npc_breath):
 		Sound.fade(_npc_breath, -60.0, 1.0, true)
