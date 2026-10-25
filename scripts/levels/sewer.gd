@@ -4686,11 +4686,25 @@ func _ev_lamp_pop() -> void:
 		await ticked
 		t += get_process_delta_time()
 		_lamp_level(l, e, 0.0 if randf() < 0.5 else randf_range(0.4, 1.6))
+	# Théo ne commente que s'il l'a vue claquer (dans le champ de la caméra, rien entre elle et lui)
+	var seen := _in_view(l.global_position)
+	if Game.args.has("eventtest"):
+		print("LAMPE à %.1f m, vue par Théo : %s" % [l.global_position.distance_to(player.global_position), seen])
 	await _lamp_burst(l, e)
 	lure_noise(l.global_position, 10.0)
-	if randf() < 0.5:
+	if seen and randf() < 0.5:
 		await wait(0.8)
 		Game.hud.say(["...Génial.", "Non, non, non... pas maintenant.", "Encore une de moins."][randi() % 3], 2.2)
+
+
+## Le point est-il à l'image : devant la caméra, dans son champ, et sans mur entre les deux ?
+func _in_view(pos: Vector3) -> bool:
+	var eye := player.eye_position()
+	var to := pos - eye
+	if (-player.cam.global_basis.z).dot(to.normalized()) < 0.6:
+		return false
+	# on s'arrête juste avant le luminaire (son propre boîtier ne doit pas compter comme un obstacle)
+	return has_los(eye, pos - to.normalized() * 0.3)
 
 
 ## Intensité d'un luminaire (et de son tube / ampoule) : k = 1 normal, 0 éteint.

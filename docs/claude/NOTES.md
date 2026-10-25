@@ -196,7 +196,8 @@ Keep it current — add a line whenever you learn something non-obvious. History
   the floor; _rubble_mat = object-space triplanar, roughness 1, NO roughness map, specular 0.15, DARK albedo
   ~0.25-0.35 — the first version was "trop luisant" (bright + concrete roughness map); brick/mortar in zone 0, concrete
   elsewhere; gravel freed after 120 s; plus a faint dust trickle. Test: --eventtest=debrisnear), a lamp popping for good
-  (lamp_break_0, sparks, fixture emission off; max 3, never the red/gate lamps), a culvert grate creaking
+  (lamp_break_0, sparks, fixture emission off; max 3, never the red/gate lamps; Théo's remark only if the lamp
+  was in view — _in_view(): camera dot > 0.6 + line of sight — otherwise his line came "out of nowhere"), a culvert grate creaking
   (grate_creak_*), a rat stampede along a nav path through Théo (Rat.run_path). Loud ones lure the creature.
   Test: --eventtest=bang|debris|debrisnear|lamp|grate|rats.
 - Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
