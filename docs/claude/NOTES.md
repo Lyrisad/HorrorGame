@@ -161,6 +161,14 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - Camera auto: Game._update_camera_auto() — exposure spring (lags and overshoots) driven by visible lamps
   (_scene_bright from the flare pass) + flashlight on a close wall; boosts gain (`ae_gain`) after 1.5 s of total
   darkness. Focus hunt (`defocus`, mip blur) when the centre distance jumps near↔far or the creature appears < 2.8 m.
+- Surface variety: floors / walls / lower walls / ceilings of the 3 eras use shaders/sewer_surface.gdshader
+  (sewer._sewer_surface: same base textures, triplanar world) + procedural layers from world-space noise: moss band
+  rising from the floor + moss patches, efflorescence (keep it a subtle mineral veil — bright white patches looked
+  like paint), damp streaks from the vault, floor mud (brown_mud_leaves_01) and glossy wet patches, ceiling mould.
+  Per-era amounts: lots of moss/salt in the brick vaults, almost none in the tiled galleries.
+- Roaches: up to 75 around Théo (groups of 2-8 or singles, 70 % on the floor), spawned 3.5-14 m away; spot is
+  validated BEFORE creating the node (creating + freeing in the same frame spammed "material is null" errors);
+  roaches > 8 m away pause their AnimationPlayer (90 animated roaches cost ~20 % fps).
 - Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
   and brightness, slow swirls, lit only by lights) + Nature.dust_bokeh (out-of-focus orbs ~1 m in front of the lens,
   distance-faded so they never become bright white balls).

@@ -69,6 +69,8 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    le faisceau, exposition automatique qui « pompe » + mise au point qui patine. Faits. Restent en idées : vrais
    sons partout, voix de Théo (à enregistrer par lui), objets qu'on heurte, mains à l'image, batterie de lampe,
    retenir sa respiration, cachettes, plus d'histoire à trouver, réglage de qualité graphique.
+16. Vapeur : sur les tuyaux du haut (pas de conduite ajoutée seule). Variété des murs et sols (mousse, sel,
+   coulures, vase, flaques, moisissures) ; beaucoup plus de cafards, partout, surtout au sol.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

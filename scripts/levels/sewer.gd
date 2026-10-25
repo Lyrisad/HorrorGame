@@ -681,6 +681,20 @@ func _build_geometry() -> void:
 	}
 	for m in mats.values():
 		(m as StandardMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
+	# sols, murs et plafonds : mousse, sel, coulures, vase, flaques (shaders/sewer_surface.gdshader)
+	for spec in [["floor0", "damaged_concrete_floor", 2.2, Color(0.5, 0.5, 0.46), 0.45, 0],
+			["floor1", "cracked_concrete", 2.4, Color(0.55, 0.55, 0.52), 0.5, 1],
+			["floor2", "dirty_concrete", 2.0, Color(0.6, 0.6, 0.58), 0.55, 2],
+			["low0", "concrete_moss", 1.6, Color(0.5, 0.52, 0.45), 0.5, 0],
+			["wall0", "mossy_brick", 1.6, Color(0.62, 0.6, 0.55), 0.7, 0],
+			["ceil0", "mossy_brick", 1.6, Color(0.52, 0.5, 0.46), 0.7, 0],
+			["low1", "concrete_moss", 2.0, Color(0.42, 0.45, 0.38), 0.45, 1],
+			["wall1", "concrete_wall_006", 2.5, Color(0.62, 0.62, 0.6), 0.8, 1],
+			["ceil1", "hacked_concrete", 2.5, Color(0.5, 0.5, 0.48), 0.85, 1],
+			["low2", "dirty_tiles", 1.2, Color(0.8, 0.82, 0.78), 0.3, 2],
+			["wall2", "concrete_block_wall_02", 2.0, Color(0.6, 0.66, 0.62), 0.8, 2],
+			["ceil2", "concrete_wall_006", 2.5, Color(0.5, 0.52, 0.5), 0.85, 2]]:
+		mats[spec[0]] = _sewer_surface(spec[1], spec[2], spec[3], spec[4], spec[5])
 	var water_mat := ShaderMaterial.new()
 	water_mat.shader = load("res://shaders/water.gdshader")
 	var rip := NoiseTexture2D.new()
@@ -1526,6 +1540,26 @@ func _build_lights() -> void:
 	red.light_volumetric_fog_energy = 0.9
 	Game.add_flare(red, 1.2, 0.9)
 	_lamp_lights.append(red)
+
+
+## Matériau des murs / sols / plafonds avec ce que l'humidité y dépose ; plus de mousse et de sel dans le vieux
+## collecteur en briques, presque pas dans les galeries carrelées.
+func _sewer_surface(slug: String, tile: float, tint: Color, rough: float, zn: int) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/sewer_surface.gdshader")
+	var base := "res://assets/textures/%s/%s_" % [slug, slug]
+	m.set_shader_parameter("albedo_tex", load(base + "diff.jpg"))
+	m.set_shader_parameter("normal_tex", load(base + "nor.jpg"))
+	m.set_shader_parameter("rough_tex", load(base + "rough.jpg"))
+	m.set_shader_parameter("moss_tex", load("res://assets/textures/concrete_moss/concrete_moss_diff.jpg"))
+	m.set_shader_parameter("mud_tex", load("res://assets/textures/brown_mud_leaves_01/brown_mud_leaves_01_diff.jpg"))
+	m.set_shader_parameter("tile", tile)
+	m.set_shader_parameter("tint", tint)
+	m.set_shader_parameter("rough_mul", rough)
+	var amounts: Array = [[0.75, 0.5, 0.7, 0.6, 0.6], [0.5, 0.4, 0.6, 0.5, 0.5], [0.15, 0.15, 0.5, 0.3, 0.45]][zn]
+	for i in 5:
+		m.set_shader_parameter(["moss", "salt", "damp", "mud", "puddles"][i], amounts[i])
+	return m
 
 
 ## Béton de coffrage vieilli (coulures, crasse, algues à la ligne d'eau) — shaders/wet_concrete.gdshader.
@@ -3844,12 +3878,12 @@ func _update_roaches(delta: float) -> void:
 		elif (r as Node3D).global_position.distance_to(player.global_position) > 15.0:
 			(r as Node3D).queue_free()
 			_roaches.remove_at(i)
-	if _roach_cd > 0.0 or _roaches.size() > 34:
+	if _roach_cd > 0.0 or _roaches.size() > 75:
 		return
-	_roach_cd = randf_range(3.0, 7.0)
+	_roach_cd = randf_range(0.8, 1.8)
 	# un groupe à quelques mètres, jamais en plein dans le faisceau
 	for _try in 20:
-		var c := tile_of(player.global_position) + Vector2i(randi_range(-4, 4), randi_range(-4, 4))
+		var c := tile_of(player.global_position) + Vector2i(randi_range(-5, 5), randi_range(-5, 5))
 		if not walkable(c) or cell(c) in ["w", "G", "E"]:
 			continue
 		var walls := _wall_tiles(c)
@@ -3858,35 +3892,41 @@ func _update_roaches(delta: float) -> void:
 		var d: Vector2i = walls[randi() % walls.size()]
 		var nrm := Vector3(-d.x, 0, -d.y)
 		var tan := Vector3(-d.y, 0, d.x)
-		var on_wall := randf() < 0.6
+		var on_wall := randf() < 0.3
 		var base := wall_pos(c, d, 0.0, randf_range(-0.9, 0.9))
 		if on_wall:
 			base += Vector3(0, randf_range(0.3, 1.3), 0) + nrm * 0.012
 		else:
-			base += nrm * randf_range(0.3, 0.5)
+			# au sol : n'importe où sur l'allée (pas seulement au pied du mur)
+			base += nrm * randf_range(0.3, 1.1)
 			base.y = floor_y(base) + 0.004
-			if _is_water(base):
+			if _is_water(base) or not walkable(tile_of(base)):
 				continue
 		var dist := base.distance_to(player.global_position)
-		if dist < 4.0 or dist > 12.0:
+		if dist < 3.5 or dist > 14.0:
 			continue
 		if player.flashlight_on:
 			var to := (base - player.flashlight.global_position).normalized()
 			if (-player.flashlight.global_basis.z).dot(to) > 0.85:
 				continue
-		for k in randi_range(3, 7):
+		var v_axis := Vector3.UP if on_wall else nrm
+		for k in (1 if randf() < 0.25 else randi_range(2, 8)):
+			# l'emplacement est vérifié AVANT de créer le cafard (jamais dans l'eau ni hors de l'allée)
+			var off := Vector2(randf_range(-0.35, 0.35), randf_range(-0.25, 0.25))
+			var at := base + tan * off.x + v_axis * off.y
+			if on_wall:
+				at.y = clampf(at.y, 0.22, 1.5)
+			elif _is_water(at) or not walkable(tile_of(at)):
+				continue
 			var r := Roach.new()
 			r.level = self
 			r.on_wall = on_wall
 			r.normal = nrm if on_wall else Vector3.UP
 			r.u_axis = tan
-			r.v_axis = Vector3.UP if on_wall else nrm
+			r.v_axis = v_axis
 			r.home = base
 			add_child(r)
-			var off := Vector2(randf_range(-0.35, 0.35), randf_range(-0.25, 0.25))
-			r.global_position = base + tan * off.x + r.v_axis * off.y
-			if on_wall:
-				r.global_position.y = clampf(r.global_position.y, 0.22, 1.5)
+			r.global_position = at
 			_roaches.append(r)
 		break
 
@@ -3982,6 +4022,15 @@ class Roach extends Node3D:
 	func _process(delta: float) -> void:
 		var p = level.player
 		if p == null:
+			return
+		# loin de Théo (on ne les distinguerait pas) : figés, sans animation, ça ne coûte presque rien
+		var far: bool = not fleeing and global_position.distance_squared_to(p.global_position) > 64.0
+		if anim != null:
+			if far and anim.is_playing():
+				anim.pause()
+			elif not far and not anim.is_playing():
+				anim.play()
+		if far:
 			return
 		if not fleeing and p.flashlight_on and p.flashlight.light_energy > 0.6:
 			var to: Vector3 = global_position - p.flashlight.global_position
