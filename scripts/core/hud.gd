@@ -11,6 +11,8 @@ var sans: SystemFont
 
 var rec_dot: Label
 var rec_label: Label
+var osd_center: Label  ## « SIGNAL PERDU »
+var osd_top: Label  ## « ◀◀ REMBOBINAGE »
 var battery_label: Label
 var clock_label: Label
 var device_label: Label
@@ -154,6 +156,16 @@ func _ready() -> void:
 	_place(subtitle, 0.5, 1, 0.5, 1, -720, -250, 720, -130)
 	root.add_child(subtitle)
 
+	# --- textes de la caméra elle-même
+	osd_center = _label("", 54)
+	osd_center.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(osd_center, 0.5, 0.5, 0.5, 0.5, -500, -40, 500, 40)
+	root.add_child(osd_center)
+	osd_top = _label("", 34)
+	osd_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(osd_top, 0.5, 0, 0.5, 0, -400, 90, 400, 140)
+	root.add_child(osd_top)
+
 	# --- indice (tutoriel)
 	hint_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -246,7 +258,21 @@ func reset() -> void:
 	hint_panel.visible = false
 	objective_box.modulate.a = 0.0
 	live_root.visible = false
+	osd_center.text = ""
+	osd_top.text = ""
 	set_rec(true)
+
+
+## Texte affiché par la caméra (centre : alerte ; haut : mode de lecture), clignotant.
+func osd(text: String, top := false) -> void:
+	var l := osd_top if top else osd_center
+	l.text = text
+	l.modulate.a = 1.0
+	if text == "":
+		return
+	var tw := l.create_tween().set_loops(6)
+	tw.tween_property(l, "modulate:a", 0.25, 0.35)
+	tw.tween_property(l, "modulate:a", 1.0, 0.35)
 
 
 func set_clock(text: String) -> void:

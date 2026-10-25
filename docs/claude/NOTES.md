@@ -169,6 +169,17 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - Roaches: up to 75 around Théo (groups of 2-8 or singles, 70 % on the floor), spawned 3.5-14 m away; spot is
   validated BEFORE creating the node (creating + freeing in the same frame spammed "material is null" errors);
   roaches > 8 m away pause their AnimationPlayer (90 animated roaches cost ~20 % fps).
+- Death (sewer._on_caught): the camera is ripped off, tumbles and lands rolled 76° on the floor 0.5-1.4 m behind
+  Théo looking at him; Théo's body (player.body_free = true, layers 1|2, clip "dead" = 139_18 first frame added to
+  theo in build_characters.py) lies there, the creature crouches over it then script_walks away dragging it in jerks
+  (body_drag_loop), empty corridor, HUD.osd("SIGNAL PERDU"), blackout, then _rewind(): the last 12 s of head
+  transforms (_cam_hist, 30 Hz) played backwards ×5 with the `rewind` shader (shifted lines + rolling noise bar,
+  desaturated), clock running backwards, REC hidden, then Game.retry_from_checkpoint() (no death menu any more).
+- Random events (_update_events every 25-55 s once out of the cage): pipe water hammer (pipe_bang_*, echoes along
+  the pipe, dust from the vault), debris falling in view (rubble_*, chunks stay), a lamp popping for good
+  (lamp_break_0, sparks, fixture emission off; max 3, never the red/gate lamps), a culvert grate creaking
+  (grate_creak_*), a rat stampede along a nav path through Théo (Rat.run_path). Loud ones lure the creature.
+  Test: --eventtest=bang|debris|lamp|grate|rats.
 - Flashlight glitches every 25-55 s (user wanted them more frequent). Dust: Nature.dust (2600 motes, varied size
   and brightness, slow swirls, lit only by lights) + Nature.dust_bokeh (out-of-focus orbs ~1 m in front of the lens,
   distance-faded so they never become bright white balls).

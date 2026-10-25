@@ -4,6 +4,7 @@ sur des éclats de verre, couinements de rats.
 1. Télécharger les aperçus HQ : python ../dev/fs_fetch.py <cache> 6 "footsteps concrete boots"
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
    "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying"
+   "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
 """
@@ -27,6 +28,8 @@ SOURCES = {
     "step_wood": ([("164315", "Rickmk2"), ("331451", "ralph.whitehead")], 4, 0.4, 0.7),
     "step_gravel": ([("352870", "PotatokingXII"), ("353799", "monte32")], 4, 0.45, 0.6),
     "step_grass": ([("206030", "Yuval"), ("411206", "straget")], 4, 0.45, 0.55),
+    # événements des égouts : coups de bélier dans les tuyaux, éboulis de la voûte
+    "pipe_bang": ([("687242", "DanJFilms"), ("257300", "machine_831")], 4, 1.6, 0.85),
 }
 
 
@@ -128,6 +131,7 @@ def main(cache, out):
 # boucles : (id, auteur) → la fenêtre de 8 s la plus régulière, bouclée en fondu enchaîné
 LOOPS = {
     "flies_loop": [("46938", "galeku"), ("395593", "BeeProductive")],
+    "body_drag_loop": [("578493", "PostProdDog")],
 }
 
 
@@ -163,6 +167,10 @@ def make_loop(cache, out, name, srcs, length=8.0, fade=0.6):
 # extraits continus (pas d'attaques nettes) : les fenêtres les plus fournies, sans chevauchement
 CLIPS = {
     "roach_skitter": (("767054", "ThabzMalik"), 3, 0.7),
+    "tape_rewind": (("402451", "plasterbrain"), 1, 3.0),
+    "lamp_break": (("558969", "sandb1ns"), 1, 2.8),
+    "grate_creak": (("207993", "unfa"), 3, 2.2),
+    "rubble": (("381645", "AlanCat"), 3, 2.0),
 }
 
 

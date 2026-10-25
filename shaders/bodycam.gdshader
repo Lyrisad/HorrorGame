@@ -27,6 +27,7 @@ uniform float lens_fog = 0.0;    // buée sur l'objectif (humidité)
 uniform float lens_drops = 0.0;  // gouttes sur l'objectif (éclaboussure)
 uniform float flare = 1.0;
 uniform float defocus = 0.0;  // mise au point qui patine (0 = net)
+uniform float rewind = 0.0;   // lecture rembobinée : lignes qui se décalent, bande de parasites qui défile
 uniform float ae_gain = 0.0;  // l'exposition automatique pousse le capteur dans le noir (plus de bruit)
 // lampes visibles projetées à l'écran : xy = position (uv), z = intensité, w = taille
 uniform vec4 flare_src[4];
@@ -98,6 +99,16 @@ void fragment() {
 		if (hash12(blk + frame * 1.7) < glitch * 0.16) {
 			uv = (blk + 0.5) / grid;
 		}
+	}
+
+	// --- cassette rembobinée : lignes décalées, bande de défilement ---
+	float rew_bar = 0.0;
+	if (rewind > 0.001) {
+		float line = floor(uv.y * 90.0);
+		uv.x += (hash12(vec2(line, frame)) - 0.5) * 0.02 * rewind + sin(uv.y * 30.0 + TIME * 25.0) * 0.004 * rewind;
+		float bar_y = fract(TIME * 1.3);
+		rew_bar = smoothstep(0.06, 0.0, abs(uv.y - bar_y)) * rewind;
+		uv.x += rew_bar * 0.05 * (hash12(vec2(line, frame + 1.0)) - 0.5);
 	}
 
 	// --- obturateur roulant + micro-tremblement horizontal ---
@@ -208,6 +219,11 @@ void fragment() {
 		col = mix(col, junk, line * 0.55);
 	}
 
+	if (rewind > 0.001) {
+		float lr = dot(col, vec3(0.333));
+		col = mix(col, vec3(lr) * vec3(0.9, 1.0, 1.05), 0.45 * rewind);
+		col = mix(col, vec3(hash13(vec3(FRAGCOORD.xy, frame))), rew_bar * 0.8);
+	}
 	col = mix(col, vec3(1.0), flash);
 	// écran noir de perte de signal (avec un peu de neige)
 	vec3 snow = vec3(hash13(vec3(FRAGCOORD.xy * 0.5, frame)) * 0.08);

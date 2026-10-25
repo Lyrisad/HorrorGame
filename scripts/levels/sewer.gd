@@ -85,6 +85,8 @@ var _gust_cd := 25.0
 var _ledge_side := 1.0  ## -1 / +1 : une des banquettes ; 0 : dans l'eau, au milieu de la cunette
 var _lane_cd := 10.0
 var _close_seen := false
+var _cam_hist: Array[Transform3D] = []  ## dernières secondes filmées (pour le rembobinage)
+var _hist_t := 0.0
 var _lamp_lights: Array[Light3D] = []  ## luminaires : les plus proches de Théo ont des ombres
 var _shadow_cd := 0.0
 ## Fuites de vapeur des galeries techniques : [case, mur, décalage de la bride le long du mur]
@@ -205,6 +207,8 @@ func _ready() -> void:
 		_splash_test()
 	if Game.args.has("roachtest"):
 		_roach_test()
+	if Game.args.has("eventtest"):
+		_event_test(str(Game.args["eventtest"]))
 	if Game.args.has("misttest") and _mist != null:
 		(_mist.material as FogMaterial).density = float(Game.args["misttest"])
 	# test : --hinttest → affiche l'indice du micro (le plus long du jeu)
@@ -1487,6 +1491,7 @@ func _build_lights() -> void:
 		l.light_volumetric_fog_energy = 0.8
 		Game.add_flare(l, 1.1, 1.0)
 		_lamp_lights.append(l)
+		l.set_meta("fixture", fixture)
 		var glow := _own_emissive(fixture)
 		Sound.loop_at("buzz_loop", fixture, -22.0, 1.5, 8.0)
 		if s[1]:
@@ -1524,6 +1529,7 @@ func _build_lights() -> void:
 		var l3 := B.omni(self, c3 + Vector3(0, top - 0.35, 0), Color(0.82, 0.95, 1.0), 0.6, 7.0, false)
 		Game.add_flare(l3, 0.9, 1.4)
 		_lamp_lights.append(l3)
+		l3.set_meta("fixture", fluo)
 		Sound.loop_at("buzz_loop", fluo, -18.0, 2.0, 9.0)
 		if s[1]:
 			flicker_lights.append(l3)
@@ -3101,19 +3107,125 @@ func _on_caught() -> void:
 	await wait(0.55)
 	Sound.play("hit_impact", 0.0)
 	Game.flash(0.5)
-	var floor_t := Transform3D(Basis.from_euler(Vector3(-0.2, player.yaw + 0.8, 1.45)), player.global_position + Vector3(0.2, 0.14, 0.1))
+	# la caméra est arrachée du torse : elle valdingue derrière Théo et retombe couchée sur le côté,
+	# l'objectif tourné vers lui
+	var away := Vector3(player.global_position.x - creature.global_position.x, 0, player.global_position.z - creature.global_position.z)
+	away = away.normalized() if away.length() > 0.01 else Vector3(0, 0, 1)
+	var rest_pos := player.global_position + away * 0.3
+	for dist in [1.4, 1.1, 0.8, 0.5]:
+		var cand: Vector3 = player.global_position + away * dist + Vector3(-away.z, 0, away.x) * 0.25
+		if walkable(tile_of(cand)) and has_los(player.global_position + Vector3(0, 0.3, 0), cand + Vector3(0, 0.3, 0)):
+			rest_pos = cand
+			break
+	rest_pos.y = maxf(floor_y(rest_pos), WATER_Y) + 0.07
+	var look_pt := player.global_position + Vector3(0, 0.25, 0)
+	var rest := Transform3D(Basis.looking_at(look_pt - rest_pos, Vector3.UP) * Basis(Vector3(0, 0, 1), deg_to_rad(76.0)), rest_pos)
 	var tw2 := create_tween()
-	tw2.tween_method(func(w: float) -> void: player.set_cinematic(face.interpolate_with(floor_t, w), 1.0), 0.0, 1.0, 0.45).set_ease(Tween.EASE_IN)
-	await wait(0.45)
+	tw2.tween_method(func(w: float) -> void:
+		var tr := face.interpolate_with(rest, w)
+		# elle tourne sur elle-même en tombant
+		player.set_cinematic(Transform3D(tr.basis * Basis(Vector3(0, 0, 1), (1.0 - w) * 5.5), tr.origin + Vector3(0, sin(w * PI) * 0.35, 0)), 1.0), 0.0, 1.0, 0.6).set_ease(Tween.EASE_IN)
+	await wait(0.6)
+	Sound.play("hit_impact", -6.0, 0.6)
 	Sound.play("body_fall", -2.0)
-	Game.shake(1.0)
-	Sound.muffle_master(500.0, 1.2)
+	Game.shake(1.2)
+	Game.glitch(0.8, false)
+	# Théo est à terre, devant la caméra
+	player.body_free = true
+	var body := player.body
+	body.set_layers(1 | 2)
+	body.play("dead", 0.0)
+	body.global_position = player.global_position
+	body.rotation.y = atan2(away.x, away.z)
+	var low := body.lowest_point(0.06)
+	if low < INF:
+		body.global_position.y += maxf(floor_y(body.global_position), WATER_Y) + 0.01 - low
+	# la créature penchée sur lui
+	creature.global_position = player.global_position - away * 0.9
+	creature.stand_and_watch(body, "search", 1.0)
+	Sound.play_at(Sound.variant("creature_growl", 3), creature.head_position(), 2.0, 0.8, 6.0, 40.0, null, "Creature")
+	Sound.muffle_master(2500.0, 0.8)
+	await wait(1.3)
+	# elle l'emporte en le traînant, hors du champ
+	var target := player.global_position - away * 6.0
+	for k2 in [0.0, 1.0, -1.0]:
+		var dirk: Vector3 = (-away).rotated(Vector3.UP, k2 * PI * 0.5)
+		var far := player.global_position
+		for st in 12:
+			var nxt := far + dirk * 0.5
+			if not walkable(tile_of(nxt)):
+				break
+			far = nxt
+		if far.distance_to(player.global_position) > 3.0:
+			target = far
+			break
+	creature.script_walk(nav_path(creature.global_position, target), 1.6)
+	var drag := Sound.loop_at("body_drag_loop", body, -2.0, 2.0, 14.0)
+	var t := 0.0
+	while t < 3.6:
+		await ticked
+		var dt := get_process_delta_time()
+		t += dt
+		# le corps suit, tiré par saccades
+		var fwd := Vector3(-sin(creature.heading), 0, -cos(creature.heading))
+		var want := creature.global_position - fwd * 1.1
+		var pull := 0.5 + 0.5 * maxf(0.0, sin(t * 7.0))
+		var np := body.global_position.lerp(Vector3(want.x, body.global_position.y, want.z), 1.0 - exp(-4.0 * pull * dt))
+		np.y = lerpf(np.y, maxf(floor_y(np), WATER_Y) + 0.01 + (body.global_position.y - maxf(floor_y(body.global_position), WATER_Y) - 0.01), 0.5)
+		body.global_position = np
+		body.rotation.y = lerp_angle(body.rotation.y, creature.heading + PI, 1.0 - exp(-3.0 * dt))
+	if is_instance_valid(drag):
+		Sound.fade(drag, -60.0, 0.6, true)
+	body.visible = false
+	creature.deactivate()
+	# le couloir vide, encore quelques secondes
 	await wait(1.6)
-	Game.set_blackout(true)
 	Sound.play("signal_lost", -4.0, 1.0, "UI")
-	await wait(1.4)
+	Game.hud.osd("SIGNAL PERDU")
+	Game.glitch(1.0, false)
+	await wait(0.8)
+	Game.set_blackout(true)
+	await wait(1.2)
+	Game.hud.osd("")
 	Sound.reset_effects()
-	Game.player_died(params)
+	await _rewind()
+	Game.level_params = params
+	Game.retry_from_checkpoint()
+
+
+## Rembobinage façon cassette : la caméra repart à l'envers sur ses dernières secondes, en accéléré,
+## l'horloge recule, puis la lecture reprend au dernier point de reprise.
+func _rewind() -> void:
+	if _cam_hist.size() < 10:
+		return
+	Game.set_blackout(false)
+	Game.clock_running = false
+	Game.set_rewind(1.0)
+	Game.hud.set_rec(false)  # une cassette qu'on rembobine n'enregistre pas
+	Game.hud.osd("◀◀  REMBOBINAGE", true)
+	var whirr := Sound.play("tape_rewind_0", -6.0, 1.0, "UI")
+	if creature != null:
+		creature.deactivate()
+	var n := _cam_hist.size()
+	var dur := clampf(n / 30.0 / 5.0, 1.2, 2.6)
+	var t := 0.0
+	while t < dur:
+		await ticked
+		var dt := get_process_delta_time()
+		t += dt
+		var idx := clampi(int((1.0 - t / dur) * (n - 1)), 0, n - 1)
+		player.set_cinematic(_cam_hist[idx], 1.0)
+		Game.clock = maxf(0.0, Game.clock - dt * (n / 30.0) / dur)
+		Game.hud.set_clock(Game.clock_text())
+		if randf() < dt * 3.0:
+			Game.glitch(0.3, false)
+	if is_instance_valid(whirr):
+		whirr.queue_free()
+	Game.flash(0.4)
+	Game.set_rewind(0.0)
+	Game.hud.osd("", true)
+	Game.set_blackout(true, true)
+
 
 
 # ================================================================== ambiance
@@ -3134,6 +3246,14 @@ func _process(delta: float) -> void:
 	_update_rings()
 	_update_debris(delta)
 	_update_roaches(delta)
+	_update_events(delta)
+	# la caméra garde en mémoire ses 12 dernières secondes de trajet (rembobinage à la mort)
+	_hist_t += delta
+	if _hist_t >= 1.0 / 30.0 and not dying:
+		_hist_t = 0.0
+		_cam_hist.append(player.head.global_transform)
+		if _cam_hist.size() > 360:
+			_cam_hist.pop_front()
 	# la créature surgit tout près, en face : la mise au point de la caméra patine
 	if creature != null and creature.visible and creature.state != Creature.State.DORMANT:
 		var cd := creature.global_position.distance_to(player.global_position)
@@ -3931,6 +4051,21 @@ func _update_roaches(delta: float) -> void:
 		break
 
 
+func _event_test(kind: String) -> void:
+	await wait(1.5)
+	match kind:
+		"bang":
+			_ev_pipe_bang()
+		"debris":
+			_ev_debris()
+		"lamp":
+			_ev_lamp_pop()
+		"grate":
+			_ev_grate()
+		"rats":
+			_ev_rats()
+
+
 func _splash_test() -> void:
 	await wait(1.0)
 	for k in 12:
@@ -4100,9 +4235,305 @@ class Roach extends Node3D:
 		global_basis = Basis(x, y, z)
 
 
+# ================================================================== événements au hasard
+## Les égouts vivent : de temps en temps un coup de bélier fait sonner les canalisations, des gravats
+## tombent de la voûte, une lampe claque et s'éteint pour de bon, une grille grince toute seule, une
+## ruée de rats fuit quelque chose. Les plus bruyants attirent la créature.
+var _event_cd := 50.0
+var _dead_lamps := 0
+
+
+func _update_events(delta: float) -> void:
+	if dying or escaping or not cell_open:
+		return
+	_event_cd -= delta
+	if _event_cd > 0.0:
+		return
+	_event_cd = randf_range(25.0, 55.0)
+	var roll := randf()
+	if roll < 0.27:
+		_ev_pipe_bang()
+	elif roll < 0.5:
+		_ev_debris()
+	elif roll < 0.65 and _dead_lamps < 3:
+		_ev_lamp_pop()
+	elif roll < 0.83:
+		_ev_grate()
+	else:
+		_ev_rats()
+
+
+## Une case avec un mur, à bonne distance de Théo : [case, direction du mur] (ou [] si rien trouvé).
+func _event_spot(min_d: float, max_d: float) -> Array:
+	for _try in 40:
+		var t := tile_of(player.global_position) + Vector2i(randi_range(-5, 5), randi_range(-5, 5))
+		if not walkable(t) or cell(t) in ["w", "G", "E"]:
+			continue
+		var dd := tile_center(t).distance_to(player.global_position)
+		if dd < min_d or dd > max_d:
+			continue
+		var walls := _wall_tiles(t)
+		if walls.is_empty():
+			continue
+		return [t, walls[randi() % walls.size()]]
+	return []
+
+
+func _pipe_height(t: Vector2i) -> float:
+	return [1.38, 1.62, 2.22][zone_of(t)]
+
+
+## Coup de bélier : un gros BANG métallique, puis l'onde qui court le long de la canalisation.
+func _ev_pipe_bang() -> void:
+	var sp := _event_spot(5.0, 14.0)
+	if sp.is_empty():
+		return
+	var t: Vector2i = sp[0]
+	var d: Vector2i = sp[1]
+	var tan := Vector3(-d.y, 0, d.x)
+	var pos := wall_pos(t, d, PIPE_INSET) + Vector3(0, _pipe_height(t), 0)
+	Sound.play_at(Sound.variant("pipe_bang", 4), pos, 5.0, randf_range(0.8, 1.0), 8.0, 70.0)
+	if pos.distance_to(player.global_position) < 9.0:
+		Game.shake(0.15)
+	_dust_puff(Vector3(pos.x, h_top(t) - 0.1, pos.z))
+	lure_noise(pos, 16.0)
+	for k in randi_range(1, 3):
+		await wait(randf_range(0.25, 0.6))
+		var p2 := pos + tan * randf_range(-4.0, 4.0)
+		Sound.play_at(Sound.variant("pipe_bang", 4), p2, -4.0 - k * 3.0, randf_range(1.0, 1.25), 6.0, 50.0)
+
+
+## Des gravats se détachent de la voûte : quelques morceaux de béton tombent (on les voit), un nuage de
+## poussière, et ils restent là.
+func _ev_debris() -> void:
+	var at := Vector3.INF
+	var fwd := -player.cam.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	for _try in 30:
+		var cand := player.global_position + fwd.rotated(Vector3.UP, randf_range(-0.9, 0.9)) * randf_range(3.5, 9.0)
+		if walkable(tile_of(cand)) and has_los(player.eye_position(), cand + Vector3(0, 0.3, 0)):
+			at = cand
+			break
+	if at == Vector3.INF:
+		return
+	var top := h_top(tile_of(at)) - 0.05
+	_dust_puff(Vector3(at.x, top, at.z))
+	Sound.play_at(Sound.variant("rubble", 3), at + Vector3(0, 1.0, 0), 2.0, randf_range(0.9, 1.1), 6.0, 45.0)
+	var rock := B.mat("hacked_concrete", 0.5, {"color": Color(0.5, 0.49, 0.46)})
+	for k in randi_range(4, 8):
+		var sz := Vector3(randf_range(0.03, 0.1), randf_range(0.02, 0.06), randf_range(0.03, 0.09))
+		var p0 := at + Vector3(randf_range(-0.35, 0.35), 0, randf_range(-0.35, 0.35))
+		var land_y := floor_y(p0) + sz.y * 0.5  # au sol, ou au fond de la cunette
+		var chunk := B.box(self, sz, Vector3(p0.x, top, p0.z), rock, false, Vector3(randf_range(0, 360), randf_range(0, 360), randf_range(0, 360)))
+		chunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var fall := sqrt(2.0 * maxf(top - land_y, 0.3) / 9.8)
+		var tw := create_tween()
+		tw.tween_interval(randf_range(0.0, 0.35))
+		tw.tween_property(chunk, "position:y", land_y, fall).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(chunk, "rotation:x", chunk.rotation.x + randf_range(-3.0, 3.0), fall)
+		tw.tween_callback(func() -> void:
+			splash(Vector3(p0.x, 0, p0.z), 0.9)
+			chunk.rotation.x = 0.0
+			chunk.rotation.z = 0.0)
+	await wait(0.8)
+	_dust_puff(Vector3(at.x, 0.15, at.z))
+	lure_noise(at, 12.0)
+
+
+## Une lampe grésille, claque (verre qui éclate, étincelles) et ne se rallumera plus.
+func _ev_lamp_pop() -> void:
+	var cands: Array = []
+	for l in _lamp_lights:
+		if not is_instance_valid(l) or not l.visible or l.light_energy < 0.1:
+			continue
+		if l.light_color.g < 0.2:
+			continue  # le feu rouge de l'écluse reste allumé
+		var lp := l.get_parent() as Node
+		if lp != null and str(lp.get_meta("editobj", "")) == "lamp_gate":
+			continue
+		var dd := l.global_position.distance_to(player.global_position)
+		if dd > 4.0 and dd < 16.0:
+			cands.append(l)
+	if cands.is_empty():
+		return
+	var l := cands[randi() % cands.size()] as Light3D
+	_dead_lamps += 1
+	flicker_lights.erase(l)
+	_lamp_lights.erase(l)
+	var e := l.light_energy
+	var t := 0.0
+	while t < 0.9:
+		await ticked
+		t += get_process_delta_time()
+		l.light_energy = e * (0.0 if randf() < 0.5 else randf_range(0.4, 1.6))
+	Sound.play_at("lamp_break_0", l.global_position, 0.0, randf_range(0.9, 1.1), 4.0, 35.0)
+	_sparks(l.global_position)
+	l.light_energy = e * 3.0
+	await wait(0.06)
+	l.visible = false
+	# le luminaire lui-même s'éteint aussi (tube, ampoule)
+	if l.has_meta("glow"):
+		(l.get_meta("glow") as StandardMaterial3D).emission_energy_multiplier = 0.0
+	else:
+		var fix: Node3D = l.get_meta("fixture") if l.has_meta("fixture") else (l.get_parent() as Node3D if l.get_parent() != self else null)
+		if fix != null:
+			var g := _own_emissive(fix)
+			if g != null:
+				g.emission_energy_multiplier = 0.0
+	lure_noise(l.global_position, 10.0)
+	if randf() < 0.5:
+		await wait(0.8)
+		Game.hud.say(["...Génial.", "Non, non, non... pas maintenant.", "Encore une de moins."][randi() % 3], 2.2)
+
+
+## Une grille d'arrivée d'eau grince toute seule, comme si quelque chose la poussait de l'autre côté.
+func _ev_grate() -> void:
+	var best: Array = []
+	for cv in _culverts:
+		var dd := (cv[0] as Vector3).distance_to(player.global_position)
+		if dd > 3.0 and dd < 14.0:
+			best = cv
+			if randf() < 0.5:
+				break
+	if best.is_empty():
+		_ev_pipe_bang()
+		return
+	var pos: Vector3 = best[0]
+	Sound.play_at(Sound.variant("grate_creak", 3), pos + Vector3(0, 0.2, 0), 0.0, randf_range(0.85, 1.05), 5.0, 35.0)
+	await wait(randf_range(0.6, 1.2))
+	splash(pos - (best[1] as Vector3) * 0.2, 1.3)
+	Sound.play_at(Sound.variant("drip", 3), pos, -4.0, 0.8, 3.0, 20.0)
+
+
+## Une ruée de rats : ils déboulent d'un couloir, passent à côté de Théo et filent plus loin.
+func _ev_rats() -> void:
+	var a := random_point(player.global_position, 4)
+	if a.distance_to(player.global_position) < 5.0:
+		return
+	var b := player.global_position + (player.global_position - a).normalized() * 6.0
+	if not walkable(tile_of(b)):
+		b = random_point(player.global_position, 3)
+	var path := nav_path(a, player.global_position)
+	path.append_array(nav_path(player.global_position, b))
+	if path.size() < 2:
+		return
+	Sound.play_at(Sound.variant("rat_squeak", 3), a, 2.0, 1.1, 5.0, 30.0)
+	for k in randi_range(5, 9):
+		var rat := Rat.new()
+		rat.level = self
+		rat.run_path = path.duplicate()
+		rat.run_speed = randf_range(3.2, 4.2)
+		rat.side = randf_range(-0.35, 0.35)
+		add_child(rat)
+		rat.global_position = a + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3))
+		await wait(randf_range(0.05, 0.25))
+	for k in 3:
+		await wait(randf_range(0.4, 0.8))
+		Sound.play_at(Sound.variant("rat_squeak", 3), player.global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2)), -6.0, randf_range(1.0, 1.3), 3.0, 20.0)
+		Sound.play_at(Sound.variant("roach_skitter", 3), player.global_position, -10.0, 1.4, 2.0, 12.0)
+
+
+## Petit nuage de poussière qui tombe (de la voûte, ou soulevé au sol).
+func _dust_puff(pos: Vector3) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 40
+	p.lifetime = 2.6
+	p.explosiveness = 0.85
+	p.visibility_aabb = AABB(Vector3(-2, -3, -2), Vector3(4, 4, 4))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.25
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.05
+	pm.initial_velocity_max = 0.3
+	pm.gravity = Vector3(0, -0.35, 0)
+	pm.damping_min = 0.3
+	pm.damping_max = 0.6
+	pm.scale_min = 0.6
+	pm.scale_max = 1.6
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	fade.add_point(0.1, Color(1, 1, 1, 0.5))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	pm.color_ramp = ramp
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.25, 0.25)
+	var puff := Gradient.new()
+	puff.set_color(0, Color(1, 1, 1, 1))
+	puff.set_color(1, Color(1, 1, 1, 0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = puff
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.albedo_color = Color(0.6, 0.57, 0.52, 0.35)
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	q.material = m
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	get_tree().create_timer(0.3).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
+	get_tree().create_timer(3.5).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+
+
+## Gerbe d'étincelles d'une ampoule qui claque.
+func _sparks(pos: Vector3) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 30
+	p.lifetime = 0.8
+	p.explosiveness = 0.95
+	p.visibility_aabb = AABB(Vector3(-2, -3, -2), Vector3(4, 4, 4))
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, -1, 0)
+	pm.spread = 70.0
+	pm.initial_velocity_min = 1.0
+	pm.initial_velocity_max = 2.6
+	pm.gravity = Vector3(0, -9.8, 0)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.0
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1.0, 0.9, 0.6, 1))
+	fade.set_color(1, Color(1.0, 0.4, 0.1, 0))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	pm.color_ramp = ramp
+	pm.particle_flag_align_y = true
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.006, 0.04)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	m.albedo_color = Color(1, 1, 1, 1)
+	q.material = m
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	get_tree().create_timer(0.15).timeout.connect(func() -> void: if is_instance_valid(p): p.emitting = false)
+	get_tree().create_timer(1.5).timeout.connect(func() -> void: if is_instance_valid(p): p.queue_free())
+
+
 # ================================================================== rats
 class Rat extends Node3D:
 	var level: Node
+	var run_path := PackedVector3Array()  ## ruée : il suit ce chemin à toute allure puis disparaît
+	var run_speed := 3.5
+	var side := 0.0
 	var fleeing := false
 	var _dir := Vector3.ZERO
 	var _t := 0.0
@@ -4114,6 +4545,19 @@ class Rat extends Node3D:
 	func _process(delta: float) -> void:
 		var p: Player = level.player
 		if p == null:
+			return
+		if not run_path.is_empty():
+			var target := run_path[0]
+			var to := Vector3(target.x - global_position.x, 0, target.z - global_position.z)
+			if to.length() < 0.4:
+				run_path.remove_at(0)
+				if run_path.is_empty():
+					queue_free()
+				return
+			var dir := to.normalized()
+			global_position += (dir + Vector3(-dir.z, 0, dir.x) * side * 0.3) * run_speed * delta
+			global_position.y = level.floor_y(global_position)
+			model.rotation.y = atan2(dir.x, dir.z)
 			return
 		if not fleeing:
 			# petits mouvements nerveux

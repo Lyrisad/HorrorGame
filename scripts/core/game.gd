@@ -369,11 +369,17 @@ func reset_fx() -> void:
 	_scene_bright = 0.0
 	_focus = 0.0
 	_focus_t = -1.0
+	post_mat.set_shader_parameter("rewind", 0.0)
 	_flares.clear()
 	_flare_smooth.clear()
 	for k in fx_base.keys():
 		post_mat.set_shader_parameter(k, fx_base[k])
 	_push_flares([])
+
+
+## Lecture rembobinée (après la mort) : l'horloge de la caméra recule à toute vitesse.
+func set_rewind(amount: float) -> void:
+	post_mat.set_shader_parameter("rewind", amount)
 
 
 ## La mise au point de la caméra cherche une fraction de seconde (quelque chose surgit tout près...).

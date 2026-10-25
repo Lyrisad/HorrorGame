@@ -49,6 +49,7 @@ var _tremble := 0.0  ## mains qui tremblent après une poursuite (secondes resta
 var _tremble_t := 0.0
 var _scared := false
 var _glitch_cd := 90.0  ## faux contact de la lampe, de temps en temps
+var body_free := false  ## le corps n'obéit plus au joueur (mort : la caméra est tombée, on le voit traîné)
 
 var head: Node3D
 var cam: Camera3D
@@ -259,8 +260,9 @@ func _move(delta: float) -> void:
 			backwards = true
 			rel = wrapf(rel + PI, -PI, PI)
 	_body_yaw = lerp_angle(_body_yaw, yaw + rel, 1.0 - exp(-8.0 * delta))
-	body.rotation.y = _body_yaw
-	body.locomote(cycle, hspeed if moving else 0.0, "idle", 0.25, 1.7 if running else 1.4, backwards)
+	if not body_free:
+		body.rotation.y = _body_yaw
+		body.locomote(cycle, hspeed if moving else 0.0, "idle", 0.25, 1.7 if running else 1.4, backwards)
 
 
 const STEP_HEIGHT := 0.36

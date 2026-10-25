@@ -71,6 +71,9 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    retenir sa respiration, cachettes, plus d'histoire à trouver, réglage de qualité graphique.
 16. Vapeur : sur les tuyaux du haut (pas de conduite ajoutée seule). Variété des murs et sols (mousse, sel,
    coulures, vase, flaques, moisissures) ; beaucoup plus de cafards, partout, surtout au sol.
+17. Mort vue par la caméra tombée (Théo traîné hors du champ, SIGNAL PERDU, rembobinage façon cassette jusqu'au
+   point de reprise) ; événements au hasard (coups de bélier, gravats, lampe qui éclate, grille qui grince,
+   ruée de rats).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

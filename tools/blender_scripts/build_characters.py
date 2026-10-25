@@ -62,7 +62,8 @@ CHARACTERS = {
             ],
         },
     },
-    "theo": dict(rocketbox("Security_Male_01"), clips=HUMAN_CLIPS),
+    # Théo : + allongé sur le dos (139_18, 1re frame) pour la mort vue par la caméra tombée au sol
+    "theo": dict(rocketbox("Security_Male_01"), clips=HUMAN_CLIPS + [{"name": "dead", "bvh": m("139_18"), "static": "first", "inplace": False}]),
     "kidnapper": dict(rocketbox("Military_Male_03"), clips=HUMAN_CLIPS + [STRIKE,
         # se penche et attrape (81_08, 0,6 → 3,6 s), puis tire en marchant à reculons (4 → 10,5 s)
         {"name": "pickup", "bvh": m("81_08"), "start": 72, "end": 432, "loop": False, "inplace": True, "face_at": 2.0},

@@ -52,7 +52,8 @@ Pas, eau, verre, rats et mouches : extraits découpés et normalisés par `tools
 florianreichelt (459964), ryansitz (342932),
 martinimeniscus (164457, 164458), Rickmk2 (164315), ralph.whitehead (331451), PotatokingXII (352870),
 monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhailo (143125),
-egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054) — https://freesound.org/s/<numéro>/
+egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054), PostProdDog (578493),
+plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993) — https://freesound.org/s/<numéro>/
 
 ## Captures de mouvement — CMU Graphics Lab Motion Capture Database
 The data used in this project was obtained from mocap.cs.cmu.edu.
