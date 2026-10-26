@@ -5,6 +5,7 @@ sur des éclats de verre, couinements de rats.
    "wading through water" "footsteps shallow water" "broken glass step" "glass crunch footstep" "rat squeak"
    "footsteps wooden floor" "footsteps gravel" "footsteps grass" "flies buzzing" "insect scurrying" "heavy breathing exhausted" "last breath dying" "man coughing weak"
    "phone vibrating table" "claws scratching wall" "scratching concrete"
+   "drone flying" "bear trap" "van engine idle" "radio static" "whistle" "rock thrown impact" "forest morning birds" "car door slam"
    "body drag concrete" "vhs rewind" "pipe bang metal" "rubble falling" "light bulb pop" "rusty gate creak" "man scream"
 2. python real_sounds.py <cache> <dossier assets/audio>
    → découpe chaque pas (détection des attaques), garde les plus nets, normalise, écrit <nom>_<i>.wav
@@ -31,6 +32,8 @@ SOURCES = {
     "step_grass": ([("206030", "Yuval"), ("411206", "straget")], 4, 0.45, 0.55),
     # événements des égouts : coups de bélier dans les tuyaux, éboulis de la voûte
     "pipe_bang": ([("687242", "DanJFilms"), ("257300", "machine_831")], 4, 1.6, 0.85),
+    # surface : cailloux qui retombent dans les feuilles, sur la terre
+    "rock_hit": ([("179360", "lolamadeus"), ("567701", "Nox_Sound")], 3, 0.5, 0.6),
 }
 
 
@@ -133,6 +136,11 @@ def main(cache, out):
 LOOPS = {
     "flies_loop": [("46938", "galeku"), ("395593", "BeeProductive")],
     "body_drag_loop": [("578493", "PostProdDog")],
+    # surface : le drone qui le suit, le groupe électrogène (un diesel au ralenti), la radio, les oiseaux de l'aube
+    "drone_loop": [("387984", "DCPoke")],
+    "generator_loop": [("453995", "kyles")],
+    "radio_static_loop": [("50750", "RutgerMuller")],
+    "birds_loop": [("288899", "petebuchwald")],
 }
 
 
@@ -287,6 +295,10 @@ CUTS = {
     "claw_1": (("830466", "Wigglesworth"), 1.45, 2.2, 0.6),
     "claw_2": (("354094", "Bini_trns"), 1.3, 2.5, 0.6),
     "claw_3": (("354094", "Bini_trns"), 9.5, 10.7, 0.6),
+    # surface : le piège à loup qui claque, la porte du van, le sifflet qui rappelle la créature
+    "trap_snap": (("644245", "fractionalist"), 0.75, 2.0, 0.9),
+    "door_slam": (("208695", "monotraum"), 0.06, 0.65, 0.8),
+    "whistle": (("218318", "SpliceSound"), 0.05, 1.6, 0.8),
 }
 
 

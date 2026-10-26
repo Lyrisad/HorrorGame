@@ -101,6 +101,10 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    plus que s'il l'a vue. Je lui ai donné les 102 répliques de Théo à enregistrer (theo_001 à theo_102).
 27. Touches réattribuables (Paramètres → Touches) ; bouteilles à ramasser posables dans l'éditeur. Il trouve la
    surface (forêt de fin) vide : idées proposées.
+28. « FAIT MOI UN TRUC DE FOU » : toutes les idées de la surface en un vrai dernier chapitre (traces des sessions,
+   pièges à loup, drone abattable, caméra de la victime, cabane et radio, camp des ravisseurs avec écrans, dossiers,
+   dons et son téléphone, homme au masque qui patrouille (il voit, entend mal), la radio répond « Ouvrez la trappe »,
+   course contre la créature jusqu'à la route, puis la révélation de la caméra du poteau).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

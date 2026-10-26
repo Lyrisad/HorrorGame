@@ -234,6 +234,28 @@ Keep it current — add a line whenever you learn something non-obvious. History
   `--inestest`.
 - Claws: _update_claws() — creature active, 2.5-12 m away and NOT in line of sight → claw_0..3 (real 830466 /
   354094) on the "Creature" bus (muffled through the wall), every 4-10 s, sometimes twice.
+- SURFACE chapter (ending.gd, rewritten; the user "adored" the idea list and asked for all of it): exit manhole →
+  trail (TRAIL polyline, trees kept off paths/clearings by _keep_clear) with rags on branches, sneaker/suitcase/cap,
+  "S·13" sprayed manhole (decal_spray13) ; 5 bear traps (sf:bear_trap, half under leaves; step within 0.33 m →
+  snap, blocked until "Desserrer le piège" hold 2.4 s, player.limp += 0.4 (max 0.7: speed ×(1-0.35·limp), camera
+  dips on the hurt leg), noise 30 m) ; stone piles (throw with "throw": RigidBody, hits Drone.LAYER → drone down,
+  else rock_hit + on_noise 16 m) ; victim bodycam CAM13 (blinking red LED) → typed transcript → hut objective ;
+  HUT (procedural planks, CB radio sf:cb_radio, dangling wires): dead until a 12 V battery ; CAMP: sf:old_van,
+  sf:tarp, table with drone feed (SecurityFeed whose cam follows Drone.view_transform), stream page/laptop
+  (screen_stream.png), corkboard (board_subjects.png), registry/laptop/board documents, sf:generator
+  (generator_loop), crate of confiscated phones + Théo's phone (PhoneUI held in front of the camera: 3 %, 17 fails,
+  message fails, battery dies), battery (hold 1.4 s) → van door → Hunter wakes. Hunter (inner class, Actor
+  kidnapper + gas mask + shadowed spotlight + gasmask breathing): SEES (55° cone, LOS, ×0.45 crouched, ×0.55 torch
+  off, ×2.2 in his beam, ×1.3 moving; suspicion ≥ 1 → CHASE at 4.2 m/s, catches < 1.25 m), hears badly (radius
+  ×0.6); the live drone reports Théo to him every 11 s (reason to shoot it down; 2 drones). Radio call → "Radio"
+  speaker: « ...On vous reçoit très bien, Théo... Le public a voté... Ouvrez la trappe. » → S13 lid flies, creature
+  CHASE (Creature.nav = ending: nav_path straight, obstacles = trunk grid, has_los excludes the player) → road
+  trigger: whistle, creature retreats → original pole-camera reveal. Checkpoints (params/--checkpoint): "carry"
+  (spawn on the camp path out of his sight, he walks away), "chase" (in the hut facing the door). Trees now have
+  collision: Nature.scatter_forest RETURNS [pos, radius] trunks (night.gd ignores it). Dawn light shadows OFF
+  (95 → 160 fps). Tests: `--surfacetest=trap|trapview|drone|droneview|hunter|hunterview|seen|chase|radio|road|phone`,
+  `--torch`, `--checkpoint=carry|chase`. Sounds (Freesound CC0): drone 387984, generator = diesel idle 453995,
+  radio 50750, birds 288899, trap 644245, van door 208695, whistle 218318, rocks 179360/567701.
 - Key rebinding: Paramètres → TOUCHES (ui.controls_menu, full-screen, moved on top so it also works from the pause
   menu). Game.REBINDABLE (11 actions; Échap/F11 fixed), rebind() swaps with an action already using the key,
   only the PRIMARY event is replaced (arrows / right-click-to-throw stay), stored in sauvegarde.cfg [touches] as

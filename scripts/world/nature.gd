@@ -130,7 +130,9 @@ static func mesh_from_model(slug: String, part := "") -> ArrayMesh:
 
 ## Forêt réaliste : plusieurs espèces (modèles Sketchfab) dispersées par MultiMesh.
 ## `kinds` : [[slug, part, poids, h_min, h_max], ...]
-static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = []) -> void:
+## Renvoie les troncs posés : [position, rayon] (arbres et rochers ; pas les buissons ni les jeunes pousses),
+## pour leur donner une collision et en faire des obstacles (créature, regard d'un personnage).
+static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = []) -> Array:
 	if kinds.is_empty():
 		kinds = [
 			["sf:pine_tree", "", 5.0, 11.0, 20.0],
@@ -152,6 +154,7 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 		buckets.append([])
 	var tries := 0
 	var placed := 0
+	var trunks: Array = []
 	while placed < count and tries < count * 6:
 		tries += 1
 		var p := Vector3(rng.randf_range(area.position.x, area.end.x), 0, rng.randf_range(area.position.y, area.end.y))
@@ -168,6 +171,11 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(h * rng.randf_range(0.85, 1.15), h, h * rng.randf_range(0.85, 1.15)))
 		buckets[ki].append(Transform3D(b, p + Vector3(0, -0.15, 0)))
 		placed += 1
+		var part: String = kinds[ki][1]
+		if part.begins_with("Boulder"):
+			trunks.append([p, h * 0.5])
+		elif not (part.contains("Shrub") or part.contains("Sapling")):
+			trunks.append([p, clampf(h * 0.017, 0.12, 0.38)])
 	# découpage en parcelles : chaque parcelle est masquée hors champ et au-delà de VIEW_DIST
 	const CHUNK := 50.0
 	const VIEW_DIST := 150.0
@@ -199,6 +207,7 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			parent.add_child(mmi)
 			mmi.global_position = center
+	return trunks
 
 
 ## Grand sol texturé avec collision.

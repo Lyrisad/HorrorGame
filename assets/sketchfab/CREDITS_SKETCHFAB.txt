@@ -35,3 +35,9 @@ sleeping_bag: "Sleeping bag" by Tactical_Beard (https://sketchfab.com/3d-models/
 flashlight_dead: "Flashlight" by Hepatitis_Bee (https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) — CC Attribution
 broken_bottle: "Broken Wine Bottle" by Ivan_Valbuena (https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) — CC Attribution
 cockroach: "Giant cockroach" by Drillimpact (https://sketchfab.com/3d-models/giant-cockroach-4b19ed8851f74c278eef835250a82896) — CC Attribution
+bear_trap: "A Rusty Bear Trap" by balchinostudio (https://sketchfab.com/3d-models/a-rusty-bear-trap-e58a7e4eec724ee8b8696665e5c49c96) — CC Attribution
+old_van: "Graffiti Van Template" by kryik1023 (https://sketchfab.com/3d-models/graffiti-van-template-4173eae412ce49d68edaa543dd92b0c2) — CC Attribution
+drone: "Quadrocopter 2" by yanix (https://sketchfab.com/3d-models/quadrocopter-2-6885c5f1a68148e1b2b3a4f69b8b3d70) — CC Attribution
+generator: "Generator" by victorberdugo1 (https://sketchfab.com/3d-models/generator-b0de972e500a48d6a26a7d1ef6f5143f) — CC Attribution
+cb_radio: "Cobra 139XLR CBRadio | Low Poly, PBR, Game Ready" by caelykkaty_3d (https://sketchfab.com/3d-models/cobra-139xlr-cbradio-low-poly-pbr-game-ready-9e4881935f3146159cec5199d3335bf8) — CC Attribution
+tarp: "Tent" by trueaimisbetterthandarudas (https://sketchfab.com/3d-models/tent-35b2c98626ac46c79ab312a00424b9de) — CC Attribution

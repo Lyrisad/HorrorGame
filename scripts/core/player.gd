@@ -23,6 +23,7 @@ var moving := false
 var stamina := 1.0
 var exhausted := false
 var noise_mul := 1.0
+var limp := 0.0  ## jambe blessée (piège à loup) : 0..1, plus lent et la caméra plonge sur la mauvaise jambe
 
 var yaw := 0.0
 var pitch := 0.0
@@ -212,6 +213,7 @@ func _move(delta: float) -> void:
 		speed = CROUCH_SPEED
 	elif running:
 		speed = RUN_SPEED
+	speed *= 1.0 - 0.35 * limp
 	var dir := (Basis(Vector3.UP, yaw) * Vector3(input.x, 0, input.y))
 	if dir.length() > 1.0:
 		dir = dir.normalized()
@@ -353,6 +355,11 @@ func _update_camera(delta: float) -> void:
 	var bob_x := sb * 0.011 * _bob_amp
 	var roll := sb * deg_to_rad(0.45) * _bob_amp
 	var sway_yaw := sb * deg_to_rad(0.5) * _bob_amp
+	if limp > 0.0:
+		# il épargne sa jambe blessée : la caméra plonge et penche à chaque appui de ce côté
+		var hurt := maxf(sin(_bob * 0.5), 0.0) * _bob_amp * limp
+		bob_y -= hurt * 0.035
+		roll += hurt * deg_to_rad(2.2)
 	var breath := sin(_breath_t) * (0.006 if not exhausted else 0.016)
 	var shake := Game.shake_amount()
 	var shake_rot := Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.02 * shake

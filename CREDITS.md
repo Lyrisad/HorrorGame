@@ -39,6 +39,12 @@
 | `assets/sketchfab/flashlight_dead` | [Flashlight](https://sketchfab.com/3d-models/flashlight-fc5a0e9799de4eda932f2714f63f8d0c) | Hepatitis_Bee |
 | `assets/sketchfab/broken_bottle` | [Broken Wine Bottle](https://sketchfab.com/3d-models/broken-wine-bottle-a3c190342c6a4ea2b7fd0428ee1c0d97) | Ivan_Valbuena |
 | `assets/sketchfab/cockroach` | [Giant cockroach](https://sketchfab.com/3d-models/giant-cockroach-4b19ed8851f74c278eef835250a82896) | Drillimpact |
+| `assets/sketchfab/bear_trap` | [A Rusty Bear Trap](https://sketchfab.com/3d-models/a-rusty-bear-trap-e58a7e4eec724ee8b8696665e5c49c96) | balchinostudio |
+| `assets/sketchfab/old_van` | [Graffiti Van Template](https://sketchfab.com/3d-models/graffiti-van-template-4173eae412ce49d68edaa543dd92b0c2) | kryik1023 |
+| `assets/sketchfab/drone` | [Quadrocopter 2](https://sketchfab.com/3d-models/quadrocopter-2-6885c5f1a68148e1b2b3a4f69b8b3d70) | yanix |
+| `assets/sketchfab/generator` | [Generator](https://sketchfab.com/3d-models/generator-b0de972e500a48d6a26a7d1ef6f5143f) | victorberdugo1 |
+| `assets/sketchfab/cb_radio` | [Cobra 139XLR CBRadio](https://sketchfab.com/3d-models/cobra-139xlr-cbradio-low-poly-pbr-game-ready-9e4881935f3146159cec5199d3335bf8) | caelykkaty_3d |
+| `assets/sketchfab/tarp` | [Tent](https://sketchfab.com/3d-models/tent-35b2c98626ac46c79ab312a00424b9de) | trueaimisbetterthandarudas |
 
 Modifications : modèles recadrés, recolorés, découpés en pièces ; la créature garde les animations
 de son auteur (mises à l'échelle, renommées, calées au sol).
@@ -53,7 +59,7 @@ florianreichelt (459964), ryansitz (342932),
 martinimeniscus (164457, 164458), Rickmk2 (164315), ralph.whitehead (331451), PotatokingXII (352870),
 monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhailo (143125),
 egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054), PostProdDog (578493),
-plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993), Archeos (325548), SoundsForHim (395563), scarbelly25 (33939), randbsoundbites (798649), Drkvixn91 (318079), ThePacifist (349483), Wigglesworth (830466), Bini_trns (354094) — https://freesound.org/s/<numéro>/
+plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993), Archeos (325548), SoundsForHim (395563), scarbelly25 (33939), randbsoundbites (798649), Drkvixn91 (318079), ThePacifist (349483), Wigglesworth (830466), Bini_trns (354094), DCPoke (387984), kyles (453995), petebuchwald (288899), fractionalist (644245), monotraum (208695), SpliceSound (218318), lolamadeus (179360), Nox_Sound (567701), RutgerMuller (50750) — https://freesound.org/s/<numéro>/
 
 ## Voix
 Voix de l'égoutier : fournies par l'auteur du jeu (voix de synthèse), nettoyées par `tools/audio_gen/process_voices.py`.
