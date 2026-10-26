@@ -112,11 +112,22 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    vidéo de la caméra de la victime lue sur son écran (vision nocturne), téléphone d'un inconnu (le sien reste
    sur lui), tout déplaçable dans l'éditeur (menu « FORÊT (SURFACE) » ou F8).
 
+30. Retour sur cette version (feuillage qui pousse par blocs et pas naturel, objets du camp traversables, objets de
+   la cabane à bouger un par un, aucun ennemi qui le poursuit, drone jamais vu, plus sombre, feuilles en tâches sur
+   le sentier et la route, écrans du camp montés à l'envers, poussière des égouts). Fait : écrans retournés, hitbox
+   automatiques (plantes traversables), chaque objet de la cabane et de la table du camp déplaçable seul, sous-bois
+   en touffes déplaçables (ajouté une fois à sa carte), tapis de feuilles sur les pièges, nuit plus noire (lampe qui
+   porte plus loin), poussière, drone avec projecteur, homme au masque qui descend le sentier vers lui (~35 s).
+   Bug trouvé dans ses cartes : D (déplacement) dans la liste de l'éditeur créait des « dead tree trunk » empilés au
+   point 0 (6 égouts, 43 maison, 52 forêt) → liste sans clavier, ignorés au chargement. Il a précisé que la grosse
+   boule blanche au camp était la lampe sur la fumée du feu (pas la poussière) : poussière laissée comme avant.
+
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;
   `tools/dev/package.py` refait le zip après l'export).
-- Les cartes de l'utilisateur (maison, égouts) sont dans `maps/` (identiques à celles de son %APPDATA% au 25/10/2026).
+- Les cartes de l'utilisateur (maison, égouts, forêt) sont dans `maps/` (identiques à celles de son %APPDATA% au 26/10/2026 ;
+  sa forêt : 132 objets dont 52 troncs fantômes au point 0, ignorés au chargement).
 
 ## Idées proposées, pas encore faites
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).

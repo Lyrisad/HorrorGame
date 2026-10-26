@@ -36,6 +36,8 @@ void fragment() {
 	vec2 puv = wpos.xz / path_tile;
 	a = mix(a, texture(path_diff, puv).rgb * 0.85, path);
 	na = mix(na, texture(path_nor, puv).rgb, path);
+	// les feuilles de la texture sont très orangées : la nuit, en novembre, c'est brun et terne
+	a = mix(vec3(dot(a, vec3(0.3, 0.59, 0.11))), a, 0.6);
 	ALBEDO = a * tint;
 	NORMAL_MAP = na;
 	ROUGHNESS = mix(0.95, 0.55, path * 0.8);

@@ -33,17 +33,27 @@ static func spawn(entries: Array, root: Node3D) -> void:
 		# anciennes toiles d'araignée (coins, arêtes) retirées du jeu : seules restent celles qui pendent
 		if str(e.get("model", "")) in ["proc:cobweb_corner", "proc:cobweb_edge"]:
 			continue
+		# objet jamais posé, resté là où l'éditeur le crée (ancien bug de la liste : des dizaines de troncs
+		# empilés au point 0) : la souris ne peut pas poser un objet pile à l'origine, sans aucune rotation
+		if e.get("xf", []) == IDENTITY_XF:
+			continue
 		spawn_entry(e, root)
+
+
+const IDENTITY_XF := [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 
 static func spawn_entry(e: Dictionary, root: Node3D) -> Node3D:
 	var model: String = e.get("model", "")
 	var n: Node3D
+	var auto := false
 	if model.begins_with("proc:"):
 		n = _procedural(model, root)
 	else:
 		var col: Variant = e.get("collide", false)
-		var fit := {"scale": float(e.get("scale", 1.0)), "center": bool(e.get("center", true)), "collide": col if str(col) == "mesh" else bool(col)}
+		# "auto", ou une plante à qui l'ancien éditeur avait donné une boîte : hitbox recalculée (aucune)
+		auto = str(col) == "auto" or (col is bool and col and is_soft(e))
+		var fit := {"scale": float(e.get("scale", 1.0)), "center": bool(e.get("center", true)), "collide": false if auto else (col if str(col) == "mesh" else bool(col))}
 		if str(e.get("part", "")) != "":
 			fit["part"] = e["part"]
 		if e.has("remove"):
@@ -55,7 +65,52 @@ static func spawn_entry(e: Dictionary, root: Node3D) -> Node3D:
 	if e.has("xf"):
 		n.transform = _xf_from(e["xf"])
 	n.set_meta("decor", true)
+	if auto:
+		auto_collide(n)
 	return n
+
+
+## Mots (dans le modèle ou la pièce) des objets qu'on traverse : plantes, toiles, papiers...
+const SOFT := ["fern", "shrub", "Shrub", "weed", "nettle", "Sapling", "dry_branches", "cobweb", "poster",
+	"bottle", "sleeping_bag", "rug", "cap", "sneakers", "towel", "paper"]
+
+
+static func is_soft(spec: Dictionary) -> bool:
+	var what := str(spec.get("model", "")) + "|" + str(spec.get("part", ""))
+	for word in SOFT:
+		if what.contains(word):
+			return true
+	return false
+
+
+## Hitbox automatique d'un objet de décor : les plantes se traversent, un arbre a un tronc, le reste (s'il est
+## assez grand pour gêner) a une boîte à sa taille. Marqué "auto" : recréé pareil au chargement de la carte.
+static func auto_collide(n: Node3D) -> void:
+	var spec: Dictionary = n.get_meta("spec", {})
+	var col: Variant = spec.get("collide", false)
+	if (col is bool and col) or str(col) in ["mesh", "auto"] or not bool(spec.get("center", true)) or is_soft(spec):
+		return
+	var what := str(spec.get("model", "")) + "|" + str(spec.get("part", ""))
+	var sz: Vector3 = n.get_meta("size", Vector3.ZERO)
+	var cs := CollisionShape3D.new()
+	if what.contains("pine_tree") or what.contains("Tree"):
+		var cyl := CylinderShape3D.new()
+		cyl.radius = clampf(sz.y * 0.017, 0.12, 0.38)
+		cyl.height = minf(sz.y, 6.0)
+		cs.shape = cyl
+		cs.position = Vector3(0, cyl.height * 0.5, 0)
+	elif sz.y > 0.35 and maxf(sz.x, sz.z) > 0.35:
+		var bs := BoxShape3D.new()
+		bs.size = sz
+		cs.shape = bs
+		cs.position = Vector3(0, sz.y * 0.5, 0)
+	else:
+		return
+	var body := StaticBody3D.new()
+	body.name = "AutoCollide"
+	body.add_child(cs)
+	n.add_child(body)
+	spec["collide"] = "auto"
 
 
 static func _procedural(model: String, root: Node3D) -> Node3D:
@@ -184,7 +239,8 @@ static func save(map_id: String, root: Node3D) -> String:
 	var objs := []
 	for n in movables(root):
 		objs.append({"id": n.get_meta("editobj"), "xf": _xf_to(inv * n.global_transform)})
-	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs, "toiles": true}, "\t")
+	# drapeaux : le décor généré par défaut (toiles des égouts, sous-bois de la forêt) fait déjà partie de la carte
+	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs, "toiles": true, "sousbois": true}, "\t")
 	DirAccess.make_dir_recursive_absolute(USER_DIR)
 	var f := FileAccess.open(USER_DIR + map_id + ".json", FileAccess.WRITE)
 	f.store_string(txt)

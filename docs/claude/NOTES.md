@@ -236,14 +236,24 @@ Keep it current — add a line whenever you learn something non-obvious. History
   354094) on the "Creature" bus (muffled through the wall), every 4-10 s, sometimes twice.
 - SURFACE chapter (ending.gd), REWRITTEN AGAIN after the user graded v1 5/20 ("aucun mob, pierres trop faciles à
   rater, décor horrible, plus sombre, objets qui volent, cabane/camp horribles, papier random sur la cam, pièges :
-  spam E, j'avais mon téléphone"). Now a NIGHT forest (5 h 47 in November): sky near black, ambient 0.45, fog 0.016,
-  vfog 0.01, exposure 1.55, moon 0.14 WITHOUT shadows (perf); flashlight range 34 / attenuation 0.85 outdoors
+  spam E, j'avais mon téléphone"). Now a NIGHT forest (5 h 47 in November): sky near black, ambient 0.26, fog 0.016,
+  vfog 0.01, exposure 1.55 (1.4 dimmed the flashlight too much), moon 0.08 WITHOUT shadows (perf); flashlight range
+  34 / attenuation 0.6 outdoors
   (_setup_player) or a cabin 6 m away stays invisible. Terrain = height grid (FastNoiseLite, AREA 120×82, 1 m),
   flattened along paths/clearings, HeightMapShape3D collision, shaders/forest_ground.gdshader (vertex COLOR.r =
   path, .g = moss). EVERYTHING that matters is an editobj (`_obj(id, pos, yaw)`, meta "editobj" = "surface_<id>"):
   exit, hut, camp_desk/board/fire/light/generator/antenna/crate/battery, van, s13, cam13, trap_0..4, stones_0..5 →
   MapLayout.apply_objs("surface") BEFORE _compute_paths/_build_terrain (paths + clearings follow the hut and camp),
-  then _snap_objects (y = floor_y). Decor via deco() (meta "decor", skipped when a saved layout exists). Editor:
+  then _snap_objects (y = floor_y; only root-level ones). `_sub(parent, id, pos, yaw)` = an editobj NESTED in
+  another (every hut item: hut_table/radio/chair/bed/shelf/map/clock/lamp/web_N/wood..., camp_screen_1/2,
+  camp_laptop, camp_chair_1/2, camp_registre, camp_tarp): movable alone in the editor, follows its parent; the
+  editor's _attach_body skips meshes whose _decor_of() is another object. apply_objs stores GLOBAL xfs and walks
+  parents first, so an unsaved child keeps its offset from a moved parent. Decor via deco() (meta "decor",
+  skipped when a saved layout exists unless _force_deco; deco() calls MapLayout.auto_collide). Undergrowth near the
+  paths = _build_undergrowth() (seed 91, 95 clumps, one species per clump, editable decor, avoids paths/road/
+  clearings/placed objects); with a saved layout lacking the "sousbois" flag it is generated ONCE on top of it
+  (MapLayout.save now writes "sousbois": true), and every layout prop gets auto_collide. Far brush = scatter_forest
+  beyond 9.5 m of paths, 14 m chunks with FADE_SELF (no 50 m blocks popping in). Editor:
   main menu "FORÊT (SURFACE)" or F8; L = work lamp (the night is black). WARNING: editor saves also write
   res://maps/surface.json when run from the project — tests (--edlap) must delete it AND user://cartes/surface.json.
   HUT = sf:log_cabin (height 3.7, "Door" removed, trimesh collision). Cabin-local frame: floor y 0.16 (props at 0
@@ -265,12 +275,31 @@ Keep it current — add a line whenever you learn something non-obvious. History
   env copy with saturation 0, exposure ×2.6, ambient ×5; subtitles "Caméra 0402"), "Les téléphones" = a stranger's
   phone (Romain), "Aucun service" → jammer explanation (Théo's own phone stays in his inventory). Radio call →
   « Ouvrez la trappe » → creature from S13 → road → whistle → pole-camera reveal. Checkpoints "carry" / "chase".
-  Tests: `--surfacetest=look|trap|trapmash|drone|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump`
+  Hunter 0 walks DOWN the main trail toward the exit (~35 s): the first time his head is < 32 m, in view and in
+  LOS, Théo says he sees a lamp / a mask + a hiding hint (_look_for_hunters). `cutscene` = true during cam13 video
+  and the stranger's phone: hunters can't spot him unless already chasing. Drone (arrives at 30 s, orbits 6.5 m,
+  ~3 m above): SpotLight `search` aimed at Théo (vfog 6: blinding when looked at) + white double strobe. Traps are
+  hidden under a Decal of assets/gen/leaf_litter.png (generate_surface.leaf_litter), no more litter quads.
+  Dust (Nature.dust + dust_bokeh) follows Théo like in the sewer. The big white ball near the camp fire is the
+  flashlight on the SMOKE (user said so), not the bokeh: leave the bokeh as it is.
+  Tests: `--surfacetest=look|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|hitbox|seen|chase|radio|road|phone|cam|dump`
+  (dronelook: Théo follows the drone with his eyes, prints its distance; hitbox: walks into the layout's table /
+  tent, prints where he stopped), `--edpick=surface_hut_radio,...` (editor: aims and clicks each movable, prints
+  what got selected, saves NOTHING).
   (look = no hunters/drone, for scenery captures; trapmash/dronehit simulate input and print PIEGE / DRONE lines;
   simulate keys with Input.parse_input_event(InputEventAction), Input.action_press is missed by
   is_action_just_pressed), `--torch`, `--checkpoint=carry|chase`, `--freecam … --freelight=<energy>`.
   --warp now snaps to floor_y when the level has it. --shots=N quits after the LAST shot: add a late shot (e.g. 30)
-  when a test prints later. Perf 1080p RTX 2080 S: 78-95 fps.
+  when a test prints later. Perf 1080p RTX 2080 S: 85-110 fps (v3, with the user's layout).
+- MapLayout.auto_collide(n): SOFT words (fern, shrub, weed, nettle, Sapling, dry_branches, cobweb, poster, bottle,
+  sleeping_bag, rug, cap, sneakers, towel, paper — NOT "plant": potted plants stay solid) → no collider; pine/Tree →
+  trunk cylinder; else a box of its size if > 0.35 m tall and wide. Body "AutoCollide", spec collide "auto"
+  (rebuilt on load). A SOFT entry saved with collide true (old editor) loses its box.
+- Map editor bug (fixed): the catalog ItemList had keyboard focus after a click, so ZQSD camera keys did its
+  incremental search — D jumped to "dead tree trunk" and every key repeat created one at (0,0,0) (an async pick
+  awaited a frame, so several overlapped; only the last was grabbed). Now list.focus_mode = FOCUS_NONE,
+  allow_search = false, and _on_pick_model drops stale requests (_pick_seq). MapLayout.spawn skips entries whose xf
+  is exactly the identity at the origin (the user's files had 6 / 43 / 52 of them: egouts / maison / surface).
 - Key rebinding: Paramètres → TOUCHES (ui.controls_menu, full-screen, moved on top so it also works from the pause
   menu). Game.REBINDABLE (11 actions; Échap/F11 fixed), rebind() swaps with an action already using the key,
   only the PRIMARY event is replaced (arrows / right-click-to-throw stay), stored in sauvegarde.cfg [touches] as

@@ -57,18 +57,23 @@ var _paths: Array = []  ## [[points], largeur]
 var _clearings: Array = []  ## [centre, rayon]
 var _trunk_grid := {}
 var _layout: Variant = null  ## disposition sauvegardée par le joueur (éditeur), ou null
+var _force_deco := false  ## pose le décor par défaut même s'il y a une disposition (sous-bois ajouté après coup)
 # état
 var _trapped := -1
 var _trap_prog := 0.0
 var _road_said := false
 var _radio_glow: OmniLight3D
 var _radio_static: AudioStreamPlayer3D
-var _drone_cd := 40.0
+var _drone_cd := 30.0
 var _report_cd := 8.0
 var _phone_done := false
 var _snap_cd := 20.0
 var _owl_cd := 12.0
 var _s13_heard := false
+var cutscene := false  ## une scène où Théo ne contrôle rien (vidéo, téléphone) : les hommes au masque ne le repèrent pas
+var _hunter_warned := false
+var _dust: GPUParticles3D
+var _dust_near: GPUParticles3D
 
 
 func editor_map() -> Dictionary:
@@ -88,6 +93,13 @@ func _ready() -> void:
 	_build_decor()
 	if _layout != null:
 		MapLayout.spawn(_layout, self)
+		# carte faite avant les hitbox automatiques et le sous-bois éditable : on les ajoute sans rien déplacer
+		for n in MapLayout.collect(self):
+			MapLayout.auto_collide(n)
+		if not MapLayout.has_flag("surface", "sousbois"):
+			_force_deco = true
+			_build_undergrowth()
+			_force_deco = false
 	_decor_obstacles()
 	_build_road_and_pole()
 	_build_bounds()
@@ -144,6 +156,10 @@ func _ready() -> void:
 				hunters[0].wake(false)
 				_play()
 	pole_cam.target = player
+	if not editing:
+		# poussière et pollen en suspension autour de Théo : visibles dans le faisceau de la lampe
+		_dust = Nature.dust(self, Vector3(6.0, 2.0, 6.0), 1600)
+		_dust_near = Nature.dust_bokeh(self)
 	add_trigger(Vector3(0.0, 0, ROAD_Z + 3.0), 9.0, _at_road, false)
 	add_trigger(_path_point(hut.global_position, 0.8), 4.0, func() -> void:
 		if stage == "start":
@@ -173,7 +189,7 @@ func _setup_player() -> void:
 	# dehors, rien ne renvoie la lumière : le faisceau porte plus loin que dans les tunnels (sinon on ne voit pas
 	# une cabane à six mètres)
 	player.flashlight.spot_range = 34.0
-	player.flashlight.spot_attenuation = 0.85
+	player.flashlight.spot_attenuation = 0.6
 	Game.hud.show_hud(true)
 	Game.hud.set_battery(1)
 
@@ -209,15 +225,15 @@ func _play() -> void:
 # ================================================================== ambiance : la nuit
 func _build_environment() -> void:
 	var sky := ProceduralSkyMaterial.new()
-	sky.sky_top_color = Color(0.01, 0.014, 0.026)
-	sky.sky_horizon_color = Color(0.045, 0.05, 0.068)
+	sky.sky_top_color = Color(0.005, 0.008, 0.016)
+	sky.sky_horizon_color = Color(0.028, 0.032, 0.045)
 	sky.ground_horizon_color = Color(0.015, 0.016, 0.02)
 	sky.ground_bottom_color = Color(0.0, 0.0, 0.0)
 	sky.sky_energy_multiplier = 1.0
 	make_environment({
 		"sky": sky,
 		"ambient": Color(0.06, 0.075, 0.11),
-		"ambient_energy": 0.45,
+		"ambient_energy": 0.26,
 		"fog": true,
 		"fog_color": Color(0.028, 0.033, 0.045),
 		"fog_density": 0.016,
@@ -231,7 +247,7 @@ func _build_environment() -> void:
 	# la lune, voilée : juste assez pour deviner les troncs et les silhouettes
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color(0.55, 0.65, 1.0)
-	moon.light_energy = 0.14
+	moon.light_energy = 0.08
 	moon.light_volumetric_fog_energy = 0.6
 	moon.rotation_degrees = Vector3(-38, -150, 0)
 	add_child(moon)
@@ -257,6 +273,18 @@ func _obj(id: String, pos: Vector3, yaw := 0.0) -> Node3D:
 	return n
 
 
+## Un objet déplaçable DANS un autre (la radio dans la cabane, un écran sur la table) : il suit son parent quand on
+## déplace celui-ci, et se déplace aussi tout seul dans l'éditeur.
+func _sub(parent: Node3D, id: String, pos: Vector3, yaw := 0.0) -> Node3D:
+	var n := Node3D.new()
+	parent.add_child(n)
+	n.name = id
+	n.position = pos
+	n.rotation_degrees.y = yaw
+	n.set_meta("editobj", "surface_" + id)
+	return n
+
+
 func _build_objects() -> void:
 	exit_hole = _obj("exit", Vector3(0, 0, 0.6))
 	B.model(exit_hole, "water_manhole_cover", Vector3(0.9, 0.0, 0.1), 30.0, {"width": 0.8})
@@ -273,41 +301,22 @@ func _build_objects() -> void:
 	for i in trap_spots.size():
 		var t := _obj("trap_%d" % i, trap_spots[i], randf_range(0, 360))
 		B.model(t, "sf:bear_trap", Vector3(0, 0.005, 0), 0.0, {"width": 0.42})
-		_litter(t, 14, 0.38)
+		# un tapis de feuilles projeté sur le sol ET sur les mâchoires : on le devine à peine
+		B.decal(t, "res://assets/gen/leaf_litter.png", Vector3(0, 0.2, 0), Vector3.UP, 0.95, 0.95, 0.5)
 		traps.append([t, false])
 	var stone_spots := [Vector3(1.7, 0, -3.5), Vector3(-2.2, 0, -16.0), Vector3(-15.5, 0, -17.6), Vector3(7.5, 0, -28.2), Vector3(-1.8, 0, -31.0), Vector3(21.0, 0, -26.5)]
 	for i in stone_spots.size():
 		_build_stones(_obj("stones_%d" % i, stone_spots[i]))
 
 
-## Feuilles mortes à plat sur le sol (à moitié par-dessus un piège ou une caméra tombée).
-func _litter(holder: Node3D, count: int, radius: float) -> void:
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = load("res://assets/gen/water_debris.png")
-	m.uv1_scale = Vector3(0.25, 1, 1)
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	m.alpha_scissor_threshold = 0.4
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.roughness = 0.95
-	m.albedo_color = Color(0.75, 0.68, 0.6)
-	var q := QuadMesh.new()
-	q.size = Vector2(0.12, 0.12)
-	for k in count:
-		var leaf := MeshInstance3D.new()
-		leaf.mesh = q
-		leaf.material_override = m
-		leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		holder.add_child(leaf)
-		var a := randf() * TAU
-		var r := sqrt(randf()) * radius
-		leaf.position = Vector3(cos(a) * r, 0.012 + k * 0.0015, sin(a) * r)
-		leaf.rotation = Vector3(-PI / 2 + randf_range(-0.15, 0.15), randf() * TAU, 0)
-		leaf.scale = Vector3.ONE * randf_range(0.8, 1.5)
 
 
 ## Les éléments déplaçables sont posés sur le relief (après qu'on connaît leurs positions et le terrain).
 func _snap_objects() -> void:
 	for n in MapLayout.movables(self):
+		# ceux qui sont posés dans un autre (la cabane) suivent leur parent
+		if n.get_parent() != self:
+			continue
 		var nd := n as Node3D
 		nd.global_position.y = floor_y(nd.global_position)
 
@@ -486,14 +495,20 @@ func _tree_avoid(p: Vector3) -> bool:
 	return _clear_dist(p) < 1.2
 
 
-func _brush_avoid(p: Vector3) -> bool:
-	if _path_dist(p) < -0.2:
-		return true
+## Sous-bois lointain (instancié) : seulement loin des sentiers. Près des sentiers, ce sont des objets de décor.
+func _far_brush_avoid(p: Vector3) -> bool:
+	return _clear_dist(p) < 9.5
+
+
+## Une plante près des sentiers : jamais SUR le sentier, la route ou dans une clairière.
+func _plant_ok(p: Vector3) -> bool:
+	if _path_dist(p) < 0.55 or absf(p.z - ROAD_Z) < 4.8:
+		return false
 	for c in _clearings:
 		var cp: Vector3 = c[0]
-		if Vector2(p.x - cp.x, p.z - cp.z).length() < float(c[1]) * 0.9:
-			return true
-	return absf(p.z - ROAD_Z) < 4.0
+		if Vector2(p.x - cp.x, p.z - cp.z).length() < float(c[1]) * 0.85:
+			return false
+	return AREA.grow(-4.0).has_point(Vector2(p.x, p.z))
 
 
 func _build_forest() -> void:
@@ -512,7 +527,8 @@ func _build_forest() -> void:
 		["tree_stump_02", "", 0.4, 0.4, 0.7],
 		["rock_09", "", 0.5, 0.3, 0.7],
 	]
-	Nature.scatter_forest(self, Rect2(-55, -60, 110, 76), 1500, _brush_avoid, 77, brush, _floor_p, 45.0)
+	# petites parcelles qui apparaissent en fondu, loin : on ne les voit plus « pousser » d'un bloc en marchant
+	Nature.scatter_forest(self, Rect2(-55, -60, 110, 76), 800, _far_brush_avoid, 77, brush, _floor_p, 60.0, 14.0, true)
 	_build_trunk_colliders()
 
 
@@ -565,16 +581,80 @@ func _decor_obstacles() -> void:
 
 ## Décor déplaçable (ignoré si le joueur a sauvegardé sa propre disposition : elle est recréée depuis le fichier).
 func deco(slug: String, pos: Vector3, yaw := 0.0, fit := {}) -> Node3D:
-	if _layout != null:
+	if _layout != null and not _force_deco:
 		return null
 	var n := B.model(self, slug, Vector3(pos.x, floor_y(pos), pos.z), yaw, fit)
 	n.set_meta("decor", true)
+	MapLayout.auto_collide(n)
 	return n
+
+
+## Le sous-bois le long des sentiers, par touffes (une espèce domine chaque touffe, comme en vrai) : chaque plante
+## est un objet de décor, qu'on déplace, supprime ou ajoute dans l'éditeur (F8).
+func _build_undergrowth() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91
+	# modèle, pièce, poids, hauteur min/max, plantes par touffe min/max, étalement (m)
+	var kinds := [
+		["fern_02", "", 5.0, 0.4, 0.85, 3, 7, 1.3],
+		["nettle_plant", "", 1.4, 0.35, 0.7, 3, 6, 0.9],
+		["weed_plant_02", "", 1.8, 0.3, 0.55, 2, 5, 1.0],
+		["shrub_03", "", 1.4, 0.6, 1.1, 1, 3, 1.2],
+		["shrub_02", "", 0.9, 0.5, 1.0, 1, 2, 1.0],
+		["shrub_04", "", 0.9, 0.5, 1.0, 1, 2, 1.0],
+		["sf:conifer_pack", "ConiferousShrub", 1.2, 0.8, 1.7, 1, 2, 1.5],
+		["dry_branches_medium_01", "", 1.5, 0.22, 0.38, 1, 2, 1.4],
+		["rock_moss_set_01", "", 0.6, 0.3, 0.7, 1, 1, 0.0],
+		["rock_moss_set_02", "", 0.6, 0.3, 0.7, 1, 1, 0.0],
+		["tree_stump_02", "", 0.5, 0.35, 0.6, 1, 1, 0.0],
+	]
+	var total := 0.0
+	for k in kinds:
+		total += float(k[2])
+	# pas de plante dans un objet déjà posé (décor de la carte du joueur, pièges, pierres...)
+	var taken: Array = []
+	for n in MapLayout.collect(self) + MapLayout.movables(self):
+		if n.get_parent() != self or MapLayout.is_soft(n.get_meta("spec", {})):
+			continue
+		var sz: Vector3 = n.get_meta("size", Vector3.ONE * 0.8)
+		taken.append([n.global_position, clampf(maxf(sz.x, sz.z) * n.scale.x * 0.5, 0.3, 3.0) + 0.35])
+	var room := func(q: Vector3) -> bool:
+		for t in taken:
+			var tp: Vector3 = t[0]
+			if Vector2(q.x - tp.x, q.z - tp.z).length() < float(t[1]):
+				return false
+		return _plant_ok(q)
+	var clumps := 0
+	var tries := 0
+	while clumps < 95 and tries < 3000:
+		tries += 1
+		var p := Vector3(rng.randf_range(AREA.position.x, AREA.end.x), 0, rng.randf_range(AREA.position.y, AREA.end.y))
+		var d := _clear_dist(p)
+		if d < 0.6 or d > 9.0 or not room.call(p):
+			continue
+		var r := rng.randf() * total
+		var kind: Array = kinds[0]
+		for k in kinds:
+			r -= float(k[2])
+			if r <= 0.0:
+				kind = k
+				break
+		clumps += 1
+		for i in rng.randi_range(int(kind[5]), int(kind[6])):
+			var a := rng.randf() * TAU
+			var q := p + Vector3(cos(a), 0, sin(a)) * float(kind[7]) * sqrt(rng.randf()) * (0.0 if i == 0 else 1.0)
+			if not room.call(q):
+				continue
+			var fit := {"height": rng.randf_range(float(kind[3]), float(kind[4]))}
+			if str(kind[1]) != "":
+				fit["part"] = kind[1]
+			deco(kind[0], q, rng.randf() * 360.0, fit)
 
 
 func _build_decor() -> void:
 	if _layout != null:
 		return
+	_build_undergrowth()
 	# décor du camp, autour de la régie (déplaçable / supprimable dans l'éditeur)
 	var c := desk.global_position
 	deco("sf:canvas_tent", c + Vector3(5.0, 0, 5.5), 200.0, {"width": 4.0})
@@ -711,7 +791,7 @@ func _build_cam13(holder: Node3D) -> void:
 	B.box(body, Vector3(0.065, 0.1, 0.032), Vector3(0, 0.05, 0), black, false)
 	B.cylinder(body, 0.016, 0.016, 0.012, Vector3(0, 0.075, 0.021), B.color_mat(Color(0.02, 0.02, 0.025), 0.1, 0.6), false, 16, Vector3(90, 0, 0))
 	B.box(body, Vector3(0.05, 0.012, 0.02), Vector3(0, 0.02, -0.022), B.color_mat(Color(0.2, 0.2, 0.22), 0.4, 0.8), false)
-	_litter(holder, 10, 0.3)
+	B.decal(holder, "res://assets/gen/leaf_litter.png", Vector3(0, 0.2, 0), Vector3.UP, 0.7, 0.7, 0.5)
 	# sa diode de batterie faible clignote encore, faiblement, dans les feuilles
 	var led := B.omni(holder, Vector3(0, 0.06, 0), Color(1.0, 0.1, 0.05), 0.12, 0.7)
 	var dot := B.cylinder(body, 0.004, 0.004, 0.003, Vector3(0.02, 0.09, 0.017), B.emissive(Color(1.0, 0.08, 0.05), 5.0, true), false, 8, Vector3(90, 0, 0))
@@ -736,6 +816,7 @@ func _build_cam13(holder: Node3D) -> void:
 ## (La vidéo est rendue en direct depuis le décor, avec la caméra qui suit son trajet.)
 func _play_cam13() -> void:
 	player.control_enabled = false
+	cutscene = true
 	Sound.play("pickup", -8.0, 0.9)
 	Game.hud.say("Une caméra... comme la mienne. BWC-7, série 0402. Il reste un fichier.", 3.4)
 	await wait(1.0)
@@ -835,6 +916,7 @@ func _play_cam13() -> void:
 	dev.queue_free()
 	vp.queue_free()
 	player.control_enabled = true
+	cutscene = false
 	Game.hud.say("...Une cabane avec une radio. Il lui faut une batterie. Et leur camp en a une.", 4.0)
 	if stage == "start":
 		Game.hud.objective("La cabane du garde forestier (à gauche du sentier)")
@@ -990,12 +1072,11 @@ func _throw_stone() -> void:
 
 
 # ================================================================== la cabane du garde forestier
-## Une vraie cabane en rondins (porte arrachée) : une table avec la radio CB, un lit de camp, une hache, des
-## conserves, une lampe morte. Repère local : porte à l'avant (+Z), un peu à droite.
 ## La cabane de chasse : une entrée (la porte arrachée), une cloison percée d'un passage, et la pièce où David
 ## Roche (session 13) s'est caché : la radio sur la table, sa carte annotée au mur, le lit de camp.
 ## Repère de la cabane : plancher à y = 0,16 ; pièce x de -2,1 à 0,55 ; entrée x de 0,75 à 2,25 ; z de -1,25 à 1,18 ;
 ## porte côté +z (x de 1,05 à 1,85) ; passage dans la cloison (x = 0,64) pour z de -0,9 à -0,1.
+## Chaque meuble, chaque objet est un élément déplaçable à part (_sub) : il suit la cabane, ou se déplace seul.
 func _build_hut(holder: Node3D) -> void:
 	hut = holder
 	B.model(holder, "sf:log_cabin", Vector3.ZERO, 0.0, {"height": 3.7, "remove": ["Door"], "collide": "mesh"})
@@ -1003,57 +1084,63 @@ func _build_hut(holder: Node3D) -> void:
 	holder.add_child(inside)
 	inside.name = "Inside"
 	var fl := 0.16
+	var top := 0.75  ## hauteur de la table
 	# --- la pièce : la table contre le mur du fond, la radio, la chaise tirée
-	B.model(inside, "small_wooden_table_01", Vector3(-1.3, fl, -0.92), 0.0, {"height": 0.75, "collide": true})
-	var top := fl + 0.75
-	var radio := B.model(inside, "sf:cb_radio", Vector3(-1.25, top, -1.02), 0.0, {"width": 0.24})
+	B.model(_sub(inside, "hut_table", Vector3(-1.3, fl, -0.92)), "small_wooden_table_01", Vector3.ZERO, 0.0, {"height": 0.75, "collide": true})
+	var rad := _sub(inside, "hut_radio", Vector3(-1.25, fl + top, -1.02))
+	var radio := B.model(rad, "sf:cb_radio", Vector3.ZERO, 0.0, {"width": 0.24})
 	radio.name = "CBRadio"
 	var label := StandardMaterial3D.new()
 	label.albedo_texture = load("res://assets/gen/cb_label.png")
-	B.quad(inside, Vector2(0.14, 0.05), Vector3(-1.0, top + 0.002, -0.84), label, Vector3(-90, 0, 0))
+	B.quad(rad, Vector2(0.14, 0.05), Vector3(0.25, 0.002, 0.18), label, Vector3(-90, 0, 0))
+	# les câbles qui pendent au bord de la table, et la place de la batterie dessous
 	for k in 2:
-		var wire := B.cylinder(inside, 0.004, 0.004, 0.55, Vector3(-0.7 + k * 0.03, top - 0.27, -0.66), B.color_mat(Color(0.7, 0.05, 0.05) if k == 0 else Color(0.05, 0.05, 0.05), 0.5), false, 5)
+		var wire := B.cylinder(rad, 0.004, 0.004, 0.55, Vector3(0.55 + k * 0.03, -0.27, 0.36), B.color_mat(Color(0.7, 0.05, 0.05) if k == 0 else Color(0.05, 0.05, 0.05), 0.5), false, 5)
 		wire.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var slot := Node3D.new()
-	inside.add_child(slot)
+	rad.add_child(slot)
 	slot.name = "BatterySlot"
-	slot.position = Vector3(-0.5, fl, -0.95)
-	B.model(inside, "dining_chair_02", Vector3(-1.4, fl, -0.25), 165.0, {"height": 0.9})
-	B.model(inside, "russian_food_cans_01", Vector3(-1.78, top, -0.82), 0.0, {"height": 0.11})
-	B.model(inside, "sf:flashlight_dead", Vector3(-0.95, top, -0.78), 70.0, {"depth": 0.22})
+	slot.position = Vector3(0.75, -top, 0.07)
+	var it := Interactable.create(rad, Vector3(0, 0.12, 0.02), Vector3(0.6, 0.4, 0.6), "La radio", _use_radio)
+	it.name = "RadioUse"
+	B.model(_sub(inside, "hut_chair", Vector3(-1.4, fl, -0.25), 165.0), "dining_chair_02", Vector3.ZERO, 0.0, {"height": 0.9, "collide": true})
+	B.model(_sub(inside, "hut_cans", Vector3(-1.78, fl + top, -0.82)), "russian_food_cans_01", Vector3.ZERO, 0.0, {"height": 0.11})
+	B.model(_sub(inside, "hut_lamp", Vector3(-0.95, fl + top, -0.78), 70.0), "sf:flashlight_dead", Vector3.ZERO, 0.0, {"depth": 0.22})
 	# sa carte, punaisée au-dessus de la table
 	var map_mat := StandardMaterial3D.new()
 	map_mat.albedo_texture = load("res://assets/gen/hut_map.png")
 	map_mat.roughness = 0.95
-	B.quad(inside, Vector2(0.64, 0.48), Vector3(-1.3, fl + 1.42, -1.235), map_mat)
-	Interactable.create(inside, Vector3(-1.3, fl + 1.42, -1.15), Vector3(0.7, 0.55, 0.2), "La carte", _read_map)
-	B.model(inside, "wall_clock", Vector3(-0.3, fl + 1.55, -1.24), 0.0, {"height": 0.26})
-	# le lit de camp le long du mur, un sac de couchage roulé en boule
-	B.model(inside, "old_bed_frame", Vector3(-1.05, fl, 0.72), 90.0, {"depth": 1.9, "collide": true})
-	B.model(inside, "sf:sleeping_bag", Vector3(-1.2, fl + 0.42, 0.7), 80.0, {"width": 1.6})
-	B.model(inside, "metal_jerrycan", Vector3(-1.95, fl, -0.3), 80.0, {"height": 0.45})
-	# l'étagère contre la cloison : conserves, bocal, bouteilles
-	B.model(inside, "wooden_bookshelf_worn", Vector3(0.36, fl, 0.72), -90.0, {"height": 1.55, "collide": true})
-	B.model(inside, "jug_01", Vector3(0.36, fl + 1.55, 0.55), 0.0, {"height": 0.22})
-	B.model(inside, "wine_bottles_01", Vector3(0.36, fl + 1.55, 0.9), 0.0, {"height": 0.3})
-	B.model(inside, "caged_hanging_light", Vector3(-0.8, 2.44 - 0.3, 0.1), 0.0, {"height": 0.3})
-	for w in [Vector3(-2.0, 2.44, -1.15), Vector3(0.45, 2.44, 1.1), Vector3(-2.0, 2.44, 1.1), Vector3(2.15, 2.44, -1.15)]:
-		var web := Props.cobweb(inside)
-		web.position = w - Vector3(0, 0.48, 0)
-	# --- l'entrée : bois de chauffage contre le mur, bottes, pelle, hache
-	_woodpile(inside, Vector3(2.08, fl, -0.45), 0.36, 1.5, 0.95, 90.0)
-	B.model(inside, "rubber_boots", Vector3(2.0, fl, 0.9), 200.0, {"height": 0.4})
-	B.model(inside, "rusted_spade_01", Vector3(0.85, fl, 1.05), 10.0, {"height": 1.0})
-	B.model(inside, "metal_jerrycan", Vector3(0.95, fl, -1.05), 20.0, {"height": 0.45})
-	var it := Interactable.create(inside, Vector3(-1.25, top + 0.12, -1.0), Vector3(0.6, 0.4, 0.6), "La radio", _use_radio)
-	it.name = "RadioUse"
+	var map := _sub(inside, "hut_map", Vector3(-1.3, fl + 1.42, -1.235))
+	B.quad(map, Vector2(0.64, 0.48), Vector3.ZERO, map_mat)
+	Interactable.create(map, Vector3(0, 0, 0.085), Vector3(0.7, 0.55, 0.2), "La carte", _read_map)
+	B.model(_sub(inside, "hut_clock", Vector3(-0.3, fl + 1.55, -1.24)), "wall_clock", Vector3.ZERO, 0.0, {"height": 0.26})
+	# le lit de camp le long du mur, un sac de couchage dessus
+	var bed := _sub(inside, "hut_bed", Vector3(-1.05, fl, 0.72), 90.0)
+	B.model(bed, "old_bed_frame", Vector3.ZERO, 0.0, {"depth": 1.9, "collide": true})
+	B.model(bed, "sf:sleeping_bag", Vector3(0.02, 0.42, -0.15), -10.0, {"width": 1.6})
+	B.model(_sub(inside, "hut_jerrycan", Vector3(-1.95, fl, -0.3), 80.0), "metal_jerrycan", Vector3.ZERO, 0.0, {"height": 0.45})
+	# l'étagère contre la cloison : un bocal, des bouteilles
+	var shelf := _sub(inside, "hut_shelf", Vector3(0.36, fl, 0.72), -90.0)
+	B.model(shelf, "wooden_bookshelf_worn", Vector3.ZERO, 0.0, {"height": 1.55, "collide": true})
+	B.model(shelf, "jug_01", Vector3(-0.17, 1.55, 0), 0.0, {"height": 0.22})
+	B.model(shelf, "wine_bottles_01", Vector3(0.18, 1.55, 0), 0.0, {"height": 0.3})
+	B.model(_sub(inside, "hut_light", Vector3(-0.8, 2.44 - 0.3, 0.1)), "caged_hanging_light", Vector3.ZERO, 0.0, {"height": 0.3})
+	var webs := [Vector3(-2.0, 2.44, -1.15), Vector3(0.45, 2.44, 1.1), Vector3(-2.0, 2.44, 1.1), Vector3(2.15, 2.44, -1.15)]
+	for i in webs.size():
+		Props.cobweb(_sub(inside, "hut_web_%d" % i, webs[i] - Vector3(0, 0.48, 0)))
+	# --- l'entrée : bois de chauffage contre le mur, bottes, pelle, bidon
+	_woodpile(_sub(inside, "hut_wood", Vector3(2.08, fl, -0.45), 90.0), Vector3.ZERO, 0.36, 1.5, 0.95, 0.0)
+	B.model(_sub(inside, "hut_boots", Vector3(2.0, fl, 0.9), 200.0), "rubber_boots", Vector3.ZERO, 0.0, {"height": 0.4})
+	B.model(_sub(inside, "hut_spade", Vector3(0.85, fl, 1.05), 10.0), "rusted_spade_01", Vector3.ZERO, 0.0, {"height": 1.0})
+	B.model(_sub(inside, "hut_jerrycan_2", Vector3(0.95, fl, -1.05), 20.0), "metal_jerrycan", Vector3.ZERO, 0.0, {"height": 0.45})
 	# --- dehors : le gros tas de bûches contre le pignon, le billot et sa hache, un tonneau d'eau de pluie
-	_woodpile(holder, Vector3(-2.95, 0.0, -0.4), 0.45, 2.2, 1.15, 90.0)
-	B.model(holder, "tree_stump_01", Vector3(3.4, 0.0, 2.6), 0.0, {"height": 0.45})
-	B.model(holder, "wooden_axe", Vector3(3.38, 0.36, 2.6), 30.0, {"height": 0.7, "rot": Vector3(160, 0, 0)})
-	B.model(holder, "Barrel_01", Vector3(-2.95, 0.0, 1.55), 0.0, {"height": 0.9, "collide": true})
-	B.model(holder, "old_tyre", Vector3(3.1, 0.0, -1.0), 0.0, {"width": 0.65})
-	B.model(holder, "dry_branches_medium_01", Vector3(2.6, 0.0, -2.4), 40.0, {"width": 1.2})
+	_woodpile(_sub(holder, "hut_wood_out", Vector3(-2.95, 0.0, -0.4), 90.0), Vector3.ZERO, 0.45, 2.2, 1.15, 0.0)
+	var block := _sub(holder, "hut_block", Vector3(3.4, 0.0, 2.6))
+	B.model(block, "tree_stump_01", Vector3.ZERO, 0.0, {"height": 0.45, "collide": true})
+	B.model(block, "wooden_axe", Vector3(-0.02, 0.36, 0), 30.0, {"height": 0.7, "rot": Vector3(160, 0, 0)})
+	B.model(_sub(holder, "hut_barrel", Vector3(-2.95, 0.0, 1.55)), "Barrel_01", Vector3.ZERO, 0.0, {"height": 0.9, "collide": true})
+	B.model(_sub(holder, "hut_tyre", Vector3(3.1, 0.0, -1.0)), "old_tyre", Vector3.ZERO, 0.0, {"width": 0.65})
+	B.model(_sub(holder, "hut_branches", Vector3(2.6, 0.0, -2.4), 40.0), "dry_branches_medium_01", Vector3.ZERO, 0.0, {"width": 1.2})
 
 
 ## Un tas de bûches rangées (base au sol, `length` le long de l'axe x local tourné de `yaw`), avec sa collision.
@@ -1207,35 +1294,43 @@ func _build_camp() -> void:
 	var c := Vector3(28, 0, -31)
 	# la régie : bâche camouflage, table militaire, écrans, ordinateur, chaises
 	desk = _obj("camp_desk", c, 0.0)
-	B.model(desk, "sf:tarp", Vector3(0, 0, 0.2), 90.0, {"width": 4.5})
+	B.model(_sub(desk, "camp_tarp", Vector3(0, 0, 0.2), 90.0), "sf:tarp", Vector3.ZERO, 0.0, {"width": 4.5})
 	B.model(desk, "sf:military_furniture", Vector3(0, 0, 0), 0.0, {"part": "SM_MTable_001", "scale": 1.0, "collide": true})
 	var top := 0.94
 	feed = SecurityFeed.new()
 	feed.cam_label = "DRONE 2"
 	add_child(feed)
 	_feed_mat = feed.screen_material(1.0)
-	B.model(desk, "sf:flat_tv", Vector3(-0.5, top, -0.25), 90.0, {"height": 0.42})
-	B.model(desk, "sf:flat_tv", Vector3(0.25, top, -0.3), 78.0, {"height": 0.42})
-	var sz1 := Vector3(0.68, 0.42, 0.21)
-	SecurityFeed.screen(desk, Vector2(sz1.x * 0.9, sz1.y * 0.72), Vector3(-0.5, top + sz1.y * 0.58, -0.25 + sz1.z * 0.5 + 0.004), Vector3.ZERO, _feed_mat)
+	# les écrans : la face avant du modèle est son +X ; l'image est collée sur la dalle, tournée vers les chaises
+	var mon1 := _sub(desk, "camp_screen_1", Vector3(-0.5, top, -0.25), -90.0)
+	B.model(mon1, "sf:flat_tv", Vector3.ZERO, 0.0, {"height": 0.42})
+	SecurityFeed.screen(mon1, Vector2(0.6, 0.33), Vector3(0.021, 0.235, 0), Vector3(0, 90, 0), _feed_mat)
+	Interactable.create(mon1, Vector3(0.1, 0.24, 0), Vector3(0.25, 0.45, 0.7), "L'écran", func() -> void:
+		if drone != null and is_instance_valid(drone) and not drone.down:
+			Game.hud.say("C'est moi... vu d'en haut. Le drone. Ils me filment en ce moment même.", 3.6)
+		else:
+			Game.hud.say("Plus d'image. Le drone est par terre.", 2.6))
 	var stream := StandardMaterial3D.new()
 	stream.albedo_color = Color.BLACK
 	stream.emission_enabled = true
 	stream.emission_texture = load("res://assets/gen/screen_stream.png")
 	stream.emission_energy_multiplier = 1.1
-	var scr2 := SecurityFeed.screen(desk, Vector2(sz1.x * 0.9, sz1.y * 0.72), Vector3(0.25, top + sz1.y * 0.58, -0.3), Vector3(0, -12, 0), stream)
-	scr2.position += scr2.global_basis.z * (sz1.z * 0.5 + 0.004)
+	var mon2 := _sub(desk, "camp_screen_2", Vector3(0.25, top, -0.3), -102.0)
+	B.model(mon2, "sf:flat_tv", Vector3.ZERO, 0.0, {"height": 0.42})
+	SecurityFeed.screen(mon2, Vector2(0.6, 0.33), Vector3(0.021, 0.235, 0), Vector3(0, 90, 0), stream)
 	var lap_mat := StandardMaterial3D.new()
 	lap_mat.albedo_color = Color.BLACK
 	lap_mat.emission_enabled = true
 	lap_mat.emission_texture = load("res://assets/gen/screen_stream.png")
 	lap_mat.emission_energy_multiplier = 0.9
-	Props.laptop(desk, Vector3(0.85, top, 0.1), -35.0, lap_mat)
+	var lap := _sub(desk, "camp_laptop", Vector3(0.85, top, 0.1), -35.0)
+	Props.laptop(lap, Vector3.ZERO, 0.0, lap_mat)
 	B.omni(desk, Vector3(0, top + 0.45, 0.35), Color(0.6, 0.7, 1.0), 0.4, 3.0)
-	B.model(desk, "sf:military_furniture", Vector3(-0.4, 0, 0.9), 180.0, {"part": "SM_MChair_001", "scale": 1.0})
-	B.model(desk, "sf:military_furniture", Vector3(0.6, 0, 0.95), 160.0, {"part": "SM_MChair_001", "scale": 1.0})
-	B.box(desk, Vector3(0.22, 0.01, 0.3), Vector3(-0.95, top + 0.005, 0.15), B.color_mat(Color(0.85, 0.83, 0.78), 0.9), false, Vector3(0, 15, 0))
-	Interactable.create(desk, Vector3(-0.95, top + 0.06, 0.15), Vector3(0.35, 0.2, 0.4), "Le registre", func() -> void:
+	B.model(_sub(desk, "camp_chair_1", Vector3(-0.4, 0, 0.9), 180.0), "sf:military_furniture", Vector3.ZERO, 0.0, {"part": "SM_MChair_001", "scale": 1.0, "collide": true})
+	B.model(_sub(desk, "camp_chair_2", Vector3(0.6, 0, 0.95), 160.0), "sf:military_furniture", Vector3.ZERO, 0.0, {"part": "SM_MChair_001", "scale": 1.0, "collide": true})
+	var reg := _sub(desk, "camp_registre", Vector3(-0.95, top, 0.15), 15.0)
+	B.box(reg, Vector3(0.22, 0.01, 0.3), Vector3(0, 0.005, 0), B.color_mat(Color(0.85, 0.83, 0.78), 0.9), false)
+	Interactable.create(reg, Vector3(0, 0.06, 0), Vector3(0.35, 0.2, 0.4), "Le registre", func() -> void:
 		await read_document("Registre des sessions",
 			"[b]SESSIONS — 2026[/b]\n\n" +
 			"01 — 14/02 — 1 sujet — 312 spectateurs — 2 h 10 — non retrouvé\n" +
@@ -1246,7 +1341,7 @@ func _build_camp() -> void:
 			"[b]14 — 14/11 — 4 sujets — EN COURS — 4 312 spectateurs[/b]\n\n" +
 			"Recettes (dons) : 61 400 €\nProchaine étape : vote du public.", "typed")
 		Game.hud.say("Les avis de recherche, sur les arbres... C'était eux. Personne ne les a jamais retrouvés.", 4.0))
-	Interactable.create(desk, Vector3(0.85, top + 0.12, 0.1), Vector3(0.5, 0.3, 0.45), "L'ordinateur", func() -> void:
+	Interactable.create(lap, Vector3(0, 0.12, 0), Vector3(0.5, 0.3, 0.45), "L'ordinateur", func() -> void:
 		await read_document("Le direct — session 14",
 			"[b]● DIRECT — SESSION 14 — 4 312 spectateurs[/b]\n\n" +
 			"[color=#7af]vlad_88[/color] [color=#5d7]50 €[/color] — fais-le passer par l'eau\n" +
@@ -1257,11 +1352,6 @@ func _build_camp() -> void:
 			"[color=#7af]Dmitri[/color] [color=#5d7]250 €[/color] — plus long que la 13 svp\n\n" +
 			"[b]PROCHAINE ÉTAPE — vote en cours :[/b]  « LA RADIO » 61 %  ·  « LA ROUTE » 39 %", "phone")
 		Game.hud.say("« La radio »... Ils votent. Ils votent pour ce qui va m'arriver.", 3.6))
-	Interactable.create(desk, Vector3(-0.5, top + 0.25, -0.15), Vector3(0.7, 0.45, 0.25), "L'écran", func() -> void:
-		if drone != null and is_instance_valid(drone) and not drone.down:
-			Game.hud.say("C'est moi... vu d'en haut. Le drone. Ils me filment en ce moment même.", 3.6)
-		else:
-			Game.hud.say("Plus d'image. Le drone est par terre.", 2.6))
 	# le van (le deuxième homme dort dedans)
 	van = _obj("van", c + Vector3(5.5, 0, -5.0), 110.0)
 	B.model(van, "sf:old_van", Vector3.ZERO, 0.0, {"width": 5.2, "collide": true})
@@ -1272,6 +1362,7 @@ func _build_camp() -> void:
 	bmat.roughness = 0.9
 	B.box(board, Vector3(1.5, 1.06, 0.03), Vector3(0, 1.3, -0.02), B.color_mat(Color(0.25, 0.18, 0.12), 0.8), false)
 	B.quad(board, Vector2(1.4, 0.98), Vector3(0, 1.3, 0.0), bmat)
+	_solid(board, Vector3(1.5, 1.9, 0.15), Vector3(0, 0.95, -0.03))
 	for k in [-0.55, 0.55]:
 		B.cylinder(board, 0.02, 0.02, 1.9, Vector3(k, 0.95, -0.06), B.color_mat(Color(0.3, 0.25, 0.2), 0.8), false, 6)
 	Interactable.create(board, Vector3(0, 1.3, 0.1), Vector3(1.4, 1.0, 0.3), "Le tableau", func() -> void:
@@ -1286,7 +1377,7 @@ func _build_camp() -> void:
 	_campfire(fire)
 	# lampe de chantier sur trépied, braquée sur la régie
 	work_light = _obj("camp_light", c + Vector3(-3.0, 0, 2.6), rad_to_deg(atan2(-3.0, 2.6)))
-	B.model(work_light, "sf:work_light", Vector3.ZERO, 0.0, {"height": 1.6})
+	B.model(work_light, "sf:work_light", Vector3.ZERO, 0.0, {"height": 1.6, "collide": true})
 	var lamp := SpotLight3D.new()
 	lamp.light_color = Color(1.0, 0.86, 0.66)
 	lamp.light_energy = 5.0
@@ -1300,20 +1391,20 @@ func _build_camp() -> void:
 	Game.add_flare(lamp, 1.0, 1.0)
 	# groupe électrogène qui ronfle
 	generator = _obj("camp_generator", c + Vector3(-6.5, 0, -2.5), 30.0)
-	B.model(generator, "sf:generator", Vector3.ZERO, 0.0, {"width": 0.75})
+	B.model(generator, "sf:generator", Vector3.ZERO, 0.0, {"width": 0.75, "collide": true})
 	Sound.loop_at("generator_loop", generator, -4.0, 3.0, 30.0)
 	# mât d'antennes (le brouilleur : c'est pour ça que rien ne capte), diode rouge
 	antenna = _obj("camp_antenna", c + Vector3(-4.5, 0, -5.5))
-	B.cylinder(antenna, 0.03, 0.04, 3.2, Vector3(0, 1.6, 0), B.color_mat(Color(0.35, 0.35, 0.36), 0.5, 0.8), false, 8)
+	B.cylinder(antenna, 0.03, 0.04, 3.2, Vector3(0, 1.6, 0), B.color_mat(Color(0.35, 0.35, 0.36), 0.5, 0.8), true, 8)
 	B.model(antenna, "sf:antennas", Vector3(0, 3.0, 0), 0.0, {"height": 0.9})
-	B.box(antenna, Vector3(0.3, 0.4, 0.2), Vector3(0, 0.2, 0), B.color_mat(Color(0.12, 0.12, 0.13), 0.6, 0.4), false)
+	B.box(antenna, Vector3(0.3, 0.4, 0.2), Vector3(0, 0.2, 0), B.color_mat(Color(0.12, 0.12, 0.13), 0.6, 0.4), true)
 	var led := B.omni(antenna, Vector3(0, 3.3, 0), Color(1.0, 0.05, 0.05), 0.4, 2.0)
 	var blink := create_tween().set_loops()
 	blink.tween_callback(func() -> void: led.visible = not led.visible)
 	blink.tween_interval(0.7)
 	# la caisse des téléphones confisqués (ceux des sessions d'avant)
 	crate = _obj("camp_crate", c + Vector3(-0.6, 0, 2.2), 15.0)
-	B.model(crate, "plastic_crate_01", Vector3.ZERO, 0.0, {"height": 0.32})
+	B.model(crate, "plastic_crate_01", Vector3.ZERO, 0.0, {"height": 0.32, "collide": true})
 	for k in 8:
 		Props.phone(crate, Vector3(randf_range(-0.12, 0.12), 0.2 + k * 0.012, randf_range(-0.08, 0.08)), randf_range(0, 360),
 			[Color(0.05, 0.05, 0.06), Color(0.7, 0.68, 0.66), Color(0.12, 0.2, 0.35), Color(0.4, 0.1, 0.1)][k % 4])
@@ -1327,7 +1418,7 @@ func _build_camp() -> void:
 
 ## Feu de camp : cercle de pierres, bûches en tipi à moitié consumées, lit de braises, flammes, étincelles, fumée.
 func _campfire(holder: Node3D) -> void:
-	B.model(holder, "stone_fire_pit", Vector3.ZERO, 0.0, {"width": 1.2})
+	B.model(holder, "stone_fire_pit", Vector3.ZERO, 0.0, {"width": 1.2, "collide": true})
 	var coals := B.cylinder(holder, 0.34, 0.36, 0.05, Vector3(0, 0.04, 0), B.emissive(Color(1.0, 0.22, 0.04), 1.6), false, 14)
 	coals.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var char_mat := B.color_mat(Color(0.05, 0.04, 0.035), 0.95)
@@ -1450,6 +1541,7 @@ func _use_phone() -> void:
 		return
 	_phone_done = true
 	player.control_enabled = false
+	cutscene = true
 	var ui := PhoneUI.new()
 	add_child(ui)
 	var phone := Node3D.new()
@@ -1496,12 +1588,15 @@ func _use_phone() -> void:
 	phone.queue_free()
 	ui.queue_free()
 	player.control_enabled = true
+	cutscene = false
 
 
 # ================================================================== hommes au masque
 func _place_hunters() -> void:
 	var a := hunters[0] as Hunter
-	a.global_position = fire.global_position + Vector3(1.5, 0, 0.5)
+	# il sort du camp par son sentier, puis DESCEND le sentier principal vers la plaque d'égout : Théo voit sa lampe
+	# arriver de loin et doit se cacher (première rencontre, ~35 s après la sortie)
+	a.global_position = _path_point(desk.global_position, 0.7)
 	a.route = _route(0)
 	var b := hunters[1] as Hunter
 	b.global_position = van.global_position + van.global_basis.x * 1.4
@@ -1516,9 +1611,26 @@ func _route(k: int) -> Array:
 	var j_camp := _path_point(c, 0.0)
 	var j_hut := _path_point(h, 0.0)
 	if k == 0:
-		return [c + Vector3(-7, 0, 2), _path_point(c, 0.5), j_camp, j_camp.lerp(j_hut, 0.5), j_hut, _path_point(h, 0.75),
-			j_hut, j_camp, c + Vector3(4, 0, 7), c + Vector3(-3, 0, -7)]
+		return [j_camp, TRAIL[2], TRAIL[1], TRAIL[2], j_hut, _path_point(h, 0.75), j_hut, j_camp, _path_point(c, 0.5),
+			c + Vector3(-7, 0, 2), c + Vector3(-3, 0, -7), c + Vector3(4, 0, 7), _path_point(c, 0.5)]
 	return [c + Vector3(-5, 0, -3), c + Vector3(-8, 0, 4), _path_point(c, 0.35), c + Vector3(3, 0, 6), c + Vector3(6, 0, -1)]
+
+
+## La première fois qu'il voit la lampe d'un homme au masque : il comprend, et on lui dit comment se cacher.
+func _look_for_hunters() -> void:
+	var eye := player.eye_position()
+	for h in hunters:
+		var hh := h as Hunter
+		if hh.state == Hunter.S.HIDDEN:
+			continue
+		var head := hh.global_position + Vector3(0, 1.5, 0)
+		var to := head - eye
+		if to.length() < 32.0 and (-player.cam.global_basis.z).dot(to.normalized()) > 0.55 and has_los(eye, head):
+			_hunter_warned = true
+			Game.hud.say("Une lampe... Quelqu'un vient. Il a... un masque. C'est un des leurs !", 3.4)
+			await wait(3.6)
+			Game.hud.hint("Il voit bien mais entend mal : sors du sentier, accroupis-toi ([C]), éteins ta lampe ([F])", 7.0)
+			return
 
 
 # ================================================================== le drone
@@ -1713,6 +1825,11 @@ func _process(delta: float) -> void:
 	_check_traps()
 	_update_drone(delta)
 	_night_sounds(delta)
+	if _dust != null:
+		_dust.global_position = player.global_position + Vector3(0, 1.4, 0)
+		_dust_near.global_position = player.cam.global_position - player.cam.global_basis.z * 1.0
+	if not _hunter_warned:
+		_look_for_hunters()
 	if Input.is_action_just_pressed("throw") and stones > 0 and player.can_act():
 		_throw_stone()
 	# le feu vacille
@@ -1742,7 +1859,7 @@ func prewarm_extras() -> Array:
 	return out
 
 
-## Tests : --surfacetest=look|trap|trapmash|drone|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
+## Tests : --surfacetest=look|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
 func _surface_test(kind: String) -> void:
 	await wait(1.0)
 	player.set_flashlight(true, true)
@@ -1786,6 +1903,49 @@ func _surface_test(kind: String) -> void:
 				print("DRONE essai %d : distance %.1f m, abattu = %s" % [k + 1, to.length(), "oui" if drone == null or drone.down else "non"])
 		"drone":
 			_drone_cd = 0.0
+		"hitbox":
+			# Théo marche droit sur un objet de la carte du joueur qui a une hitbox automatique : il doit s'arrêter devant
+			for h in hunters:
+				(h as Node3D).process_mode = Node.PROCESS_MODE_DISABLED
+				(h as Node3D).visible = false
+			_drone_cd = 1e9
+			var autos := []
+			for n in MapLayout.collect(self):
+				if n.has_node("AutoCollide"):
+					autos.append(n)
+			print("HITBOX objets avec hitbox automatique : %d / %d" % [autos.size(), MapLayout.collect(self).size()])
+			for want in ["SM_MTable_001_1", "old_military_crate", "canvas_tent"]:
+				for n in autos:
+					var spec: Dictionary = n.get_meta("spec", {})
+					if not (str(spec.get("model", "")) + str(spec.get("part", ""))).contains(want):
+						continue
+					var c: Vector3 = (n as Node3D).global_position
+					var start := c + Vector3(0, 0, 3.0)
+					player.global_position = Vector3(start.x, floor_y(start) + 0.05, start.z)
+					player.set_look(0.0, 0.0)
+					await wait(0.3)
+					Input.action_press("move_forward")
+					await wait(2.5)
+					Input.action_release("move_forward")
+					var d := Vector2(player.global_position.x - c.x, player.global_position.z - c.z).length()
+					print("HITBOX %s : parti à 3.0 m, arrêté à %.2f m du centre (traversé = %s)" % [want, d, "OUI" if player.global_position.z < c.z else "non"])
+					break
+		"dronelook":
+			# Théo, lampe éteinte, suit le drone des yeux (personne ne patrouille) : on doit le voir arriver
+			for h in hunters:
+				(h as Node3D).process_mode = Node.PROCESS_MODE_DISABLED
+				(h as Node3D).visible = false
+			player.set_flashlight(false, true)
+			_drone_cd = 0.0
+			var t0 := 0.0
+			while t0 < 40.0:
+				if drone != null and is_instance_valid(drone):
+					var to := drone.global_position - player.eye_position()
+					player.set_look(atan2(-to.x, -to.z), atan2(to.y, Vector2(to.x, to.z).length()))
+					if fmod(t0, 1.0) < get_process_delta_time():
+						print("DRONE à %.1f m, %.1f m au-dessus" % [to.length(), to.y])
+				await get_tree().process_frame
+				t0 += get_process_delta_time()
 		"look":
 			# captures du décor : personne ne patrouille
 			for h in hunters:
@@ -1852,6 +2012,8 @@ class Drone extends Node3D:
 	var model: Node3D
 	var body: StaticBody3D
 	var led: OmniLight3D
+	var search: SpotLight3D
+	var strobe: OmniLight3D
 	var buzz: AudioStreamPlayer3D
 	var discs: Array[Node3D] = []
 	var down := false
@@ -1894,6 +2056,30 @@ class Drone extends Node3D:
 		dot.mesh = sm
 		dot.material_override = B.emissive(Color(1.0, 0.1, 0.08), 6.0, true)
 		led.add_child(dot)
+		# le projecteur braqué sur Théo : un cône dans la brume, on le voit arriver de loin
+		search = SpotLight3D.new()
+		search.light_color = Color(0.85, 0.9, 1.0)
+		search.light_energy = 7.0
+		search.spot_range = 18.0
+		search.spot_angle = 10.0
+		search.spot_attenuation = 0.8
+		search.light_volumetric_fog_energy = 6.0
+		add_child(search)
+		search.position = Vector3(0, -0.12, 0)
+		# feu à éclats blanc (double flash), comme un vrai drone de nuit
+		strobe = OmniLight3D.new()
+		strobe.light_color = Color(1, 1, 1)
+		strobe.light_energy = 2.0
+		strobe.omni_range = 5.0
+		add_child(strobe)
+		strobe.position = Vector3(0, 0.05, -0.12)
+		var sdot := MeshInstance3D.new()
+		var ssm := SphereMesh.new()
+		ssm.radius = 0.02
+		ssm.height = 0.04
+		sdot.mesh = ssm
+		sdot.material_override = B.emissive(Color(1, 1, 1), 10.0, true)
+		strobe.add_child(sdot)
 		body = StaticBody3D.new()
 		body.collision_layer = LAYER
 		body.collision_mask = 0
@@ -1927,6 +2113,11 @@ class Drone extends Node3D:
 		for d in discs:
 			d.rotate_object_local(Vector3.UP, delta * 90.0)
 		led.visible = fmod(t, 1.0) < 0.18
+		var ph := fmod(t, 1.4)
+		strobe.visible = ph < 0.05 or (ph > 0.16 and ph < 0.21)
+		var aim := p.global_position + Vector3(sin(t * 0.9) * 0.6, 0.9, cos(t * 0.7) * 0.6)
+		if (aim - search.global_position).length() > 0.5:
+			search.look_at(aim, Vector3.FORWARD if absf((aim - search.global_position).normalized().y) > 0.98 else Vector3.UP)
 
 	func view_transform() -> Transform3D:
 		var p: Player = level.player
@@ -1938,6 +2129,8 @@ class Drone extends Node3D:
 			return
 		down = true
 		led.visible = false
+		search.visible = false
+		strobe.visible = false
 		for d in discs:
 			d.visible = false
 		Sound.play_at("lamp_break_0", global_position, 4.0, 0.8, 6.0, 50.0)
@@ -2105,6 +2298,8 @@ class Hunter extends Node3D:
 		if _vis_cd > 0.0:
 			return
 		_vis_cd = 0.12
+		if level.cutscene and state != S.CHASE:
+			return
 		var dt := 0.12
 		var eye := global_position + Vector3(0, 1.6, 0)
 		var chest := p.global_position + Vector3(0, 0.6 if p.crouching else 1.1, 0)

@@ -132,7 +132,8 @@ static func mesh_from_model(slug: String, part := "") -> ArrayMesh:
 ## `kinds` : [[slug, part, poids, h_min, h_max], ...]
 ## Renvoie les troncs posés : [position, rayon] (arbres et rochers ; pas les buissons ni les jeunes pousses),
 ## pour leur donner une collision et en faire des obstacles (créature, regard d'un personnage).
-static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = [], ground := Callable(), view_dist := 150.0) -> Array:
+## `chunk` : taille des parcelles masquées d'un bloc au-delà de `view_dist` ; `fade` : elles apparaissent en fondu.
+static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = [], ground := Callable(), view_dist := 150.0, chunk := 50.0, fade := false) -> Array:
 	if kinds.is_empty():
 		kinds = [
 			["sf:pine_tree", "", 5.0, 11.0, 20.0],
@@ -179,7 +180,7 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 		elif not (part.contains("Shrub") or part.contains("Sapling")):
 			trunks.append([p, clampf(h * 0.017, 0.12, 0.38)])
 	# découpage en parcelles : chaque parcelle est masquée hors champ et au-delà de VIEW_DIST
-	const CHUNK := 50.0
+	var CHUNK := chunk
 	var VIEW_DIST := view_dist
 	for i in kinds.size():
 		if buckets[i].is_empty():
@@ -206,7 +207,7 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 			mmi.multimesh = mm
 			mmi.visibility_range_end = VIEW_DIST
 			mmi.visibility_range_end_margin = 10.0
-			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF if fade else GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			parent.add_child(mmi)
 			mmi.global_position = center
 	return trunks

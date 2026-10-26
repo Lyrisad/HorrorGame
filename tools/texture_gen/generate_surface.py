@@ -4,6 +4,7 @@
 - screen_stream.png : la page du direct sur l'écran de la régie (spectateurs, dons, vote pour la suite)
 - cb_label.png : l'étiquette scotchée sur la radio de la cabane (canal 19)
 - hut_map.png : la carte IGN punaisée dans la cabane, annotée au stylo par David Roche (session 13)
+- leaf_litter.png : feuilles mortes et aiguilles (décalque projeté au sol : sur les pièges, autour de la caméra)
 python generate_surface.py [dossier_sortie]
 """
 import math
@@ -307,6 +308,67 @@ def hut_map():
     print("   hut_map.png")
 
 
+def leaf_litter():
+    """Un tapis de feuilles mortes (chêne, hêtre, quelques aiguilles) détouré, plus dense au centre : projeté par un
+    Decal, il recouvre le sol ET ce qui est posé dessus (les mâchoires d'un piège à loup)."""
+    S = 1024
+    lrng = np.random.default_rng(5)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    browns = [(92, 62, 34), (118, 80, 40), (74, 50, 30), (135, 98, 52), (60, 44, 30), (104, 72, 44), (150, 112, 60)]
+
+    def leaf(cx, cy, length, ang, col, kind):
+        lay = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        dd = ImageDraw.Draw(lay)
+        pts = []
+        n = 28
+        for k in range(n + 1):
+            t = k / n
+            w = math.sin(math.pi * t) ** (0.8 if kind == 0 else 1.2) * length * (0.36 if kind == 0 else 0.26)
+            if kind == 0:  # chêne : bord lobé
+                w *= 0.75 + 0.25 * abs(math.sin(t * math.pi * 4.5))
+            pts.append((t * length - length / 2, w))
+        outline = pts + [(x, -y) for (x, y) in reversed(pts)]
+        ca, sa = math.cos(ang), math.sin(ang)
+        poly = [(cx + x * ca - y * sa, cy + x * sa + y * ca) for (x, y) in outline]
+        a = int(lrng.uniform(225, 255))
+        dd.polygon(poly, fill=col + (a,))
+        # nervure centrale et queue, un peu plus sombres
+        dark = tuple(int(c * 0.62) for c in col) + (a,)
+        dd.line([(cx - length / 2 * ca, cy - length / 2 * sa), (cx + length / 2 * ca, cy + length / 2 * sa)], fill=dark, width=2)
+        dd.line([(cx - length / 2 * ca, cy - length / 2 * sa), (cx - (length / 2 + length * 0.12) * ca, cy - (length / 2 + length * 0.12) * sa)], fill=dark, width=2)
+        return lay
+
+    def needles(cx, cy):
+        lay = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        dd = ImageDraw.Draw(lay)
+        for _ in range(int(lrng.uniform(6, 14))):
+            ang = lrng.uniform(0, math.tau)
+            ln = lrng.uniform(18, 34)
+            x0, y0 = cx + lrng.uniform(-14, 14), cy + lrng.uniform(-14, 14)
+            dd.line([(x0, y0), (x0 + math.cos(ang) * ln, y0 + math.sin(ang) * ln)], fill=(88, 66, 40, 235), width=2)
+        return lay
+
+    for i in range(520):
+        # densité qui baisse vers le bord : le tapis n'a pas de contour net
+        r = (lrng.random() ** 0.75) * S * 0.47
+        a0 = lrng.uniform(0, math.tau)
+        cx, cy = S / 2 + math.cos(a0) * r, S / 2 + math.sin(a0) * r
+        if lrng.random() < 0.18:
+            img = Image.alpha_composite(img, needles(cx, cy))
+            continue
+        col = browns[int(lrng.integers(0, len(browns)))]
+        f = lrng.uniform(0.75, 1.1)
+        col = tuple(int(min(255, c * f)) for c in col)
+        img = Image.alpha_composite(img, leaf(cx, cy, lrng.uniform(48, 92), lrng.uniform(0, math.tau), col, int(lrng.integers(0, 2))))
+    # ombre de contact entre les feuilles (elles sont empilées), grain
+    a = np.array(img, np.float32)
+    shade = np.array(img.split()[3].filter(ImageFilter.GaussianBlur(6)), np.float32) / 255.0
+    a[..., :3] *= (0.8 + 0.2 * (1.0 - shade))[..., None]
+    a[..., :3] *= lrng.uniform(0.9, 1.0, (S, S, 1))
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, "leaf_litter.png"))
+    print("   leaf_litter.png")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     spray_13()
@@ -315,3 +377,4 @@ if __name__ == "__main__":
     cb_label()
     missing_posters()
     hut_map()
+    leaf_litter()

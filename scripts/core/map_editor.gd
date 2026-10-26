@@ -66,6 +66,7 @@ var _dirty := false
 var _fixed_body: StaticBody3D
 var _edit_bodies: Array[Node] = []
 var _catalog: Array = []  ## [libellé, modèle, pièce]
+var _pick_seq := 0  ## numéro du dernier modèle demandé dans la liste (les demandes plus anciennes sont abandonnées)
 var _shown: Array[int] = []
 var _reset_armed := 0.0
 var _sel_mat: StandardMaterial3D
@@ -154,6 +155,8 @@ func open() -> void:
 		_camtest()
 	elif Game.args.has("edlap"):
 		_laptest()
+	elif Game.args.has("edpick"):
+		_picktest()
 
 
 func close() -> void:
@@ -226,7 +229,8 @@ func _attach_body(n: Node3D) -> void:
 	n.add_child(body)
 	for node in n.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
-		if mi.mesh == null:
+		# un objet déplaçable posé DANS un autre (la radio dans la cabane) a sa propre zone de clic
+		if mi.mesh == null or _decor_of(mi) != n:
 			continue
 		var shape := mi.mesh.create_trimesh_shape()
 		if shape == null:
@@ -273,6 +277,10 @@ func _build_ui(map_name: String) -> void:
 	col.add_child(search)
 	list = ItemList.new()
 	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# la liste ne prend jamais le clavier : sinon ZQSD (caméra) y « cherche » une lettre — D sautait sur
+	# « dead tree trunk » et en créait un à chaque répétition de la touche, abandonné au point (0, 0, 0)
+	list.focus_mode = Control.FOCUS_NONE
+	list.allow_search = false
 	list.item_selected.connect(_on_pick_model)
 	col.add_child(list)
 	for spec in [["Sauvegarder  (Ctrl+S)", _save], ["Remettre le décor d'origine", _reset], ["Quitter l'éditeur  (F8)", close]]:
@@ -877,7 +885,11 @@ func _on_pick_model(idx: int) -> void:
 	var slug: String = e[1]
 	var part: String = e[2]
 	_set_status("Chargement de « %s »..." % e[0])
+	_pick_seq += 1
+	var seq := _pick_seq
 	await get_tree().process_frame
+	if seq != _pick_seq or not active:
+		return  # un autre modèle a été demandé entre-temps : seul le dernier est créé
 	var n: Node3D
 	if slug.begins_with("proc:"):
 		n = MapLayout.spawn_entry({"model": slug}, root)
@@ -910,20 +922,7 @@ func _on_pick_model(idx: int) -> void:
 
 ## Les gros objets posés au sol bloquent le joueur, comme les meubles d'origine.
 func _auto_collide(n: Node3D) -> void:
-	var spec: Dictionary = n.get_meta("spec", {})
-	if bool(spec.get("collide", false)) or not bool(spec.get("center", true)):
-		return
-	var sz: Vector3 = n.get_meta("size", Vector3.ZERO)
-	if sz.y > 0.35 and maxf(sz.x, sz.z) > 0.35:
-		var body := StaticBody3D.new()
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = sz
-		cs.shape = bs
-		cs.position = Vector3(0, sz.y * 0.5, 0)
-		body.add_child(cs)
-		n.add_child(body)
-		spec["collide"] = true
+	MapLayout.auto_collide(n)
 
 
 func _duplicate() -> void:
@@ -1137,6 +1136,42 @@ func _camtest() -> void:
 
 
 ## --edlap : prend l'ordinateur (objet de l'histoire), le pose ailleurs, refuse de le supprimer, sauvegarde.
+## --edpick=id1,id2 : vise chaque élément déplaçable (même posé dans un autre, comme la radio dans la cabane)
+## et clique dessus ; affiche ce qui est sélectionné. Ne sauvegarde rien.
+func _picktest() -> void:
+	await get_tree().create_timer(1.0).timeout
+	var by_id := {}
+	for o in MapLayout.movables(root):
+		by_id[str(o.get_meta("editobj"))] = o
+	for id in str(Game.args["edpick"]).split(","):
+		var o: Node3D = by_id.get(id)
+		if o == null:
+			print("EDPICK %s : introuvable" % id)
+			continue
+		var host := o.get_parent() as Node3D
+		# vise le centre de ses propres maillages (pas ceux des objets posés dessus)
+		var target := o.global_position
+		for mi in o.find_children("*", "MeshInstance3D", true, false):
+			if (mi as MeshInstance3D).mesh != null and _decor_of(mi) == o:
+				target = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb().get_center()
+				break
+		# la caméra au milieu de la pièce (ou devant la table), à hauteur d'yeux
+		cam.global_position = host.global_transform * (Vector3(-0.8, 1.7, 0.1) if id.begins_with("surface_hut") else Vector3(0, 1.7, 1.8))
+		var dir := target - cam.global_position
+		_yaw = atan2(-dir.x, -dir.z)
+		_pitch = atan2(dir.y, Vector2(dir.x, dir.z).length())
+		for i in 3:
+			await get_tree().process_frame
+		_pick(cam.unproject_position(target))
+		var got := "rien"
+		if selected != null:
+			got = str(selected.get_meta("editobj")) if selected.has_meta("editobj") else str((selected.get_meta("spec", {}) as Dictionary).get("model", "?"))
+		print("EDPICK %s → sélectionné : %s" % [id, got])
+		_select(null)
+	_dirty = false
+	close()
+
+
 func _laptest() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var objs := MapLayout.movables(root)

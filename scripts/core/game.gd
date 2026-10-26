@@ -299,7 +299,7 @@ func boot(world_node: Node) -> void:
 		var p := {"debug": true}
 		if args.has("checkpoint"):
 			p["checkpoint"] = args["checkpoint"]
-		if args.has("editor") or args.has("edtest") or args.has("edclick") or args.has("edcam") or args.has("edlap"):
+		if args.has("editor") or args.has("edtest") or args.has("edclick") or args.has("edcam") or args.has("edlap") or args.has("edpick"):
 			p["editor"] = true
 		start_level(str(args["level"]), p)
 	else:
