@@ -72,7 +72,8 @@ var _phone_done := false
 var _snap_cd := 20.0
 var _owl_cd := 12.0
 var _s13_heard := false
-var cutscene := false  ## une scène où Théo ne contrôle rien (vidéo, téléphone) : les hommes au masque ne le repèrent pas
+var cutscene := false  ## une scène où Théo ne contrôle rien (vidéo, téléphone) : les hommes au masque ne bougent plus
+var calm := 0.0  ## secondes de répit après une cinématique : personne ne le repère en sortant de la vidéo
 var _hunter_warned := false
 var _stones_told := false
 var _dust: GPUParticles3D
@@ -120,6 +121,7 @@ func _ready() -> void:
 	for k in 2:
 		var h := Hunter.new()
 		h.level = self
+		h.outfit = k
 		add_child(h)
 		hunters.append(h)
 	_place_hunters()
@@ -1242,7 +1244,8 @@ func _play_cam13() -> void:
 		# test (--surfacetest=cam) : où est sa caméra par rapport aux sentiers, et ce qu'elle filme
 		if Game.args.has("surfacetest") and int(t) != said:
 			said = int(t)
-			print("CAM13 t=%d plan=%d pos=%s hors sentier=%.2f m" % [said, k, pos.snapped(Vector3.ONE * 0.1), maxf(_path_dist(pos), 0.0)])
+			print("CAM13 t=%d plan=%d pos=%s hors sentier=%.2f m | homme au masque à %.0f m" % [said, k, pos.snapped(Vector3.ONE * 0.1),
+				maxf(_path_dist(pos), 0.0), (hunters[0] as Node3D).global_position.distance_to(player.global_position)])
 			if Game.args.has("shot") and said % 2 == 1:
 				vp.get_texture().get_image().save_png("%s_video_%02d.png" % [str(Game.args["shot"]), said])
 	if is_instance_valid(pant):
@@ -1258,6 +1261,7 @@ func _play_cam13() -> void:
 	vp.queue_free()
 	player.control_enabled = true
 	cutscene = false
+	calm = 4.0
 	Game.hud.say("...Une cabane avec une radio. Il lui faut une batterie. Et leur camp en a une.", 4.0)
 	if stage == "start":
 		Game.hud.objective("La cabane du garde forestier (à gauche du sentier)")
@@ -1877,7 +1881,7 @@ func _take_battery() -> void:
 	Game.level_params = params
 	Game.hud.say("Je l'ai. Lourde... Vite, à la cabane.", 2.6)
 	await wait(2.4)
-	Sound.play_at("door_slam", van.global_position + Vector3(0, 1.0, 0), 4.0, 0.85, 6.0, 50.0)
+	Sound.play_at("door_slam", van.global_position + Vector3(0, 1.0, 0), 12.0, 0.85, 14.0, 90.0)
 	await wait(0.7)
 	(hunters[1] as Hunter).wake(true)
 	Game.glitch(0.4)
@@ -1944,6 +1948,7 @@ func _use_phone() -> void:
 	ui.queue_free()
 	player.control_enabled = true
 	cutscene = false
+	calm = 4.0
 
 
 # ================================================================== hommes au masque
@@ -1974,14 +1979,14 @@ func _route(k: int) -> Array:
 ## Un homme au masque vient de le repérer : sa radio grésille (il prévient l'autre) et une note stridente part ;
 ## Théo ne le dit qu'une fois dans la partie. Quand il le perd, sa radio grésille encore (il rend compte).
 func on_spotted(h: Node3D) -> void:
-	Sound.play("spotted_sting", -5.0, randf_range(0.97, 1.03), "UI")
-	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), -2.0, 1.0, 4.0, 40.0)
+	Sound.play("spotted_sting", 3.0, randf_range(0.97, 1.03), "UI")
+	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), 6.0, 1.0, 8.0, 50.0)
 	if Game.first_time("hunter_spotted"):
 		Game.hud.say("Il m'a vu... COURS !", 1.8)
 
 
 func on_lost(h: Node3D) -> void:
-	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), -4.0, 0.94, 4.0, 40.0)
+	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), 3.0, 0.94, 8.0, 50.0)
 
 
 ## La première fois qu'il passe à côté d'un tas de cailloux (une fois dans la partie) : Théo le remarque.
@@ -2023,7 +2028,7 @@ func _update_drone(delta: float) -> void:
 		feed.cam.global_transform = drone.view_transform()
 		# il signale Théo aux hommes au masque : l'abattre a un vrai intérêt
 		_report_cd -= delta
-		if _report_cd <= 0.0:
+		if _report_cd <= 0.0 and not cutscene and calm <= 0.0:
 			_report_cd = 11.0
 			if has_los(drone.global_position, player.eye_position()):
 				for h in hunters:
@@ -2031,7 +2036,7 @@ func _update_drone(delta: float) -> void:
 						(h as Hunter).hear(player.global_position, 999.0)
 						break
 		return
-	if stage in ["chase", "done"] or drones_left <= 0 or editing:
+	if stage in ["chase", "done"] or drones_left <= 0 or editing or cutscene:
 		return
 	_drone_cd -= delta
 	if _drone_cd <= 0.0:
@@ -2040,13 +2045,36 @@ func _update_drone(delta: float) -> void:
 		drone = Drone.new()
 		drone.level = self
 		add_child(drone)
-		drone.global_position = player.global_position + Vector3(randf_range(-8, 8), 10.0, -16.0)
+		# il arrive de devant, haut, puis descend se mettre au-dessus du sentier : on voit ses feux approcher
+		var ahead := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
+		drone.global_position = player.global_position + ahead * 18.0 + Vector3(randf_range(-5, 5), 12.0, 0)
 		_feed_mat.set_shader_parameter("static_mix", 0.0)
 		await wait(4.0)
 		if drones_left == 1:
 			Game.hud.say("C'est quoi ce bourdonnement... Un drone ?! Il me filme...", 3.2)
 		else:
 			Game.hud.say("Un autre drone... Ils en avaient un deuxième.", 3.0)
+
+
+## Où le drone se tient : à ~6,5 m de Théo, en tournant lentement, mais toujours au-dessus d'un endroit dégagé
+## (sentier, clairière, route), à ~3,8 m. Sous les sapins il se prendrait les branches : on l'entendrait sans le voir.
+func drone_spot(near: Vector3, t: float) -> Vector3:
+	var q := near
+	for k in 2:
+		var o := t * 0.12 + k * PI
+		var c := near + Vector3(cos(o), 0, sin(o)) * 6.5
+		q = c if _clear_dist(c) < 0.3 else _nearest_open(c)
+		if Vector2(q.x - near.x, q.z - near.z).length() > 4.0:
+			break
+	return Vector3(q.x, floor_y(q) + 3.8, q.z)
+
+
+## Le point dégagé le plus proche : sur un sentier, ou sur la route.
+func _nearest_open(p: Vector3) -> Vector3:
+	var q := _nearest_on_trail(p)
+	if absf(p.z - ROAD_Z) < Vector2(p.x - q.x, p.z - q.z).length():
+		q = Vector3(p.x, 0, ROAD_Z + clampf(p.z - ROAD_Z, -2.5, 2.5))
+	return q
 
 
 func on_drone_down(_d: Node) -> void:
@@ -2206,6 +2234,7 @@ func _process(delta: float) -> void:
 	super._process(delta)
 	if player == null or dying or editing:
 		return
+	calm = maxf(0.0, calm - delta)
 	_check_traps()
 	_update_drone(delta)
 	_night_sounds(delta)
@@ -2245,7 +2274,7 @@ func prewarm_extras() -> Array:
 	return out
 
 
-## Tests : --surfacetest=look|flee|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
+## Tests : --surfacetest=look|outfits|patrol|flee|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
 func _surface_test(kind: String) -> void:
 	await wait(1.0)
 	player.set_flashlight(true, true)
@@ -2360,6 +2389,33 @@ func _surface_test(kind: String) -> void:
 			h2.state = Hunter.S.SEARCH
 		"chase":
 			_release_creature(true)
+		"outfits":
+			# les deux hommes au masque côte à côte, face à Théo, à 3 m (pour comparer leurs tenues)
+			for k in 2:
+				var hk := hunters[k] as Hunter
+				hk.wake(false)
+				hk.global_position = player.global_position + fwd * 2.4 + Vector3(-fwd.z, 0, fwd.x) * (0.6 if k == 0 else -0.6)
+				hk.global_position.y = floor_y(hk.global_position)
+				hk.heading = player.yaw + PI
+				hk.rotation.y = player.yaw + PI
+				hk.route = []
+				hk.state = Hunter.S.SEARCH
+				await wait(0.5)
+				hk.actor.play("idle", 0.0)
+				hk.process_mode = Node.PROCESS_MODE_DISABLED
+			_drone_cd = 1e9
+			calm = 1e9
+		"patrol":
+			# Théo reste à la sortie : où sont les hommes au masque et le drone, toutes les 2 s
+			for i in 35:
+				await wait(2.0)
+				var h0 := hunters[0] as Hunter
+				var dr := "aucun"
+				if drone != null and is_instance_valid(drone):
+					dr = "%s (à %.0f m)" % [drone.global_position.snapped(Vector3.ONE * 0.1), drone.global_position.distance_to(player.global_position)]
+				print("RONDE t=%d masque1=%s %s à %.0f m visible=%s | masque2=%s | drone=%s" % [(i + 1) * 2, Hunter.S.keys()[h0.state],
+					h0.global_position.snapped(Vector3.ONE * 0.1), h0.global_position.distance_to(player.global_position), h0.is_visible_in_tree(),
+					Hunter.S.keys()[(hunters[1] as Hunter).state], dr])
 		"flee":
 			# sur la route : il le repère à 10 m, Théo sprinte vers l'ouest (sans lampe si --dark) ; on mesure l'écart
 			player.global_position = Vector3(-4.0, 0.05, ROAD_Z + 1.5)
@@ -2395,7 +2451,12 @@ func _surface_test(kind: String) -> void:
 		"phone":
 			_use_phone()
 		"cam":
+			# la vidéo démarre tard (vers 22 s) : l'homme au masque est déjà en train de descendre le sentier
+			if Game.args.has("camlate"):
+				await wait(20.0)
 			_play_cam13()
+			await wait(26.0)
+			print("APRÈS LA VIDÉO : homme au masque à %.0f m, état %s" % [(hunters[0] as Node3D).global_position.distance_to(player.global_position), Hunter.S.keys()[(hunters[0] as Hunter).state]])
 		"dump":
 			for n in MapLayout.movables(self):
 				var nd := n as Node3D
@@ -2451,6 +2512,17 @@ class Drone extends Node3D:
 				add_child(disc)
 				disc.position = c
 				discs.append(disc)
+		# feux de navigation au bout des bras (rouges devant, verts derrière) : on le repère dans le ciel noir
+		for d in discs:
+			var front: bool = d.position.z < 0.0
+			var nav := MeshInstance3D.new()
+			var nsm := SphereMesh.new()
+			nsm.radius = 0.014
+			nsm.height = 0.028
+			nav.mesh = nsm
+			nav.material_override = B.emissive(Color(1.0, 0.08, 0.05) if front else Color(0.1, 1.0, 0.2), 14.0, true)
+			add_child(nav)
+			nav.position = d.position + Vector3(0, -0.035, 0)
 		led = OmniLight3D.new()
 		led.light_color = Color(1.0, 0.1, 0.08)
 		led.light_energy = 0.9
@@ -2477,14 +2549,14 @@ class Drone extends Node3D:
 		# feu à éclats blanc (double flash), comme un vrai drone de nuit
 		strobe = OmniLight3D.new()
 		strobe.light_color = Color(1, 1, 1)
-		strobe.light_energy = 2.0
-		strobe.omni_range = 5.0
+		strobe.light_energy = 5.0
+		strobe.omni_range = 9.0
 		add_child(strobe)
 		strobe.position = Vector3(0, 0.05, -0.12)
 		var sdot := MeshInstance3D.new()
 		var ssm := SphereMesh.new()
-		ssm.radius = 0.02
-		ssm.height = 0.04
+		ssm.radius = 0.03
+		ssm.height = 0.06
 		sdot.mesh = ssm
 		sdot.material_override = B.emissive(Color(1, 1, 1), 10.0, true)
 		strobe.add_child(sdot)
@@ -2507,8 +2579,7 @@ class Drone extends Node3D:
 		var p: Player = level.player
 		if p == null:
 			return
-		orbit += delta * 0.16
-		var target := p.global_position + Vector3(cos(orbit) * 6.5, 4.6 + sin(t * 0.7) * 0.4, sin(orbit) * 6.5)
+		var target: Vector3 = level.drone_spot(p.global_position, t) + Vector3(0, sin(t * 0.7) * 0.3, 0)
 		var want := (target - global_position) * 1.1
 		if want.length() > 6.5:
 			want = want.normalized() * 6.5
@@ -2562,6 +2633,7 @@ class Hunter extends Node3D:
 	const WALK := 1.15
 	const RUN := 3.6  ## gilet, rangers, masque à gaz : il court lourdement, moins vite que Théo qui sprinte
 	const JOG := 2.4  ## essoufflé dans son masque
+	const MASK_B_OFFSET := Vector3(0, 0.03, -0.07)  ## vieux masque à tuyau sur l'os de la tête (repère du personnage)
 	var level
 	var camp := Vector3.ZERO  ## où il va d'abord (la batterie volée)
 	var route: Array = []
@@ -2583,19 +2655,29 @@ class Hunter extends Node3D:
 	var winded := false
 	var _step := 0.0
 	var _chased_at := -100.0  ## dernière fois qu'il le poursuivait (s) : le retrouver juste après n'est pas un nouveau « repéré »
+	var outfit := 0  ## 0 : celui qui patrouille (tout en noir, masque GP-5) ; 1 : celui du van (tenue de chasse, gilet orange)
 
 	func _ready() -> void:
 		actor = Actor.new()
 		actor.character = "hunter"  ## le modèle du ravisseur, avec sa course de forêt
 		actor.ready.connect(func() -> void:
-			actor.tint("", Color(0.16, 0.16, 0.17), 0.85)
 			actor.hide_material("helmet")
 			var mask := Node3D.new()
-			B.model(mask, "sf:gasmask_gp5", Vector3.ZERO, 180.0, {"remove": ["Icosphere"], "height": 0.43})
-			actor.attach("Head", mask, Vector3(0, -0.2, -0.1)), CONNECT_ONE_SHOT)
+			if outfit == 0:
+				# treillis noir, masque GP-5
+				actor.tint("", Color(0.16, 0.16, 0.17), 0.85)
+				B.model(mask, "sf:gasmask_gp5", Vector3.ZERO, 180.0, {"remove": ["Icosphere"], "height": 0.43})
+				actor.attach("Head", mask, Vector3(0, -0.2, -0.1))
+			else:
+				# tenue de chasse kaki, gilet orange fluo de chasseur, vieux masque à tuyau
+				actor.retexture("body", load("res://assets/characters/hunter/hunter_b_body.png"), 0.85)
+				actor.tint("equipment", Color(0.45, 0.4, 0.3), 0.85)
+				B.model(mask, "old_gas_mask", Vector3.ZERO, 180.0, {"center": false})
+				actor.attach("Head", mask, MASK_B_OFFSET), CONNECT_ONE_SHOT)
 		add_child(actor)
 		lamp = SpotLight3D.new()
-		lamp.light_color = Color(1.0, 0.95, 0.85)
+		# lampe LED blanche pour l'un, vieille lampe halogène jaunâtre pour l'autre
+		lamp.light_color = Color(1.0, 0.95, 0.85) if outfit == 0 else Color(1.0, 0.82, 0.55)
 		lamp.light_energy = 6.0
 		lamp.spot_range = 24.0
 		lamp.spot_angle = 18.0
@@ -2638,6 +2720,10 @@ class Hunter extends Node3D:
 
 	func _process(delta: float) -> void:
 		if state == S.HIDDEN or level == null or level.dying:
+			return
+		# pendant une cinématique (vidéo, téléphone), il ne s'approche pas : il attend où il est
+		if level.cutscene and state != S.CHASE:
+			actor.locomote("walk", 0.0, "idle")
 			return
 		var p: Player = level.player
 		_vision(delta, p)
@@ -2719,7 +2805,7 @@ class Hunter extends Node3D:
 					global_position.z = c.z + out.z
 		rotation.y = heading
 		global_position.y = level.floor_y(global_position)
-		actor.locomote("run" if speed > 1.8 else "walk", speed if want_speed > 0.0 else 0.0, "idle")
+		actor.locomote("run" if speed > 3.0 else "jog" if speed > 1.7 else "walk", speed if want_speed > 0.0 else 0.0, "idle")
 		lamp.rotation_degrees.y = sin(Time.get_ticks_msec() / 900.0) * (6.0 if state == S.CHASE else 18.0)
 
 	func _flat(v: Vector3) -> Vector3:
@@ -2732,7 +2818,7 @@ class Hunter extends Node3D:
 		if _vis_cd > 0.0:
 			return
 		_vis_cd = 0.12
-		if level.cutscene and state != S.CHASE:
+		if (level.cutscene or level.calm > 0.0) and state != S.CHASE:
 			return
 		var dt := 0.12
 		var eye := global_position + Vector3(0, 1.6, 0)

@@ -19,8 +19,14 @@
  },
  {
   "name": "run",
-  "frames": 17,
-  "seconds": 0.5666666666666667,
-  "speed": 3.057
+  "frames": 22,
+  "seconds": 0.7333333333333333,
+  "speed": 3.8
+ },
+ {
+  "name": "jog",
+  "frames": 24,
+  "seconds": 0.8,
+  "speed": 2.668
  }
 ]

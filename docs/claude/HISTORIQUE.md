@@ -138,6 +138,14 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    3,6 m/s, s'essouffle après 6 s (trot 2,4), le perd après 3 s hors de vue (portée 20 m lampe allumée, 13 m
    éteinte) ; repéré = note stridente + grésillement de sa radio, ses pas et son souffle s'entendent ; répliques
    et indices dits une seule fois par partie (même après une mort).
+33. « Il court encore comme un golmon », « une tenue différente, on sait pas qui est qui », « le premier n'est pas
+   là », « le drone est coincé dans le trou, ça bourdonne mais je le vois pas », « portière et son du repérage à
+   peine audibles », « pendant la vidéo de la caméra le mec arrive et en sortant il est là, bouh ». Fait : course
+   104_37 (droite, grande foulée) + trot 16_35 quand il s'essouffle ; celui du van en tenue de chasse kaki, gilet
+   orange fluo, vieux masque à tuyau, lampe jaunâtre (l'autre tout en noir, GP-5, lampe blanche) ; le drone ne
+   tourne plus dans les sapins (au-dessus des sentiers / de la route, à ~6,5 m, feux rouges/verts, flash plus fort)
+   et arrive de face ; portière +8 dB, repérage +8 dB ; pendant une cinématique les hommes au masque s'arrêtent, le
+   drone n'arrive pas, puis 4 s de répit. Dans le test, le premier homme descend bien le sentier (~30 s).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

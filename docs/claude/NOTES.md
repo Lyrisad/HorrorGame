@@ -34,7 +34,10 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - Clip option `best_loop` (retarget.py): search the best loop ANYWHERE in the capture (a run that starts from
   standing), also for clips < 1.33 s that the default search skips. DON'T rebuild "kidnapper": the shipped glb was
   made by an older retarget.py, a rebuild changes its walk/drag loops (drag loops badly) used in the house. The
-  forest masked men use their own character "hunter" (same Rocketbox model; idle, walk, strike + run 16_55).
+  forest masked men use their own character "hunter" (same Rocketbox model; idle, walk, strike, run = 104_37
+  ~3.8 m/s, jog = 16_35 ~2.7 m/s; rejected: 35_17 crossed feet, 16_55 hunched "golmon", 09_xx hands in front,
+  02_03 head up). Pick runs with the BVH stick-figure preview + metrics (feet crossing, lean, arm swing) and
+  tools/render_anim.gd side/front sheets.
 - Retarget gotchas: find the loop point BEFORE measuring travel/speed; CMU BVH frame 0 is a calibration T-pose
   (start ≥ 2); non-locomotion clips use average body facing; alignment must use the SAME reference child on both
   rigs (PREF_CHILD: pelvis→spine, upper spine→neck) or the torso twists. Corpses: static frames of 90_16 /
@@ -284,6 +287,16 @@ Keep it current — add a line whenever you learn something non-obvious. History
   hunters' and the drone's GeometryInstances go to layer 10 during the video (vcam sees 1|2 only), "Les téléphones" = a stranger's
   phone (Romain), "Aucun service" → jammer explanation (Théo's own phone stays in his inventory). Radio call →
   « Ouvrez la trappe » → creature from S13 → road → whistle → pole-camera reveal. Checkpoints "carry" / "chase".
+  Two outfits (Hunter.outfit): 0 = patrols from the start, all black (tint 0.16), GP-5 mask, white LED lamp;
+  1 = the van man, hunting clothes: body texture hunter_b_body.png (tools/texture_gen/generate_hunter_outfit.py:
+  khaki recolour of the Rocketbox atlas, plate carrier → blaze orange), Poly Haven old_gas_mask with hose
+  (center false, rot 180, MASK_B_OFFSET), yellowish lamp. Actor.retexture(match, tex). Locomotion: "run" > 3.0
+  m/s, "jog" > 1.7, else walk. During a cutscene (cam13 video, phone) hunters stand still (unless chasing), the
+  drone countdown pauses, then `calm` = 4 s: no spotting, no drone report. Drone: drone_spot() = ~6.5 m from Théo,
+  slowly turning, snapped to open ground (_clear_dist / _nearest_open: trail or road) at +3.8 m — before it
+  orbited inside the pine crowns (heard, never seen); spawns ahead of Théo's view, red/green arm LEDs, strobe 5.
+  door_slam +12 dB (unit 14), spotted_sting +3 dB, radio_squelch +6 dB. Tests: outfits (both side by side,
+  frozen), patrol (positions every 2 s), cam --camlate (video at ~22 s, prints where hunter 0 is after).
   Hunters (character "hunter"): WALK 1.15, RUN 3.6 for ~6 s (wind), then JOG 2.4 until wind > 0.5 (Théo: 4.7
   for 6.5 s, then 1.95); in CHASE he sees 20 m (flashlight on) / 13 m (off) and gives up after 3 s out of sight
   (→ SEARCH, level.on_lost = radio squelch). Spotted → level.on_spotted: spotted_sting (UI) + radio_squelch at him,

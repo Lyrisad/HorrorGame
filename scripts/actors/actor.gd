@@ -194,6 +194,22 @@ func tint(match: String, color: Color, roughness := -1.0) -> void:
 			m.set_surface_override_material(s, nm)
 
 
+## Remplace la texture des matériaux dont le nom contient `match` (une autre tenue sur le même modèle).
+func retexture(match: String, texture: Texture2D, roughness := -1.0) -> void:
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for s in m.mesh.get_surface_count():
+			var mat := m.get_active_material(s)
+			if mat == null or not (mat is StandardMaterial3D) or not mat.resource_name.to_lower().contains(match):
+				continue
+			var nm := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+			nm.albedo_texture = texture
+			nm.albedo_color = Color.WHITE
+			if roughness >= 0.0:
+				nm.roughness = roughness
+			m.set_surface_override_material(s, nm)
+
+
 ## Rend invisibles les surfaces dont le matériau contient `match` (ex. casque).
 func hide_material(match: String) -> void:
 	var invisible := StandardMaterial3D.new()
