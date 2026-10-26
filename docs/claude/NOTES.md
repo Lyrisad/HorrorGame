@@ -295,7 +295,14 @@ Keep it current — add a line whenever you learn something non-obvious. History
   drone countdown pauses, then `calm` = 4 s: no spotting, no drone report. Drone: drone_spot() = ~6.5 m from Théo,
   slowly turning, snapped to open ground (_clear_dist / _nearest_open: trail or road) at +3.8 m — before it
   orbited inside the pine crowns (heard, never seen); spawns ahead of Théo's view, red/green arm LEDs, strobe 5.
-  door_slam +12 dB (unit 14), spotted_sting +3 dB, radio_squelch +6 dB. Tests: outfits (both side by side,
+  door_slam +12 dB (unit 14), spotted_sting +3 dB, radio_squelch +6 dB. prewarm_extras' temp Drone gets its
+  "prewarm_temp" meta BEFORE add_child and plays no buzz (it used to buzz at (0,0,0) = the manhole under Théo
+  while shaders compiled: "the drone is stuck in the hole"). Any prewarm node must not start sounds in _ready.
+  Test patrol prints "bourdonnements=" (playing players under a Drone). NEVER keep a looping sound silent with
+  stream_paused: Godot's NOTIFICATION_UNPAUSED sets stream_paused = false on every player when the tree unpauses
+  (loading, pause menu, inventory). The dormant creature (at (0,0,0) = the forest exit manhole) breathed at Théo's
+  feet that way; Creature now stop()s its breath and _breathe() restarts it. (night.gd's party music toggle still
+  uses stream_paused.) `--surfacetest=sounds` lists every playing sound with distance/height around Théo. Tests: outfits (both side by side,
   frozen), patrol (positions every 2 s), cam --camlate (video at ~22 s, prints where hunter 0 is after).
   Hunters (character "hunter"): WALK 1.15, RUN 3.6 for ~6 s (wind), then JOG 2.4 until wind > 0.5 (Théo: 4.7
   for 6.5 s, then 1.95); in CHASE he sees 20 m (flashlight on) / 13 m (off) and gives up after 3 s out of sight

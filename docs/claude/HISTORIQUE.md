@@ -146,6 +146,10 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    tourne plus dans les sapins (au-dessus des sentiers / de la route, à ~6,5 m, feux rouges/verts, flash plus fort)
    et arrive de face ; portière +8 dB, repérage +8 dB ; pendant une cinématique les hommes au masque s'arrêtent, le
    drone n'arrive pas, puis 4 s de répit. Dans le test, le premier homme descend bien le sentier (~30 s).
+34. « Je spawn, j'entends un bourdonnement à mes pieds » (déjà le « drone coincé dans le trou »). Vraie cause,
+   trouvée avec --surfacetest=sounds : la RESPIRATION de la créature endormie, rangée au point 0 (sous la plaque
+   d'égout de la sortie) ; elle était « en pause », et Godot relance tout son en pause à la fin de n'importe quelle
+   pause du jeu. Corrigé : arrêtée (stop) tant qu'elle dort. Aussi : le drone de préchauffage ne bourdonne plus.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

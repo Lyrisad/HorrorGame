@@ -2044,10 +2044,11 @@ func _update_drone(delta: float) -> void:
 		drones_left -= 1
 		drone = Drone.new()
 		drone.level = self
-		add_child(drone)
 		# il arrive de devant, haut, puis descend se mettre au-dessus du sentier : on voit ses feux approcher
+		# (placé avant d'entrer dans la scène : son moteur démarre là-haut, pas au point 0)
 		var ahead := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
-		drone.global_position = player.global_position + ahead * 18.0 + Vector3(randf_range(-5, 5), 12.0, 0)
+		drone.position = player.global_position + ahead * 18.0 + Vector3(randf_range(-5, 5), 12.0, 0)
+		add_child(drone)
 		_feed_mat.set_shader_parameter("static_mix", 0.0)
 		await wait(4.0)
 		if drones_left == 1:
@@ -2268,8 +2269,10 @@ func prewarm_extras() -> Array:
 	var d := Drone.new()
 	d.level = self
 	d.process_mode = Node.PROCESS_MODE_DISABLED
-	add_child(d)
+	# marqué AVANT d'entrer dans la scène : il ne sert qu'à compiler ses matériaux, il ne doit pas bourdonner (il
+	# était posé au point 0, la plaque d'égout sous Théo, pendant tout le chargement)
 	d.set_meta("prewarm_temp", true)
+	add_child(d)
 	out.append(d)
 	return out
 
@@ -2389,6 +2392,27 @@ func _surface_test(kind: String) -> void:
 			h2.state = Hunter.S.SEARCH
 		"chase":
 			_release_creature(true)
+			await wait(3.0)
+			print("CRÉATURE sortie : respiration %s" % ("audible" if creature.breath.playing and not creature.breath.stream_paused else "COUPÉE"))
+		"sounds":
+			# tous les sons qui jouent autour de Théo (nom, distance, hauteur relative, volume), à l'apparition
+			for when in [0.0, 2.0, 5.0]:
+				await wait(when)
+				print("--- SONS à t+%.0f s" % when)
+				for ap in get_tree().root.find_children("*", "", true, false):
+					if not (ap is AudioStreamPlayer or ap is AudioStreamPlayer3D) or not ap.playing or ap.stream_paused:
+						continue
+					var nm := str(ap.stream.resource_path.get_file()) if ap.stream != null else "?"
+					if nm == "":
+						for key in Sound._cache:
+							if Sound._cache[key] == ap.stream:
+								nm = key
+					if ap is AudioStreamPlayer3D:
+						var p3 := (ap as AudioStreamPlayer3D).global_position
+						print("SON 3D %s à %.1f m (hauteur %+.1f) vol=%.0f dB parent=%s" % [nm, p3.distance_to(player.global_position), p3.y - player.global_position.y,
+							ap.volume_db, ap.get_parent().name])
+					else:
+						print("SON %s vol=%.0f dB bus=%s parent=%s" % [nm, ap.volume_db, ap.bus, ap.get_parent().name])
 		"outfits":
 			# les deux hommes au masque côte à côte, face à Théo, à 3 m (pour comparer leurs tenues)
 			for k in 2:
@@ -2413,9 +2437,14 @@ func _surface_test(kind: String) -> void:
 				var dr := "aucun"
 				if drone != null and is_instance_valid(drone):
 					dr = "%s (à %.0f m)" % [drone.global_position.snapped(Vector3.ONE * 0.1), drone.global_position.distance_to(player.global_position)]
-				print("RONDE t=%d masque1=%s %s à %.0f m visible=%s | masque2=%s | drone=%s" % [(i + 1) * 2, Hunter.S.keys()[h0.state],
-					h0.global_position.snapped(Vector3.ONE * 0.1), h0.global_position.distance_to(player.global_position), h0.is_visible_in_tree(),
-					Hunter.S.keys()[(hunters[1] as Hunter).state], dr])
+				var buzzing := 0
+				for ap in find_children("*", "AudioStreamPlayer3D", true, false):
+					var a3 := ap as AudioStreamPlayer3D
+					if a3.playing and a3.get_parent() is Drone:
+						buzzing += 1
+				print("RONDE t=%d masque1=%s %s à %.0f m visible=%s | masque2=%s | drone=%s | bourdonnements=%d" % [(i + 1) * 2,
+					Hunter.S.keys()[h0.state], h0.global_position.snapped(Vector3.ONE * 0.1), h0.global_position.distance_to(player.global_position),
+					h0.is_visible_in_tree(), Hunter.S.keys()[(hunters[1] as Hunter).state], dr, buzzing])
 		"flee":
 			# sur la route : il le repère à 10 m, Théo sprinte vers l'ouest (sans lampe si --dark) ; on mesure l'écart
 			player.global_position = Vector3(-4.0, 0.05, ROAD_Z + 1.5)
@@ -2569,7 +2598,8 @@ class Drone extends Node3D:
 		cs.shape = sh
 		body.add_child(cs)
 		add_child(body)
-		buzz = Sound.loop_at("drone_loop", self, 0.0, 4.0, 50.0)
+		if not has_meta("prewarm_temp"):
+			buzz = Sound.loop_at("drone_loop", self, 0.0, 4.0, 50.0)
 		orbit = randf() * TAU
 
 	func _process(delta: float) -> void:

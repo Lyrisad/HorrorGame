@@ -71,7 +71,7 @@ func _ready() -> void:
 	breath.position.y = 1.5
 	if state == State.DORMANT:
 		visible = false
-		breath.stream_paused = true
+		breath.stop()
 
 
 ## Peau humide et blafarde ; les yeux laiteux accrochent la lumière de la lampe.
@@ -105,8 +105,15 @@ func _wet_skin() -> void:
 # ------------------------------------------------------------------ contrôle
 func activate(start_state := State.PATROL) -> void:
 	visible = true
-	breath.stream_paused = false
+	_breathe()
 	_set_state(start_state)
+
+
+## Endormie, elle ne respire pas : on ARRÊTE le son (une simple pause serait relancée par Godot à la fin de
+## n'importe quelle pause du jeu — chargement, menu, inventaire — et on l'entendrait sous la plaque d'égout).
+func _breathe() -> void:
+	if not breath.playing:
+		breath.play(randf() * maxf(breath.stream.get_length() - 0.1, 0.0) if breath.stream != null else 0.0)
 
 
 ## Il a entendu exactement où est Théo : il hurle et fonce sur lui, en le « suivant à l'oreille »
@@ -120,7 +127,7 @@ func charge(seconds := 6.0) -> void:
 
 func deactivate() -> void:
 	visible = false
-	breath.stream_paused = true
+	breath.stop()
 	state = State.DORMANT
 
 
@@ -128,7 +135,7 @@ func deactivate() -> void:
 func stand_and_watch(who: Node3D, anim_name := "listen", anim_speed := 0.6) -> void:
 	_stand_speed = anim_speed
 	visible = true
-	breath.stream_paused = false
+	_breathe()
 	look_target = who
 	twitch.target = who
 	twitch.look_weight = 1.0
@@ -141,7 +148,7 @@ func stand_and_watch(who: Node3D, anim_name := "listen", anim_speed := 0.6) -> v
 ## Marche scénarisée le long de points, puis signal `script_done`.
 func script_walk(points: PackedVector3Array, walk_speed: float) -> void:
 	visible = true
-	breath.stream_paused = false
+	_breathe()
 	path = points
 	target_speed = walk_speed
 	state = State.SCRIPTED
