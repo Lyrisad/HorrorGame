@@ -123,13 +123,21 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    boule blanche au camp était la lampe sur la fumée du feu (pas la poussière) : poussière laissée comme avant.
    Puis : le duvet restait lié au lit, le bocal et les bouteilles à l'étagère → objets séparés (la hache du billot
    aussi).
+31. « La route fait tristoune, vide, la transition forêt/route est moche » + « dans la vidéo de la caméra, le
+   personnage passe à travers les arbres ». Fait : vraie départementale D 47 (enrobé bombé aux bords grignotés,
+   marquage usé et rétroréfléchissant, accotements de gravier, herbe sèche de novembre sur les bas-côtés), ligne
+   électrique sur poteaux en bois (la caméra est sur l'un d'eux), balises J6, panneaux 80 et « chasse en cours »,
+   borne kilométrique, panneau ONF « Forêt domaniale des Essarts », barrière du chemin ouverte (chaîne coupée),
+   déchets, avis de recherche sur le poteau : tout déplaçable (ajouté une fois sur sa carte, drapeau « route »).
+   La vidéo suit maintenant les vrais sentiers, en 4 plans (chemin de la cabane, la radio, chemin du camp, la
+   course), sans les ennemis de cette nuit. Il a aussi demandé quand arrivent l'homme au masque et la créature.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;
   `tools/dev/package.py` refait le zip après l'export).
 - Les cartes de l'utilisateur (maison, égouts, forêt) sont dans `maps/` (identiques à celles de son %APPDATA% au 26/10/2026 ;
-  sa forêt, ressauvegardée par lui le 26/10 à 19:37 : 358 objets avec le sous-bois, plus de troncs fantômes).
+  sa forêt, ressauvegardée par lui le 26/10 à 21:05 : 463 objets, sans le mobilier de la route, ajouté au chargement).
 
 ## Idées proposées, pas encore faites
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).

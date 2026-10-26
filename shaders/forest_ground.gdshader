@@ -1,6 +1,6 @@
 shader_type spatial;
 // Sol de forêt la nuit : feuilles mortes et aiguilles mêlées par taches, mousse dans les creux, et le sentier
-// tassé et boueux (COLOR.r = sentier, COLOR.g = mousse). Coordonnées du monde : pas d'étirement sur le relief.
+// tassé et boueux (COLOR.r = sentier, COLOR.g = mousse, COLOR.b = accotement de gravier le long de la route). Coordonnées du monde : pas d'étirement sur le relief.
 
 uniform sampler2D litter_diff : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D litter_nor : hint_normal, filter_linear_mipmap_anisotropic;
@@ -9,6 +9,8 @@ uniform sampler2D needles_nor : hint_normal, filter_linear_mipmap_anisotropic;
 uniform sampler2D path_diff : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D path_nor : hint_normal, filter_linear_mipmap_anisotropic;
 uniform sampler2D moss_diff : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D gravel_diff : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D gravel_nor : hint_normal, filter_linear_mipmap_anisotropic;
 uniform sampler2D mask_noise : filter_linear_mipmap;
 uniform float tile = 2.6;
 uniform float path_tile = 3.2;
@@ -36,6 +38,13 @@ void fragment() {
 	vec2 puv = wpos.xz / path_tile;
 	a = mix(a, texture(path_diff, puv).rgb * 0.85, path);
 	na = mix(na, texture(path_nor, puv).rgb, path);
+	// accotement de la route : gravier et terre, bord irrégulier, des feuilles et des aiguilles qui restent par endroits
+	float sh = smoothstep(0.3, 0.7, COLOR.b + (edge - 0.5) * 0.7);
+	sh *= 1.0 - 0.5 * smoothstep(0.55, 0.8, texture(mask_noise, wpos.xz * 0.6 + 0.2).r);
+	vec2 guv = wpos.xz / 2.2;
+	a = mix(a, texture(gravel_diff, guv).rgb * vec3(0.6, 0.58, 0.54), sh);
+	na = mix(na, texture(gravel_nor, guv).rgb, sh);
+	path = max(path, sh * 0.6);
 	// les feuilles de la texture sont très orangées : la nuit, en novembre, c'est brun et terne
 	a = mix(vec3(dot(a, vec3(0.3, 0.59, 0.11))), a, 0.6);
 	ALBEDO = a * tint;

@@ -356,6 +356,8 @@ func _build_catalog() -> void:
 	_catalog.append(["bouteille à ramasser (à lancer pour faire diversion)", "proc:bottle", ""])
 	for k in 3:
 		_catalog.append(["avis de recherche %d (sur un arbre)" % (k + 1), "proc:poster_%d" % k, ""])
+	for kind: String in Roadside.KINDS:
+		_catalog.append([Roadside.KINDS[kind], "proc:road_" + kind, ""])
 	_catalog.sort_custom(func(a: Array, b: Array) -> bool: return str(a[0]).to_lower() < str(b[0]).to_lower())
 	_filter(search.text)
 

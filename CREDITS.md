@@ -77,7 +77,7 @@ The database was created with funding from NSF EIA-0196217.
 
 ## Modèles et textures — Poly Haven (CC0)
 https://polyhaven.com — meubles, lampes, caméras de surveillance, grille, coupe-boulons,
-textures de murs, sols, toiture, briques, béton, asphalte, forêt…
+textures de murs, sols, toiture, briques, béton, asphalte, forêt, poteaux électriques en bois…
 
 ## Pictogrammes
 Icônes de téléphone (décrocher, raccrocher, micro coupé, clavier, haut-parleur) : Material Icons (Google, licence Apache 2.0).

@@ -13,6 +13,8 @@ extends Level
 
 const ROAD_Z := -52.0
 const POLE := Vector3(3.5, 0, -47.5)
+const POLE_STEP := 36.0  ## écart entre deux poteaux de la ligne électrique (le long de la route)
+const POLE_R := 0.095  ## rayon d'un poteau en bois (modèle Poly Haven à l'échelle 1,35)
 const AREA := Rect2(-60, -62, 120, 82)  ## terrain en relief (x de -60 à 60, z de -62 à 20)
 const TRAIL := [Vector3(0, 0, 2), Vector3(-1.5, 0, -8), Vector3(1.0, 0, -17), Vector3(-0.5, 0, -27), Vector3(1.0, 0, -38), Vector3(0, 0, -49)]
 
@@ -99,6 +101,11 @@ func _ready() -> void:
 		if not MapLayout.has_flag("surface", "sousbois"):
 			_force_deco = true
 			_build_undergrowth()
+			_force_deco = false
+		# pareil pour le mobilier de la route (balises, panneaux, borne, barrière), ajouté après coup
+		if not MapLayout.has_flag("surface", "route"):
+			_force_deco = true
+			_build_roadside()
 			_force_deco = false
 	_decor_obstacles()
 	_build_road_and_pole()
@@ -205,7 +212,16 @@ func inventory() -> Array:
 	return items
 
 
-func get_surface(_pos: Vector3) -> String:
+func get_surface(pos: Vector3) -> String:
+	var dz := absf(pos.z - ROAD_Z)
+	if dz < 3.4:
+		return "concrete"
+	if dz < 4.6:
+		return "gravel"
+	if hut != null:
+		var lp := hut.global_transform.affine_inverse() * pos
+		if lp.x > -2.1 and lp.x < 2.25 and absf(lp.z) < 1.25 and lp.y > 0.08:
+			return "wood"
 	return "grass"
 
 
@@ -349,6 +365,24 @@ func _branch(to: Vector3) -> Array:
 	return [best, mid, to]
 
 
+## Le point à la fraction `f` (0 → 1) de la longueur d'un chemin (liste de points), au sol.
+func _along(pts: Array, f: float) -> Vector3:
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += Vector2((pts[i + 1] as Vector3).x - (pts[i] as Vector3).x, (pts[i + 1] as Vector3).z - (pts[i] as Vector3).z).length()
+	var s := clampf(f, 0.0, 1.0) * total
+	for i in pts.size() - 1:
+		var a: Vector3 = pts[i]
+		var b: Vector3 = pts[i + 1]
+		var l := Vector2(b.x - a.x, b.z - a.z).length()
+		if s <= l or i == pts.size() - 2:
+			var p := a.lerp(b, clampf(s / maxf(l, 0.001), 0.0, 1.0))
+			p.y = floor_y(p)
+			return p
+		s -= l
+	return pts[pts.size() - 1]
+
+
 ## Un point sur l'embranchement vers `target` (0 = au sentier, 1 = arrivé).
 func _path_point(target: Vector3, t: float) -> Vector3:
 	var br := _branch(target)
@@ -440,7 +474,9 @@ func _build_terrain() -> void:
 			path_f = maxf(path_f, 0.6 * (1.0 - smoothstep(4.0, 10.0, dc)))
 			var dh := Vector2(x - hut.global_position.x, z - hut.global_position.z).length()
 			path_f = maxf(path_f, 0.45 * (1.0 - smoothstep(3.0, 6.0, dh)))
-			st.set_color(Color(path_f, clampf(-h * 1.6 + 0.35, 0.0, 1.0), 0))
+			# accotement de la route : gravier et terre tassée sur un bon mètre, puis la forêt
+			var shoulder := 1.0 - smoothstep(3.4, 5.0, absf(z - ROAD_Z))
+			st.set_color(Color(path_f, clampf(-h * 1.6 + 0.35, 0.0, 1.0), shoulder))
 			st.add_vertex(p)
 	for j in _gd - 1:
 		for i in _gw - 1:
@@ -465,6 +501,8 @@ func _build_terrain() -> void:
 	m.set_shader_parameter("path_diff", tx.call("muddy_tracks", "diff"))
 	m.set_shader_parameter("path_nor", tx.call("muddy_tracks", "nor"))
 	m.set_shader_parameter("moss_diff", tx.call("moss_wood", "diff"))
+	m.set_shader_parameter("gravel_diff", tx.call("gravel_road", "diff"))
+	m.set_shader_parameter("gravel_nor", tx.call("gravel_road", "nor"))
 	var nt := NoiseTexture2D.new()
 	var nn := FastNoiseLite.new()
 	nn.frequency = 0.02
@@ -583,7 +621,13 @@ func _decor_obstacles() -> void:
 func deco(slug: String, pos: Vector3, yaw := 0.0, fit := {}) -> Node3D:
 	if _layout != null and not _force_deco:
 		return null
-	var n := B.model(self, slug, Vector3(pos.x, floor_y(pos), pos.z), yaw, fit)
+	var n: Node3D
+	if slug.begins_with("proc:"):
+		n = MapLayout.spawn_entry({"model": slug}, self)
+		n.position = Vector3(pos.x, floor_y(pos), pos.z)
+		n.rotation_degrees.y = yaw
+	else:
+		n = B.model(self, slug, Vector3(pos.x, floor_y(pos), pos.z), yaw, fit)
 	n.set_meta("decor", true)
 	MapLayout.auto_collide(n)
 	return n
@@ -697,6 +741,34 @@ func _build_decor() -> void:
 		pst.global_position = Vector3(p.x, floor_y(p) + 1.35, p.z) + out * (r + 0.01)
 		pst.rotation.y = atan2(out.x, out.z)
 		posted += 1
+	_build_roadside()
+
+
+## Le bord de la D 47 : balises J6 (des deux côtés, à ~33 m), un 80 et un « chasse en cours » (à droite de chaque
+## sens de circulation), la borne kilométrique, la barrière du chemin (ouverte, chaîne coupée), le panneau de l'ONF,
+## quelques déchets, un avis de recherche sur le poteau de la caméra. Décor déplaçable dans l'éditeur.
+func _build_roadside() -> void:
+	if _layout != null and not _force_deco:
+		return
+	for x in [-82.0, -49.0, -16.0, 18.0, 51.0, 84.0]:
+		deco("proc:road_delineator", Vector3(x, 0, ROAD_Z + 4.0), 90.0)
+	for x in [-66.0, -33.0, 1.0, 34.0, 67.0]:
+		deco("proc:road_delineator", Vector3(x, 0, ROAD_Z - 4.0), 90.0)
+	deco("proc:road_sign_80", Vector3(-24.0, 0, ROAD_Z + 4.25), -90.0)
+	deco("proc:road_sign_chasse", Vector3(22.0, 0, ROAD_Z - 4.3), 90.0)
+	deco("proc:road_borne", Vector3(34.0, 0, ROAD_Z + 4.1), 90.0)
+	# la barrière du chemin forestier, face à la route : lisse repoussée côté bois, à l'écart du chemin
+	var mouth := _nearest_on_trail(Vector3(0, 0, ROAD_Z + 4.4))
+	deco("proc:road_barrier", Vector3(mouth.x, 0, ROAD_Z + 4.4), 180.0)
+	deco("proc:road_sign_b0", Vector3(mouth.x - 2.55, 0, ROAD_Z + 4.45), 180.0)
+	deco("proc:road_foret", Vector3(mouth.x - 6.2, 0, ROAD_Z + 4.9), 195.0)
+	# ce que les gens jettent par la fenêtre
+	deco("old_tyre", Vector3(-20.5, 0, ROAD_Z - 5.3), 30.0, {"width": 0.62})
+	deco("trashbag", Vector3(13.5, 0, ROAD_Z - 5.0), 70.0, {"height": 0.5})
+	deco("can_rusted", Vector3(-3.4, 0, ROAD_Z + 3.9), 20.0, {"height": 0.12})
+	deco("sf:beer_can", Vector3(mouth.x + 2.6, 0, ROAD_Z + 4.1), 110.0, {"height": 0.12})
+	var pst := MapLayout.spawn_entry({"model": "proc:poster_2"}, self)
+	pst.global_position = Vector3(POLE.x, floor_y(POLE) + 1.4, POLE.z + POLE_R + 0.01)
 
 
 func _nearest_on_trail(p: Vector3) -> Vector3:
@@ -758,19 +830,23 @@ func on_noise(pos: Vector3, radius: float) -> void:
 
 
 # ================================================================== route et poteau
+## La D 47 : enrobé bombé aux bords grignotés, marquage usé, accotements de gravier (terrain), herbe sèche, la ligne
+## électrique sur poteaux en bois ; la caméra des ravisseurs est sanglée sur le poteau du chemin (POLE).
 func _build_road_and_pole() -> void:
-	var asphalt := B.mat("asphalt_02", 4.0, {"color": Color(0.4, 0.4, 0.4), "roughness": 0.55})
-	B.box(self, Vector3(300, 0.04, 7.0), Vector3(0, 0.0, ROAD_Z), asphalt, false)
-	B.box(self, Vector3(300, 0.045, 0.12), Vector3(0, 0.0, ROAD_Z), B.color_mat(Color(0.7, 0.7, 0.65), 0.5), false)
+	_build_asphalt()
+	_build_power_line()
+	_build_verge_grass()
 	var pole_pos := POLE
-	B.cylinder(self, 0.11, 0.14, 7.5, pole_pos + Vector3(0, 3.75, 0), B.mat("pine_bark", 1.0, {"color": Color(0.35, 0.3, 0.25)}), true, 10)
-	B.box(self, Vector3(0.08, 0.08, 1.6), pole_pos + Vector3(0, 7.0, 0.6), B.color_mat(Color(0.25, 0.25, 0.25), 0.5, 0.8), false)
-	B.box(self, Vector3(0.3, 0.1, 0.5), pole_pos + Vector3(0, 6.95, 1.35), B.color_mat(Color(0.2, 0.2, 0.2), 0.5, 0.8), false)
-	var sodium := B.spot(self, pole_pos + Vector3(0, 6.85, 1.35), pole_pos + Vector3(0, 0, 4.0), Color(1.0, 0.62, 0.3), 3.0, 18.0, 55.0, true)
+	B.box(self, Vector3(0.08, 0.08, 1.6), pole_pos + Vector3(0, 6.6, 0.6), B.color_mat(Color(0.25, 0.25, 0.25), 0.5, 0.8), false)
+	B.box(self, Vector3(0.3, 0.1, 0.5), pole_pos + Vector3(0, 6.55, 1.35), B.color_mat(Color(0.2, 0.2, 0.2), 0.5, 0.8), false)
+	var sodium := B.spot(self, pole_pos + Vector3(0, 6.45, 1.35), pole_pos + Vector3(0, 0, 4.0), Color(1.0, 0.62, 0.3), 3.0, 18.0, 55.0, true)
 	sodium.light_volumetric_fog_energy = 2.5
 	Game.add_flare(sodium, 1.4, 1.3)
 	var mount_y := 4.6
-	var r := lerpf(0.14, 0.11, mount_y / 7.5)
+	var r := POLE_R
+	# son alimentation : un câble noir qui descend de la ligne, agrafé au poteau
+	var cable := B.cylinder(self, 0.007, 0.007, 2.55, pole_pos + Vector3(0.03, mount_y + 1.42, r + 0.008), B.color_mat(Color(0.03, 0.03, 0.03), 0.5), false, 6)
+	cable.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var steel := B.color_mat(Color(0.22, 0.22, 0.23), 0.45, 0.85)
 	for dy in [-0.075, -0.01]:
 		B.cylinder(self, r + 0.008, r + 0.008, 0.022, pole_pos + Vector3(0, mount_y + dy, 0), steel, false, 16)
@@ -779,6 +855,226 @@ func _build_road_and_pole() -> void:
 	pole_cam = SecurityCamera.create(self, pole_pos + Vector3(0, mount_y, r) + face * SecurityCamera.ARM, watch_path)
 	pole_cam.attach_wall(pole_pos + Vector3(0, mount_y, r), face)
 	pole_cam.pivot.global_basis = Basis.looking_at(Vector3(-1.0, -0.15, -0.35).normalized(), Vector3.UP)
+
+
+## Profil en travers de l'enrobé (bombé pour que l'eau s'écoule) : hauteur à |dz| / demi-largeur.
+const ROAD_PROFILE := [[0.0, 0.045], [0.6, 0.038], [0.93, 0.025], [1.0, 0.008]]
+const ROAD_HALF := 3.45
+
+
+func _road_y(f: float) -> float:
+	f = absf(f)
+	for i in ROAD_PROFILE.size() - 1:
+		var a: Array = ROAD_PROFILE[i]
+		var b: Array = ROAD_PROFILE[i + 1]
+		if f <= float(b[0]):
+			return lerpf(a[1], b[1], (f - float(a[0])) / (float(b[0]) - float(a[0])))
+	return 0.008
+
+
+func _build_asphalt() -> void:
+	var en := FastNoiseLite.new()
+	en.seed = 12
+	en.frequency = 0.3
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var fs := [-1.0, -0.93, -0.6, 0.0, 0.6, 0.93, 1.0]
+	var x0 := -160
+	var n := 320
+	for i in n + 1:
+		var x := float(x0 + i)
+		# bords grignotés : l'enrobé s'effrite dans le gravier, différemment de chaque côté
+		var e_n := en.get_noise_2d(x, 0.0) * 0.16 + en.get_noise_2d(x * 3.1, 9.0) * 0.07
+		var e_s := en.get_noise_2d(x, 40.0) * 0.16 + en.get_noise_2d(x * 3.1, 49.0) * 0.07
+		var patch := 0.92 + en.get_noise_2d(x * 0.15, 80.0) * 0.12  # rapiéçages plus sombres, usure plus claire
+		for f: float in fs:
+			var e := e_n if f < 0.0 else e_s
+			var dz := f * ROAD_HALF + (e * signf(f) if absf(f) == 1.0 else e * signf(f) * 0.35 if absf(f) > 0.9 else 0.0)
+			var dirt := 0.6 if absf(f) == 1.0 else 0.8 if absf(f) > 0.9 else 1.0
+			st.set_color(Color(dirt * patch, dirt * patch * 0.97, dirt * patch * 0.9))
+			st.set_uv(Vector2(x, ROAD_Z + dz))
+			st.add_vertex(Vector3(x, _road_y(f), ROAD_Z + dz))
+	var w := fs.size()
+	for i in n:
+		for j in w - 1:
+			var a := i * w + j
+			st.add_index(a)
+			st.add_index(a + w)
+			st.add_index(a + 1)
+			st.add_index(a + 1)
+			st.add_index(a + w)
+			st.add_index(a + w + 1)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = "Route"
+	mi.mesh = st.commit()
+	var mat := (B.mat("asphalt_02", 1.0, {"color": Color(0.4, 0.4, 0.4), "roughness": 0.45, "triplanar": false, "world": false}) as StandardMaterial3D).duplicate() as StandardMaterial3D
+	mat.uv1_scale = Vector3(0.25, 0.25, 1.0)
+	mat.vertex_color_use_as_albedo = true
+	mi.material_override = mat
+	add_child(mi)
+	# marquage : axe discontinu (3 m / 10 m), lignes de rive (3 m / 3,5 m) ; peinture usée, rétroréfléchissante
+	var ms := SurfaceTool.new()
+	ms.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for line: Array in [[0.0, 0.12, 13.0], [-3.0, 0.15, 6.5], [3.0, 0.15, 6.5]]:
+		var zc: float = line[0]
+		var half_w: float = line[1] * 0.5
+		var step: float = line[2]
+		var y := _road_y(zc / ROAD_HALF) + 0.005
+		var x := -160.0 + (step * 0.37 if zc > 0.0 else 0.0)
+		while x < 157.0:
+			var q := [Vector3(x, y, ROAD_Z + zc - half_w), Vector3(x + 3.0, y, ROAD_Z + zc - half_w),
+				Vector3(x + 3.0, y, ROAD_Z + zc + half_w), Vector3(x, y, ROAD_Z + zc + half_w)]
+			var uv := [Vector2(0, 0), Vector2(0, 1), Vector2(1, 1), Vector2(1, 0)]
+			for k in [0, 1, 2, 0, 2, 3]:
+				ms.set_normal(Vector3.UP)
+				ms.set_uv(uv[k])
+				ms.add_vertex(q[k])
+			x += step
+	var marks := MeshInstance3D.new()
+	marks.name = "Marquage"
+	marks.mesh = ms.commit()
+	marks.material_override = Roadside.retro("res://assets/gen/road_paint.png", 2.5, false, false, Color(0.82, 0.82, 0.78))
+	marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(marks)
+
+
+## La ligne électrique le long de la route, côté forêt : poteaux en bois avec traverse et isolateurs, trois fils qui
+## pendent entre deux poteaux. Le poteau du chemin (POLE) est celui de la caméra.
+func _build_power_line() -> void:
+	var others := ["bolt", "cap", "connection", "fastener", "fuse", "insulator", "nail", "nut", "pole", "ring", "support",
+		"transformer", "preset_01", "preset_03"]
+	var arms := []
+	for k in range(-4, 5):
+		var p := Vector3(POLE.x + k * POLE_STEP, 0, POLE.z)
+		var pole := B.model(self, "modular_electricity_poles", Vector3(p.x, floor_y(p) - 0.05, p.z), 90.0 + sin(k * 1.7) * 4.0,
+			{"scale": 1.35, "remove": others})
+		var cs := CollisionShape3D.new()
+		var cyl := CylinderShape3D.new()
+		cyl.radius = POLE_R + 0.02
+		cyl.height = 6.0
+		cs.shape = cyl
+		var sb := StaticBody3D.new()
+		sb.add_child(cs)
+		pole.add_child(sb)
+		sb.position = Vector3(0, 3.0, 0)
+		var arm := AABB()
+		for mi: MeshInstance3D in pole.find_children("*", "MeshInstance3D", true, false):
+			if String(mi.name).begins_with("preset_02_connection_large") or String(mi.get_parent().name).begins_with("preset_02_connection_large"):
+				arm = mi.global_transform * mi.get_aabb()
+		arms.append(arm)
+	var spans := []
+	for k in arms.size() - 1:
+		var a: AABB = arms[k]
+		var b: AABB = arms[k + 1]
+		for o in [-1.0, 0.0, 1.0]:
+			var pa := Vector3(a.get_center().x, a.end.y - 0.04, a.get_center().z + o * (a.size.z * 0.5 - 0.12))
+			var pb := Vector3(b.get_center().x, b.end.y - 0.04, b.get_center().z + o * (b.size.z * 0.5 - 0.12))
+			spans.append([pa, pb, 0.55 + absf(o) * 0.06])
+	var wires := MeshInstance3D.new()
+	wires.name = "Fils"
+	wires.mesh = _wire_mesh(spans, 0.016)
+	var wm := StandardMaterial3D.new()
+	# câbles alu nus : ils accrochent la lampe à sodium et le faisceau
+	wm.albedo_color = Color(0.55, 0.55, 0.53)
+	wm.roughness = 0.5
+	wm.metallic = 0.3
+	wm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	wires.material_override = wm
+	wires.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(wires)
+
+
+## Des fils (tubes à 6 faces) qui pendent en chaînette entre deux points : [[a, b, flèche], ...].
+func _wire_mesh(spans: Array, radius: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var seg := 24
+	var base := 0
+	for sp: Array in spans:
+		var a: Vector3 = sp[0]
+		var b: Vector3 = sp[1]
+		var sag: float = sp[2]
+		var dir := (b - a).normalized()
+		var side := dir.cross(Vector3.UP).normalized()
+		var up := side.cross(dir).normalized()
+		var ring := []
+		for j in 6:
+			ring.append(side * cos(j * TAU / 6.0) + up * sin(j * TAU / 6.0))
+		for i in seg + 1:
+			var t := float(i) / seg
+			var c := a.lerp(b, t) - Vector3(0, sag * 4.0 * t * (1.0 - t), 0)
+			for v: Vector3 in ring:
+				st.set_normal(v)
+				st.add_vertex(c + v * radius)
+		for i in seg:
+			for j in 6:
+				var i0 := base + i * 6 + j
+				var i1 := base + i * 6 + (j + 1) % 6
+				st.add_index(i0)
+				st.add_index(i0 + 6)
+				st.add_index(i1)
+				st.add_index(i1)
+				st.add_index(i0 + 6)
+				st.add_index(i1 + 6)
+		base += (seg + 1) * 6
+	return st.commit()
+
+
+## L'herbe sèche des bas-côtés (novembre) : touffes instanciées, denses contre l'enrobé, qui s'éclaircissent sous les
+## arbres ; jamais sur le chemin. Par tronçons de 30 m (les tronçons hors de vue ne sont pas dessinés).
+func _build_verge_grass() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in 3:
+		var a := k * PI / 3.0
+		var dx := Vector3(cos(a), 0, sin(a)) * 0.36
+		var q := [-dx, dx, dx + Vector3(0, 0.6, 0), -dx + Vector3(0, 0.6, 0)]
+		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+		for idx in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(Vector3.UP)
+			st.set_uv(uv[idx])
+			st.add_vertex(q[idx])
+	var tuft := st.commit()
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/road_grass.gdshader")
+	mat.set_shader_parameter("tex", load("res://assets/gen/road_grass.png"))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 47
+	var chunks := {}
+	for side in [-1.0, 1.0]:
+		for i in 3400:
+			var x := rng.randf_range(-105.0, 105.0)
+			var d := 3.3 + pow(rng.randf(), 1.5) * 4.4
+			var p := Vector3(x, 0, ROAD_Z + side * d)
+			var s := rng.randf_range(0.55, 1.2) * (0.65 if d < 3.8 else 1.0)
+			var hue := rng.randf()
+			var yaw := rng.randf() * TAU
+			var tall := rng.randf_range(0.8, 1.35)
+			if _path_dist(p) < 0.25 or (d > 6.0 and rng.randf() < 0.5):
+				continue
+			p.y = floor_y(p) - 0.03
+			var key := int(floor(x / 30.0)) * 2 + (1 if side > 0.0 else 0)
+			if not chunks.has(key):
+				chunks[key] = []
+			var col := Color(1.0, 1.0, 1.0).lerp(Color(0.62, 0.7, 0.5), hue * hue) * rng.randf_range(0.75, 1.0)
+			(chunks[key] as Array).append([Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(s, s * tall, s)), p), col])
+	for key in chunks:
+		var items: Array = chunks[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = tuft
+		mm.instance_count = items.size()
+		for i in items.size():
+			mm.set_instance_transform(i, items[i][0])
+			mm.set_instance_color(i, items[i][1])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.visibility_range_end = 80.0
+		add_child(mmi)
 
 
 # ================================================================== la caméra de la victime (session 13)
@@ -813,7 +1109,7 @@ func _build_cam13(holder: Node3D) -> void:
 
 ## Théo ramasse la caméra et relit son dernier fichier sur le petit écran : la victime de la session 13 traverse
 ## cette même forêt, trouve la cabane, voit les lumières du camp... puis des phares, un moteur, la fin.
-## (La vidéo est rendue en direct depuis le décor, avec la caméra qui suit son trajet.)
+## (La vidéo est rendue en direct depuis le décor : quatre plans, la caméra suit les vrais sentiers.)
 func _play_cam13() -> void:
 	player.control_enabled = false
 	cutscene = true
@@ -872,43 +1168,87 @@ func _play_cam13() -> void:
 	scr.emission_energy_multiplier = 1.1
 	var lcd := B.quad(dev, Vector2(0.168, 0.0945), Vector3(0, 0, 0.0155), scr)
 	lcd.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# son trajet : du sentier vers la cabane, puis vers les lumières du camp
+	# son trajet, en quatre plans (la caméra coupe entre deux fichiers) : sur le chemin de la cabane, dedans devant la
+	# radio, sur le chemin du camp, puis il court vers les lumières. Il marche SUR les sentiers (ceux du terrain).
 	var h := hut.global_position
 	var c := desk.global_position
-	var a := _path_point(h, 0.0)
-	var keys := [[0.0, a + Vector3(0, 0, 1.5), h + Vector3(0, 1.4, 0)], [4.5, h.lerp(a, 0.4), h + Vector3(0, 1.4, 0)], [8.0, a + Vector3(0, 0, -1.0), c + Vector3(0, 1.0, 0)],
-		[13.5, a.lerp(c, 0.55), c + Vector3(0, 1.0, 0)], [16.0, a.lerp(c, 0.72), c + Vector3(-4, 1.0, -4)]]
+	var to_hut := _branch(hut.global_transform * Vector3(1.45, 0, 3.4))
+	var to_camp := _branch(c)
+	var radio := hut.find_child("CBRadio", true, false) as Node3D
+	var rp := radio.global_position + Vector3(0, 0.08, 0) if radio != null else h + Vector3(0, 0.9, 0)
+	var in_hut := rp + hut.global_basis * Vector3(0.12, 0.5, 0.72)
+	# [début (s), chemin (vide = plan fixe), avancée de, à (fraction du chemin), ce qu'il regarde, heure (s après 5 h), allure]
+	var plans := [[0.0, to_hut, 0.18, 0.86, h + Vector3(0, 1.4, 0), 31 * 60 + 12, 1.0], [6.5, [], 0.0, 0.0, rp, 33 * 60 + 41, 0.0],
+		[10.5, to_camp, 0.03, 0.4, c + Vector3(0, 1.0, 0), 37 * 60 + 5, 1.0], [15.0, to_camp, 0.4, 0.78, c + Vector3(0, 1.0, 0), 37 * 60 + 9, 2.2]]
+	var end_t := 19.5
+	# la vidéo date d'il y a deux semaines : ni les hommes au masque ni le drone de cette nuit ne doivent y passer
+	var now_only := []
+	for who: Node in hunters + ([drone] if drone != null and is_instance_valid(drone) else []):
+		for gi: GeometryInstance3D in who.find_children("*", "GeometryInstance3D", true, false):
+			now_only.append([gi, gi.layers])
+			gi.layers = 1 << 9
 	var pant := Sound.loop("breath_heavy_loop", -16.0, "UI")
-	var lines := [[0.4, "(essoufflé) ...je suis sorti. Je suis dehors. Il fait nuit noire..."], [4.6, "Une cabane... Il y a une radio. Elle est morte. Faut une batterie."],
-		[8.8, "De la lumière, là-bas... un groupe électrogène. C'est leur camp. Ils doivent en avoir une."], [13.6, "(il court) Un moteur... des phares... non — NON —"]]
+	var lines := [[0.4, "(essoufflé) ...je suis sorti. Je suis dehors. Il fait nuit noire..."], [3.8, "Une cabane, là... Il y a peut-être quelqu'un."],
+		[7.0, "Une radio. Elle est morte... Faut une batterie."], [11.0, "De la lumière, là-bas... un groupe électrogène. C'est leur camp. Ils doivent en avoir une."],
+		[15.6, "(il court) Un moteur... des phares... non — NON —"]]
 	var li := 0
 	var t := 0.0
-	while t < 16.5:
+	var shown := -1
+	var said := -1
+	while t < end_t:
 		await ticked
-		var dt := get_process_delta_time()
-		t += dt
-		var k := 0
-		while k < keys.size() - 2 and t > float(keys[k + 1][0]):
-			k += 1
-		var t0: float = keys[k][0]
-		var t1: float = keys[k + 1][0]
-		var w := smoothstep(0.0, 1.0, clampf((t - t0) / maxf(t1 - t0, 0.01), 0.0, 1.0))
-		var pos: Vector3 = (keys[k][1] as Vector3).lerp(keys[k + 1][1], w)
-		var look: Vector3 = (keys[k][2] as Vector3).lerp(keys[k + 1][2], w)
-		var run := 2.2 if t > 13.0 else 1.0
-		pos.y = floor_y(pos) + 1.5 + absf(sin(t * 7.0 * run)) * 0.04 * run
-		pos += vcam.global_basis.x * sin(t * 7.0 * run) * 0.03 if vcam.is_inside_tree() else Vector3.ZERO
+		t += get_process_delta_time()
+		var k := plans.size() - 1
+		while k > 0 and t < float(plans[k][0]):
+			k -= 1
+		var pl: Array = plans[k]
+		var t0: float = pl[0]
+		var t1: float = plans[k + 1][0] if k + 1 < plans.size() else end_t
+		var w := clampf((t - t0) / (t1 - t0), 0.0, 1.0)
+		if k != shown:
+			# changement de fichier : image qui saute, grésillement (le dernier plan suit le précédent sans coupure)
+			if shown >= 0 and k != 3:
+				Sound.play("glitch_0", -14.0, 1.2, "UI")
+				scr.emission_energy_multiplier = 0.15
+				create_tween().tween_property(scr, "emission_energy_multiplier", 1.1, 0.3)
+			shown = k
+		var path: Array = pl[1]
+		var run: float = pl[6]
+		var pos: Vector3
+		var look: Vector3 = pl[4]
+		if path.is_empty():
+			pos = in_hut + Vector3(sin(t * 1.3) * 0.02, sin(t * 1.9) * 0.015, 0)
+		else:
+			var f := lerpf(pl[2], pl[3], w)
+			pos = _along(path, f)
+			var ahead := _along(path, f + 0.2) + Vector3(0, 1.4, 0)
+			look = ahead.lerp(look, 0.3 + 0.4 * w)
+			if k == 3 and w > 0.65:
+				look = look.lerp(c + Vector3(-4, 1.0, -4), (w - 0.65) / 0.35)
+			pos.y += 1.5 + absf(sin(t * 7.0 * run)) * 0.04 * run
+			pos += vcam.global_basis.x * sin(t * 7.0 * run) * 0.03 if vcam.is_inside_tree() else Vector3.ZERO
 		if (look - pos).length() > 0.2:
 			vcam.global_transform = Transform3D(Basis.looking_at((look - pos).normalized(), Vector3.UP), pos)
-		osd.text = "BWC-7   SN 0402   ▶ LECTURE   IR\n03/11/2026   05:%02d:%02d" % [40 + int(t / 60.0), int(t) % 60]
+		var clock := float(pl[5]) + t - t0
+		osd.text = "BWC-7   SN 0402   ▶ LECTURE   IR\n03/11/2026   05:%02d:%02d" % [int(clock / 60.0), int(clock) % 60]
 		if li < lines.size() and t >= float(lines[li][0]):
-			Game.hud.say(lines[li][1], 4.0, "Caméra 0402")
+			Game.hud.say(lines[li][1], 3.4, "Caméra 0402")
 			li += 1
-		# les phares du van, puis plus rien
-		if t > 15.0:
-			vlamp.light_energy = 3.0 + (t - 15.0) * 30.0
+		# sa lampe infrarouge, plus faible dans la cabane (sinon tout est blanc) ; les phares du van, puis plus rien
+		vlamp.light_energy = 0.6 if path.is_empty() else 3.0
+		if t > end_t - 1.5:
+			vlamp.light_energy = 3.0 + (t - end_t + 1.5) * 30.0
+		# test (--surfacetest=cam) : où est sa caméra par rapport aux sentiers, et ce qu'elle filme
+		if Game.args.has("surfacetest") and int(t) != said:
+			said = int(t)
+			print("CAM13 t=%d plan=%d pos=%s hors sentier=%.2f m" % [said, k, pos.snapped(Vector3.ONE * 0.1), maxf(_path_dist(pos), 0.0)])
+			if Game.args.has("shot") and said % 2 == 1:
+				vp.get_texture().get_image().save_png("%s_video_%02d.png" % [str(Game.args["shot"]), said])
 	if is_instance_valid(pant):
 		pant.queue_free()
+	for gl: Array in now_only:
+		if is_instance_valid(gl[0]):
+			(gl[0] as GeometryInstance3D).layers = gl[1]
 	Sound.play("glitch_0", -6.0)
 	scr.emission_texture = null
 	scr.emission = Color(0.6, 0.6, 0.6)

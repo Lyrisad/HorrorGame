@@ -5,6 +5,8 @@
 - cb_label.png : l'étiquette scotchée sur la radio de la cabane (canal 19)
 - hut_map.png : la carte IGN punaisée dans la cabane, annotée au stylo par David Roche (session 13)
 - leaf_litter.png : feuilles mortes et aiguilles (décalque projeté au sol : sur les pièges, autour de la caméra)
+- road_*.png : la route départementale (panneaux 80 / danger « chasse en cours » / interdit à tout véhicule, borne
+  kilométrique jaune, panneau ONF en bois, balise de bord de route, peinture usée du marquage, touffe d'herbe sèche)
 python generate_surface.py [dossier_sortie]
 """
 import math
@@ -369,6 +371,198 @@ def leaf_litter():
     print("   leaf_litter.png")
 
 
+def _bahn(size, weight="Bold"):
+    f = font("bahnschrift.ttf", size)
+    try:
+        f.set_variation_by_name(weight)
+    except Exception:  # noqa: BLE001
+        pass
+    return f
+
+
+def _weather(img, seed, amount=0.12):
+    """Un panneau qui a passé des années au bord d'une route en forêt : voile de crasse, coulures, grain."""
+    r = np.random.default_rng(seed)
+    a = np.array(img, np.float32)
+    h, w = a.shape[:2]
+    grime = np.array(Image.fromarray((r.random((h // 16 + 1, w // 16 + 1)) * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC), np.float32) / 255.0
+    streaks = np.zeros((h, w), np.float32)
+    for _ in range(int(w / 18)):
+        x = int(r.integers(0, w))
+        y0 = int(r.integers(0, h // 2))
+        ln = int(r.integers(h // 6, h // 2))
+        streaks[y0:y0 + ln, max(0, x - 1):x + 2] += r.uniform(0.3, 1.0)
+    streaks = np.array(Image.fromarray(np.clip(streaks * 255, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2)), np.float32) / 255.0
+    dark = 1.0 - amount * (0.5 + grime) - 0.18 * streaks
+    a[..., :3] *= dark[..., None]
+    a[..., :3] *= r.uniform(0.94, 1.0, (h, w, 1))
+    a[..., :3] += np.array([6, 4, 0], np.float32) * grime[..., None]
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA")
+
+
+RED = (196, 30, 36, 255)
+WHITE = (236, 236, 230, 255)
+BLACK = (22, 22, 24, 255)
+YELLOW = (238, 190, 30, 255)
+
+
+def road_signs():
+    """Panneaux de la départementale qui longe la forêt (normes françaises), détourés (alpha)."""
+    S = 512
+    # B14 (80 km/h) et B0 (circulation interdite à tout véhicule) : disque, liseré blanc, couronne rouge
+    for name, text in [("road_sign_80", "80"), ("road_sign_b0", "")]:
+        img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        d.ellipse([4, 4, S - 4, S - 4], fill=WHITE)
+        d.ellipse([16, 16, S - 16, S - 16], fill=RED)
+        d.ellipse([78, 78, S - 78, S - 78], fill=WHITE)
+        if text:
+            f = _bahn(250)
+            bb = d.textbbox((0, 0), text, font=f)
+            d.text(((S - (bb[2] - bb[0])) / 2 - bb[0], (S - (bb[3] - bb[1])) / 2 - bb[1]), text, font=f, fill=BLACK)
+        _weather(img, len(name)).save(os.path.join(OUT, name + ".png"))
+        print("   %s.png" % name)
+    # A14 (autres dangers) + panonceau « CHASSE EN COURS » : la battue du week-end, panneau resté là
+    W, H = 512, 640
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    th = int(W * math.sqrt(3) / 2)
+
+    def tri(m):
+        return [(W / 2, 4 + m * 2), (4 + m * 1.73, th - 4 - m), (W - 4 - m * 1.73, th - 4 - m)]
+
+    d.polygon(tri(0), fill=WHITE)
+    d.polygon(tri(10), fill=RED)
+    d.polygon(tri(62), fill=WHITE)
+    d.rounded_rectangle([W / 2 - 17, 150, W / 2 + 17, 330], 10, fill=BLACK)
+    d.ellipse([W / 2 - 20, 352, W / 2 + 20, 392], fill=BLACK)
+    py = th + 22
+    d.rectangle([66, py, W - 66, H - 6], fill=WHITE)
+    d.rectangle([74, py + 8, W - 74, H - 14], outline=BLACK, width=6)
+    for txt, y, sz in [("CHASSE", py + 22, 70), ("EN COURS", py + 102, 56)]:
+        f = _bahn(sz)
+        bb = d.textbbox((0, 0), txt, font=f)
+        d.text(((W - (bb[2] - bb[0])) / 2 - bb[0], y - bb[1]), txt, font=f, fill=BLACK)
+    _weather(img, 31).save(os.path.join(OUT, "road_sign_chasse.png"))
+    print("   road_sign_chasse.png")
+
+
+def road_borne():
+    """Borne kilométrique d'une départementale : capuchon jaune (numéro de la route), corps blanc (le PR)."""
+    W, H = 256, 416
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.pieslice([0, 0, W - 1, 255], 180, 360, fill=YELLOW)
+    d.rectangle([0, 128, W - 1, H - 1], fill=WHITE)
+    f = _bahn(58)
+    bb = d.textbbox((0, 0), "D 47", font=f)
+    d.text(((W - (bb[2] - bb[0])) / 2 - bb[0], 62 - bb[1]), "D 47", font=f, fill=BLACK)
+    f = _bahn(120)
+    bb = d.textbbox((0, 0), "12", font=f)
+    d.text(((W - (bb[2] - bb[0])) / 2 - bb[0], 190 - bb[1]), "12", font=f, fill=BLACK)
+    a = np.array(_weather(img, 47, 0.18), np.float32)
+    # terre en bas (éclaboussures de la route, herbe)
+    yy = np.linspace(0, 1, H)[:, None]
+    mud = np.clip((yy - 0.78) / 0.22, 0, 1) * 0.55
+    a[..., 0] *= 1 - mud * 0.45
+    a[..., 1] *= 1 - mud * 0.5
+    a[..., 2] *= 1 - mud * 0.62
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, "road_borne.png"))
+    print("   road_borne.png")
+
+
+def road_forest_sign():
+    """Panneau en bois de l'ONF à l'entrée du chemin : planche brune, lettres creusées peintes en crème."""
+    W, H = 1024, 288
+    r = np.random.default_rng(9)
+    base = np.zeros((H, W, 3), np.float32)
+    base[:] = (88, 58, 34)
+    # veines du bois (horizontales, ondulées) et joint entre les deux planches
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    grain = np.sin(yy * 0.21 + np.sin(xx * 0.008 + yy * 0.02) * 3.0 + r.uniform(0, 6)) * 0.5 + 0.5
+    grain = grain ** 3
+    base *= (0.82 + 0.25 * grain)[..., None]
+    base[H // 2 - 3:H // 2 + 3, :] *= 0.45
+    img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).convert("RGBA")
+    d = ImageDraw.Draw(img)
+    d.rectangle([10, 10, W - 11, H - 11], outline=(232, 214, 160, 255), width=7)
+    for txt, y, sz in [("FORÊT DOMANIALE", 34, 96), ("DES ESSARTS", 156, 92)]:
+        f = _bahn(sz, "SemiBold")
+        bb = d.textbbox((0, 0), txt, font=f)
+        x = (W - (bb[2] - bb[0])) / 2 - bb[0]
+        d.text((x + 3, y - bb[1] + 3), txt, font=f, fill=(40, 26, 16, 255))
+        d.text((x, y - bb[1]), txt, font=f, fill=(226, 206, 150, 255))
+    _weather(img, 12, 0.2).save(os.path.join(OUT, "road_forest_sign.png"))
+    print("   road_forest_sign.png")
+
+
+def road_delineator():
+    """Balise J6 (délinéateur) : PVC blanc, bande noire en biais en haut, crasse de la route en bas."""
+    W, H = 64, 512
+    img = Image.new("RGBA", (W, H), WHITE)
+    d = ImageDraw.Draw(img)
+    d.polygon([(0, 70), (W, 40), (W, 150), (0, 180)], fill=BLACK)
+    a = np.array(_weather(img, 6, 0.1), np.float32)
+    yy = np.linspace(0, 1, H)[:, None]
+    mud = np.clip((yy - 0.6) / 0.4, 0, 1) ** 1.5 * 0.6
+    a[..., 0] *= 1 - mud * 0.45
+    a[..., 1] *= 1 - mud * 0.5
+    a[..., 2] *= 1 - mud * 0.6
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, "road_delineator.png"))
+    print("   road_delineator.png")
+
+
+def road_paint():
+    """Peinture du marquage au sol, usée par les pneus : clair = peinture, sombre = l'enrobé qui reparaît."""
+    W, H = 64, 512
+    r = np.random.default_rng(3)
+    def smooth(h, w):
+        return np.array(Image.fromarray((r.random((h, w)) * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), np.float32) / 255.0
+
+    n = smooth(10, 3) * 0.65 + smooth(40, 8) * 0.3 + np.array(Image.fromarray((r.random((H, W)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.5)), np.float32) / 255.0 * 0.05
+    wear = np.clip((n - 0.2) * 3.0, 0, 1)
+    v = (0.3 + 0.7 * wear) * 255
+    Image.fromarray(np.clip(v, 0, 255).astype(np.uint8), "L").save(os.path.join(OUT, "road_paint.png"))
+    print("   road_paint.png")
+
+
+def road_grass():
+    """Une touffe d'herbe de bord de route en novembre : sèche, paille, un peu de vert au pied (détourée)."""
+    S = 512
+    r = np.random.default_rng(21)
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    cols = [(176, 156, 104), (150, 128, 86), (128, 112, 74), (108, 106, 66), (84, 92, 52), (190, 172, 120), (120, 96, 64)]
+    blades = []
+    for i in range(170):
+        x0 = S / 2 + r.normal(0, S * 0.14)
+        h = S * r.uniform(0.45, 0.97)
+        lean = r.normal(0, 0.28) + (x0 - S / 2) / S * 0.9
+        wbase = r.uniform(5, 10)
+        blades.append((h, x0, lean, wbase, cols[int(r.integers(0, len(cols)))]))
+    blades.sort(key=lambda b: -b[0])
+    for h, x0, lean, wbase, col in blades:
+        lay = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        dd = ImageDraw.Draw(lay)
+        left, right = [], []
+        n = 14
+        for k in range(n + 1):
+            t = k / n
+            x = x0 + lean * h * t * t
+            y = S - 2 - h * t + (h * 0.12 * t ** 3 if abs(lean) > 0.35 else 0)
+            w = wbase * (1 - t) ** 0.9 * 0.5
+            left.append((x - w, y))
+            right.append((x + w, y))
+        shade = r.uniform(0.75, 1.05)
+        c = tuple(int(min(255, v * shade)) for v in col)
+        dd.polygon(left + right[::-1], fill=c + (255,))
+        img = Image.alpha_composite(img, lay)
+    a = np.array(img, np.float32)
+    yy = np.linspace(0, 1, S)[:, None]
+    a[..., :3] *= (0.45 + 0.55 * np.clip((1 - yy) * 1.6, 0, 1))[..., None]
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), "RGBA").save(os.path.join(OUT, "road_grass.png"))
+    print("   road_grass.png")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     spray_13()
@@ -378,3 +572,9 @@ if __name__ == "__main__":
     missing_posters()
     hut_map()
     leaf_litter()
+    road_signs()
+    road_borne()
+    road_forest_sign()
+    road_delineator()
+    road_paint()
+    road_grass()

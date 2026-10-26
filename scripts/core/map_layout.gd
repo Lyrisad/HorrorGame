@@ -114,6 +114,8 @@ static func auto_collide(n: Node3D) -> void:
 
 
 static func _procedural(model: String, root: Node3D) -> Node3D:
+	if model.begins_with("proc:road_"):
+		return Roadside.make(model.trim_prefix("proc:road_"), root)
 	if model.begins_with("proc:poster_"):
 		var poster := Props.poster(root, int(model.trim_prefix("proc:poster_")))
 		poster.set_meta("spec", {"model": model, "center": false})
@@ -239,8 +241,9 @@ static func save(map_id: String, root: Node3D) -> String:
 	var objs := []
 	for n in movables(root):
 		objs.append({"id": n.get_meta("editobj"), "xf": _xf_to(inv * n.global_transform)})
-	# drapeaux : le décor généré par défaut (toiles des égouts, sous-bois de la forêt) fait déjà partie de la carte
-	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs, "toiles": true, "sousbois": true}, "\t")
+	# drapeaux : le décor généré par défaut (toiles des égouts, sous-bois et bord de route de la forêt) fait déjà
+	# partie de la carte
+	var txt := JSON.stringify({"version": 1, "carte": map_id, "objets": props.size(), "props": props, "cams": cams, "objs": objs, "toiles": true, "sousbois": true, "route": true}, "\t")
 	DirAccess.make_dir_recursive_absolute(USER_DIR)
 	var f := FileAccess.open(USER_DIR + map_id + ".json", FileAccess.WRITE)
 	f.store_string(txt)

@@ -273,8 +273,11 @@ Keep it current — add a line whenever you learn something non-obvious. History
   start, one wakes in the van when the battery is taken), 2 drones (stone aim assist: within 16° and 28 m the
   stone flies ballistic to the drone with lead → hit at 8° off verified), traps: step < 0.33 m → snap, limp, look
   down, blood, noise 30 → MASH E (+0.09/press, decay 0.22/s, hud.hold bar; ~19 presses), cam13 = the victim's
-  bodycam: its last file plays ON ITS LCD held in front of Théo (SubViewport camera along hut → camp, IR look:
-  env copy with saturation 0, exposure ×2.6, ambient ×5; subtitles "Caméra 0402"), "Les téléphones" = a stranger's
+  bodycam: its last file plays ON ITS LCD held in front of Théo (SubViewport camera, IR look: env copy with
+  saturation 0, exposure ×2.6, ambient ×5; subtitles "Caméra 0402"). 4 shots with jump cuts: walking up the hut
+  branch, static in the hut on the radio (IR lamp 0.6), walking then running up the camp branch; positions come
+  from _along(_branch(...), f) so it stays ON the real paths (the user saw it cut through the trees before);
+  hunters' and the drone's GeometryInstances go to layer 10 during the video (vcam sees 1|2 only), "Les téléphones" = a stranger's
   phone (Romain), "Aucun service" → jammer explanation (Théo's own phone stays in his inventory). Radio call →
   « Ouvrez la trappe » → creature from S13 → road → whistle → pole-camera reveal. Checkpoints "carry" / "chase".
   Hunter 0 walks DOWN the main trail toward the exit (~35 s): the first time his head is < 32 m, in view and in
@@ -284,8 +287,24 @@ Keep it current — add a line whenever you learn something non-obvious. History
   hidden under a Decal of assets/gen/leaf_litter.png (generate_surface.leaf_litter), no more litter quads.
   Dust (Nature.dust + dust_bokeh) follows Théo like in the sewer. The big white ball near the camp fire is the
   flashlight on the SMOKE (user said so), not the bokeh: leave the bokeh as it is.
+  Road (D 47, ROAD_Z -52, half width 3.45): _build_asphalt = one strip mesh (crowned profile ROAD_PROFILE, noisy
+  crumbled edges, vertex colour = dirt at the edges / patches, asphalt_02 UV in metres ×0.25, roughness 0.45 =
+  damp) + marking quads (axis 3 m/10 m, edge lines 3 m/3.5 m at ±3.0) with Roadside.retro(road_paint.png).
+  Terrain COLOR.b = gravel shoulder (smoothstep 3.4 → 5.0 from the road axis) → forest_ground.gdshader mixes
+  gravel_road with noisy edges. _build_verge_grass: ~5500 dry tufts (3 crossed cards, road_grass.png,
+  road_grass.gdshader with wind + up normals), MultiMesh chunks of 30 m, visibility 80 m, never on the trail.
+  _build_power_line: Poly Haven modular_electricity_poles "preset_02" (everything else removed) at scale 1.35,
+  every 36 m on z = POLE.z through POLE (the camera pole: POLE_R 0.095, sodium arm lowered to 6.6 m, black feed
+  cable), 3 aluminium wires (6-sided tubes, sag 0.55-0.61) from the top crossarm AABB; invisible against the black
+  sky unless the flashlight hits them (realistic). get_surface: asphalt → step_concrete, shoulder → gravel, hut
+  floor → wood. Roadside furniture = scripts/world/roadside.gd (proc:road_delineator / sign_80 / sign_chasse /
+  sign_b0 / borne / foret / barrier, also in the editor catalogue): their own thin colliders (spec collide true),
+  retro.gdshader = retroreflective film (light() adds ALBEDO × pow(dot(VIEW, LIGHT), 48): bright only in the
+  flashlight, which sits at the lens). Placed by _build_roadside() (deco() now accepts proc: slugs) once on a saved
+  layout lacking the "route" flag (MapLayout.save writes "route": true). Textures: generate_surface.road_*().
   Tests: `--surfacetest=look|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|hitbox|seen|chase|radio|road|phone|cam|dump`
-  (dronelook: Théo follows the drone with his eyes, prints its distance; hitbox: walks into the layout's table /
+  (cam: prints "CAM13 t= plan= hors sentier=" every second and saves the video frame <shot>_video_NN.png;
+  dronelook: Théo follows the drone with his eyes, prints its distance; hitbox: walks into the layout's table /
   tent, prints where he stopped), `--edpick=surface_hut_radio,...` (editor: aims and clicks each movable, prints
   what got selected, saves NOTHING; the camera stands 1.2 m from the object on the room side, or outside).
   Once the user saves in the editor, EVERY editobj (nested ones too) is in the file with its global xf; new
