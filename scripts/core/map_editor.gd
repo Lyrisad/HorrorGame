@@ -1149,20 +1149,37 @@ func _picktest() -> void:
 			print("EDPICK %s : introuvable" % id)
 			continue
 		var host := o.get_parent() as Node3D
-		# vise le centre de ses propres maillages (pas ceux des objets posés dessus)
+		# vise ses propres maillages (pas ceux des objets posés dessus) : le centre, puis deux autres points
 		var target := o.global_position
+		var aims: Array[Vector3] = []
 		for mi in o.find_children("*", "MeshInstance3D", true, false):
 			if (mi as MeshInstance3D).mesh != null and _decor_of(mi) == o:
-				target = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb().get_center()
+				var bb := (mi as MeshInstance3D).get_aabb()
+				var xf := (mi as MeshInstance3D).global_transform
+				aims = [xf * bb.get_center(), xf * (bb.position + bb.size * 0.35), xf * (bb.position + bb.size * 0.65)]
+				target = aims[0]
 				break
-		# la caméra au milieu de la pièce (ou devant la table), à hauteur d'yeux
-		cam.global_position = host.global_transform * (Vector3(-0.8, 1.7, 0.1) if id.begins_with("surface_hut") else Vector3(0, 1.7, 1.8))
+		if aims.is_empty():
+			aims = [target]
+		# la caméra devant la table, ou à 1,2 m de l'objet côté pièce (côté extérieur s'il est dehors), à hauteur d'yeux
+		cam.global_position = host.global_transform * Vector3(0, 1.7, 1.8)
+		if not id.begins_with("surface_camp"):
+			var top := o
+			while top.get_parent() != root:
+				top = top.get_parent() as Node3D
+			var flat := target - top.global_position
+			flat.y = 0.0
+			var out := flat.length() > 2.6
+			cam.global_position = target + (flat.normalized() * 1.4 if out else -flat.normalized() * 1.2) + Vector3(0, 0.7 if out else 0.25, 0)
 		var dir := target - cam.global_position
 		_yaw = atan2(-dir.x, -dir.z)
 		_pitch = atan2(dir.y, Vector2(dir.x, dir.z).length())
 		for i in 3:
 			await get_tree().process_frame
-		_pick(cam.unproject_position(target))
+		for a in aims:
+			_pick(cam.unproject_position(a))
+			if selected == o:
+				break
 		var got := "rien"
 		if selected != null:
 			got = str(selected.get_meta("editobj")) if selected.has_meta("editobj") else str((selected.get_meta("spec", {}) as Dictionary).get("model", "?"))

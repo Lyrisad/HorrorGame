@@ -1117,13 +1117,18 @@ func _build_hut(holder: Node3D) -> void:
 	# le lit de camp le long du mur, un sac de couchage dessus
 	var bed := _sub(inside, "hut_bed", Vector3(-1.05, fl, 0.72), 90.0)
 	B.model(bed, "old_bed_frame", Vector3.ZERO, 0.0, {"depth": 1.9, "collide": true})
-	B.model(bed, "sf:sleeping_bag", Vector3(0.02, 0.42, -0.15), -10.0, {"width": 1.6})
+	B.model(_sub(bed, "hut_bed_bag", Vector3(0.02, 0.42, -0.15), -10.0), "sf:sleeping_bag", Vector3.ZERO, 0.0, {"width": 1.6})
 	B.model(_sub(inside, "hut_jerrycan", Vector3(-1.95, fl, -0.3), 80.0), "metal_jerrycan", Vector3.ZERO, 0.0, {"height": 0.45})
 	# l'étagère contre la cloison : un bocal, des bouteilles
 	var shelf := _sub(inside, "hut_shelf", Vector3(0.36, fl, 0.72), -90.0)
 	B.model(shelf, "wooden_bookshelf_worn", Vector3.ZERO, 0.0, {"height": 1.55, "collide": true})
-	B.model(shelf, "jug_01", Vector3(-0.17, 1.55, 0), 0.0, {"height": 0.22})
-	B.model(shelf, "wine_bottles_01", Vector3(0.18, 1.55, 0), 0.0, {"height": 0.3})
+	B.model(_sub(shelf, "hut_jug", Vector3(-0.17, 1.55, 0)), "jug_01", Vector3.ZERO, 0.0, {"height": 0.22})
+	# les bouteilles une par une (chacune se prend dans l'éditeur)
+	var bottles := [["wine_bottles_01_bordeaux", 0.3, Vector3(0.07, 1.55, 0.03)], ["wine_bottles_01_alsace", 0.34, Vector3(0.16, 1.55, -0.04)],
+		["wine_bottles_01_burgundy", 0.29, Vector3(0.26, 1.55, 0.02)]]
+	for i in bottles.size():
+		var b: Array = bottles[i]
+		B.model(_sub(shelf, "hut_bottle_%d" % i, b[2], i * 40.0), "wine_bottles_01", Vector3.ZERO, 0.0, {"part": b[0], "height": b[1]})
 	B.model(_sub(inside, "hut_light", Vector3(-0.8, 2.44 - 0.3, 0.1)), "caged_hanging_light", Vector3.ZERO, 0.0, {"height": 0.3})
 	var webs := [Vector3(-2.0, 2.44, -1.15), Vector3(0.45, 2.44, 1.1), Vector3(-2.0, 2.44, 1.1), Vector3(2.15, 2.44, -1.15)]
 	for i in webs.size():
@@ -1137,7 +1142,7 @@ func _build_hut(holder: Node3D) -> void:
 	_woodpile(_sub(holder, "hut_wood_out", Vector3(-2.95, 0.0, -0.4), 90.0), Vector3.ZERO, 0.45, 2.2, 1.15, 0.0)
 	var block := _sub(holder, "hut_block", Vector3(3.4, 0.0, 2.6))
 	B.model(block, "tree_stump_01", Vector3.ZERO, 0.0, {"height": 0.45, "collide": true})
-	B.model(block, "wooden_axe", Vector3(-0.02, 0.36, 0), 30.0, {"height": 0.7, "rot": Vector3(160, 0, 0)})
+	B.model(_sub(block, "hut_axe", Vector3(-0.02, 0.36, 0), 30.0), "wooden_axe", Vector3.ZERO, 0.0, {"height": 0.7, "rot": Vector3(160, 0, 0)})
 	B.model(_sub(holder, "hut_barrel", Vector3(-2.95, 0.0, 1.55)), "Barrel_01", Vector3.ZERO, 0.0, {"height": 0.9, "collide": true})
 	B.model(_sub(holder, "hut_tyre", Vector3(3.1, 0.0, -1.0)), "old_tyre", Vector3.ZERO, 0.0, {"width": 0.65})
 	B.model(_sub(holder, "hut_branches", Vector3(2.6, 0.0, -2.4), 40.0), "dry_branches_medium_01", Vector3.ZERO, 0.0, {"width": 1.2})

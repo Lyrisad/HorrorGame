@@ -121,13 +121,15 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    Bug trouvé dans ses cartes : D (déplacement) dans la liste de l'éditeur créait des « dead tree trunk » empilés au
    point 0 (6 égouts, 43 maison, 52 forêt) → liste sans clavier, ignorés au chargement. Il a précisé que la grosse
    boule blanche au camp était la lampe sur la fumée du feu (pas la poussière) : poussière laissée comme avant.
+   Puis : le duvet restait lié au lit, le bocal et les bouteilles à l'étagère → objets séparés (la hache du billot
+   aussi).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;
   `tools/dev/package.py` refait le zip après l'export).
 - Les cartes de l'utilisateur (maison, égouts, forêt) sont dans `maps/` (identiques à celles de son %APPDATA% au 26/10/2026 ;
-  sa forêt : 132 objets dont 52 troncs fantômes au point 0, ignorés au chargement).
+  sa forêt, ressauvegardée par lui le 26/10 à 19:37 : 358 objets avec le sous-bois, plus de troncs fantômes).
 
 ## Idées proposées, pas encore faites
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).

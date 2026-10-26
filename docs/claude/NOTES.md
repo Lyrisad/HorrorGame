@@ -245,7 +245,9 @@ Keep it current — add a line whenever you learn something non-obvious. History
   exit, hut, camp_desk/board/fire/light/generator/antenna/crate/battery, van, s13, cam13, trap_0..4, stones_0..5 →
   MapLayout.apply_objs("surface") BEFORE _compute_paths/_build_terrain (paths + clearings follow the hut and camp),
   then _snap_objects (y = floor_y; only root-level ones). `_sub(parent, id, pos, yaw)` = an editobj NESTED in
-  another (every hut item: hut_table/radio/chair/bed/shelf/map/clock/lamp/web_N/wood..., camp_screen_1/2,
+  another (every hut item: hut_table/radio/chair/bed/shelf/map/clock/lamp/web_N/wood..., and nested deeper:
+  hut_bed_bag on the bed, hut_jug + hut_bottle_0..2 (wine_bottles_01 split by part) on the shelf, hut_axe on
+  hut_block — the user wants EVERY small object movable alone; camp_screen_1/2,
   camp_laptop, camp_chair_1/2, camp_registre, camp_tarp): movable alone in the editor, follows its parent; the
   editor's _attach_body skips meshes whose _decor_of() is another object. apply_objs stores GLOBAL xfs and walks
   parents first, so an unsaved child keeps its offset from a moved parent. Decor via deco() (meta "decor",
@@ -285,7 +287,9 @@ Keep it current — add a line whenever you learn something non-obvious. History
   Tests: `--surfacetest=look|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|hitbox|seen|chase|radio|road|phone|cam|dump`
   (dronelook: Théo follows the drone with his eyes, prints its distance; hitbox: walks into the layout's table /
   tent, prints where he stopped), `--edpick=surface_hut_radio,...` (editor: aims and clicks each movable, prints
-  what got selected, saves NOTHING).
+  what got selected, saves NOTHING; the camera stands 1.2 m from the object on the room side, or outside).
+  Once the user saves in the editor, EVERY editobj (nested ones too) is in the file with its global xf; new
+  nested ids added later keep their default offset from their parent.
   (look = no hunters/drone, for scenery captures; trapmash/dronehit simulate input and print PIEGE / DRONE lines;
   simulate keys with Input.parse_input_event(InputEventAction), Input.action_press is missed by
   is_action_just_pressed), `--torch`, `--checkpoint=carry|chase`, `--freecam … --freelight=<energy>`.
