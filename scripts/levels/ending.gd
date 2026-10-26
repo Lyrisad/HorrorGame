@@ -74,6 +74,7 @@ var _owl_cd := 12.0
 var _s13_heard := false
 var cutscene := false  ## une scène où Théo ne contrôle rien (vidéo, téléphone) : les hommes au masque ne le repèrent pas
 var _hunter_warned := false
+var _stones_told := false
 var _dust: GPUParticles3D
 var _dust_near: GPUParticles3D
 
@@ -1330,19 +1331,28 @@ func _struggle() -> void:
 
 
 # ================================================================== cailloux
+## Un tas de galets de calcaire clair (sur les feuilles sombres, on les voit dans le faisceau de la lampe).
 func _build_stones(holder: Node3D) -> void:
-	var grey := B.mat("hacked_concrete", 0.3, {"color": Color(0.4, 0.39, 0.36), "roughness": 1.0})
-	for k in 4:
+	var mats := [B.mat("hacked_concrete", 0.25, {"color": Color(0.52, 0.5, 0.46), "roughness": 1.0}),
+		B.mat("hacked_concrete", 0.25, {"color": Color(0.4, 0.39, 0.36), "roughness": 1.0}),
+		B.mat("hacked_concrete", 0.25, {"color": Color(0.58, 0.54, 0.47), "roughness": 1.0})]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(String(holder.name))
+	for k in 7:
 		var sm := SphereMesh.new()
-		sm.radius = randf_range(0.035, 0.06)
-		sm.height = sm.radius * randf_range(1.2, 1.7)
-		sm.radial_segments = 6
-		sm.rings = 3
+		sm.radius = rng.randf_range(0.035, 0.07)
+		sm.height = sm.radius * 2.0
+		sm.radial_segments = 7
+		sm.rings = 4
 		var mi := MeshInstance3D.new()
 		mi.mesh = sm
-		mi.material_override = grey
+		mi.material_override = mats[k % mats.size()]
 		holder.add_child(mi)
-		mi.position = Vector3(randf_range(-0.12, 0.12), sm.height * 0.35, randf_range(-0.12, 0.12))
+		var flat := rng.randf_range(0.45, 0.7)
+		mi.scale = Vector3(rng.randf_range(0.9, 1.5), flat, rng.randf_range(0.7, 1.2))
+		mi.rotation = Vector3(rng.randf_range(-0.25, 0.25), rng.randf() * TAU, rng.randf_range(-0.25, 0.25))
+		# un peu enfoncés dans la terre, éparpillés
+		mi.position = Vector3(rng.randf_range(-0.24, 0.24), sm.radius * flat * 0.45, rng.randf_range(-0.24, 0.24))
 	var it := Interactable.create(holder, Vector3(0, 0.1, 0), Vector3(0.5, 0.3, 0.5), "Ramasser des cailloux", Callable())
 	it.on_use = func() -> void:
 		it.queue_free()
@@ -1961,6 +1971,33 @@ func _route(k: int) -> Array:
 	return [c + Vector3(-5, 0, -3), c + Vector3(-8, 0, 4), _path_point(c, 0.35), c + Vector3(3, 0, 6), c + Vector3(6, 0, -1)]
 
 
+## Un homme au masque vient de le repérer : sa radio grésille (il prévient l'autre) et une note stridente part ;
+## Théo ne le dit qu'une fois dans la partie. Quand il le perd, sa radio grésille encore (il rend compte).
+func on_spotted(h: Node3D) -> void:
+	Sound.play("spotted_sting", -5.0, randf_range(0.97, 1.03), "UI")
+	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), -2.0, 1.0, 4.0, 40.0)
+	if Game.first_time("hunter_spotted"):
+		Game.hud.say("Il m'a vu... COURS !", 1.8)
+
+
+func on_lost(h: Node3D) -> void:
+	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), -4.0, 0.94, 4.0, 40.0)
+
+
+## La première fois qu'il passe à côté d'un tas de cailloux (une fois dans la partie) : Théo le remarque.
+func _look_for_stones() -> void:
+	for pile in piles:
+		var pn := pile as Node3D
+		if not pn.visible:
+			continue
+		var to := pn.global_position - player.eye_position()
+		if to.length() < 4.5 and (-player.cam.global_basis.z).dot(to.normalized()) > 0.6:
+			_stones_told = true
+			if Game.first_time("stones_seen") and stones == 0:
+				Game.hud.say("Des cailloux... Ça peut servir. Les lancer loin, pour les attirer ailleurs.", 3.4)
+			return
+
+
 ## La première fois qu'il voit la lampe d'un homme au masque : il comprend, et on lui dit comment se cacher.
 func _look_for_hunters() -> void:
 	var eye := player.eye_position()
@@ -1972,6 +2009,8 @@ func _look_for_hunters() -> void:
 		var to := head - eye
 		if to.length() < 32.0 and (-player.cam.global_basis.z).dot(to.normalized()) > 0.55 and has_los(eye, head):
 			_hunter_warned = true
+			if not Game.first_time("hunter_first_seen"):
+				return
 			Game.hud.say("Une lampe... Quelqu'un vient. Il a... un masque. C'est un des leurs !", 3.4)
 			await wait(3.6)
 			Game.hud.hint("Il voit bien mais entend mal : sors du sentier, accroupis-toi ([C]), éteins ta lampe ([F])", 7.0)
@@ -2175,6 +2214,8 @@ func _process(delta: float) -> void:
 		_dust_near.global_position = player.cam.global_position - player.cam.global_basis.z * 1.0
 	if not _hunter_warned:
 		_look_for_hunters()
+	if not _stones_told:
+		_look_for_stones()
 	if Input.is_action_just_pressed("throw") and stones > 0 and player.can_act():
 		_throw_stone()
 	# le feu vacille
@@ -2204,7 +2245,7 @@ func prewarm_extras() -> Array:
 	return out
 
 
-## Tests : --surfacetest=look|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
+## Tests : --surfacetest=look|flee|trap|trapmash|drone|dronelook|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
 func _surface_test(kind: String) -> void:
 	await wait(1.0)
 	player.set_flashlight(true, true)
@@ -2319,6 +2360,28 @@ func _surface_test(kind: String) -> void:
 			h2.state = Hunter.S.SEARCH
 		"chase":
 			_release_creature(true)
+		"flee":
+			# sur la route : il le repère à 10 m, Théo sprinte vers l'ouest (sans lampe si --dark) ; on mesure l'écart
+			player.global_position = Vector3(-4.0, 0.05, ROAD_Z + 1.5)
+			player.set_look(PI * 0.5, 0.0)
+			if Game.args.has("dark"):
+				player.set_flashlight(false, true)
+			var h4 := hunters[0] as Hunter
+			h4.global_position = player.global_position + Vector3(10.0, 0, 0)
+			h4.heading = PI * 0.5
+			h4.state = Hunter.S.SEARCH
+			h4.suspicion = 1.2
+			(hunters[1] as Hunter).process_mode = Node.PROCESS_MODE_DISABLED
+			_drone_cd = 1e9
+			await wait(0.4)
+			Input.action_press("move_forward")
+			Input.action_press("run")
+			for i in 14:
+				await wait(1.0)
+				print("FUITE t=%d écart=%.1f m état=%s souffle=%.2f endurance=%.2f" % [i + 1, h4.global_position.distance_to(player.global_position),
+					Hunter.S.keys()[h4.state], h4.wind, player.stamina])
+			Input.action_release("move_forward")
+			Input.action_release("run")
 		"radio":
 			player.global_position = hut.global_transform * Vector3(-0.6, 0.05, -0.2)
 			battery_in = true
@@ -2497,7 +2560,8 @@ class Drone extends Node3D:
 class Hunter extends Node3D:
 	enum S { HIDDEN, PATROL, INVESTIGATE, SEARCH, CHASE, LEAVING }
 	const WALK := 1.15
-	const RUN := 4.2
+	const RUN := 3.6  ## gilet, rangers, masque à gaz : il court lourdement, moins vite que Théo qui sprinte
+	const JOG := 2.4  ## essoufflé dans son masque
 	var level
 	var camp := Vector3.ZERO  ## où il va d'abord (la batterie volée)
 	var route: Array = []
@@ -2515,11 +2579,14 @@ class Hunter extends Node3D:
 	var speed := 0.0
 	var heading := 0.0
 	var _vis_cd := 0.0
-	var _said := false
+	var wind := 1.0  ## son souffle : il ne sprinte pas indéfiniment (6 s), puis trottine le temps de récupérer
+	var winded := false
+	var _step := 0.0
+	var _chased_at := -100.0  ## dernière fois qu'il le poursuivait (s) : le retrouver juste après n'est pas un nouveau « repéré »
 
 	func _ready() -> void:
 		actor = Actor.new()
-		actor.character = "kidnapper"
+		actor.character = "hunter"  ## le modèle du ravisseur, avec sa course de forêt
 		actor.ready.connect(func() -> void:
 			actor.tint("", Color(0.16, 0.16, 0.17), 0.85)
 			actor.hide_material("helmet")
@@ -2596,15 +2663,17 @@ class Hunter extends Node3D:
 				if wait_t > 5.0:
 					state = S.PATROL
 			S.CHASE:
+				_chased_at = Time.get_ticks_msec() / 1000.0
 				goal = p.global_position if lost_t < 0.5 else last_seen
-				want_speed = RUN
+				want_speed = JOG if winded else RUN
 				if global_position.distance_to(p.global_position) < 1.25:
 					level._die("hunter")
 					return
-				if lost_t > 4.5:
+				if lost_t > 3.0:
 					state = S.SEARCH
 					wait_t = 0.0
 					suspicion = 0.5
+					level.on_lost(self)
 			S.LEAVING:
 				goal = target
 				want_speed = WALK * 1.4
@@ -2615,6 +2684,26 @@ class Hunter extends Node3D:
 						breath.queue_free()
 					return
 		speed = lerpf(speed, want_speed, 1.0 - exp(-4.0 * delta))
+		# le souffle : se vide en sprintant, revient au trot ou en marchant
+		if speed > JOG + 0.3:
+			wind = maxf(0.0, wind - delta / 6.0)
+			winded = winded or wind <= 0.0
+		else:
+			wind = minf(1.0, wind + delta / 7.0)
+			if winded and wind > 0.5:
+				winded = false
+		if breath != null:
+			breath.pitch_scale = lerpf(breath.pitch_scale, 1.3 if state == S.CHASE else 1.0, 1.0 - exp(-2.0 * delta))
+			breath.volume_db = lerpf(breath.volume_db, 3.0 if state == S.CHASE else -2.0, 1.0 - exp(-2.0 * delta))
+		# ses pas (rangers) : on l'entend arriver derrière soi
+		if want_speed > 0.0:
+			_step += speed * delta
+			var stride := 1.3 if speed > 2.0 else 0.75
+			if _step > stride:
+				_step = 0.0
+				var run := speed > 2.0
+				Sound.play_at(Sound.variant("step_" + str(level.get_surface(global_position)), 4), global_position + Vector3(0, 0.05, 0),
+					-3.0 if run else -12.0, randf_range(0.78, 0.88), 3.0, 34.0 if run else 18.0)
 		var to := _flat(goal - global_position)
 		if to.length() > 0.2 and want_speed > 0.0:
 			heading = lerp_angle(heading, atan2(-to.x, -to.z), 1.0 - exp(-5.0 * delta))
@@ -2630,7 +2719,7 @@ class Hunter extends Node3D:
 					global_position.z = c.z + out.z
 		rotation.y = heading
 		global_position.y = level.floor_y(global_position)
-		actor.locomote("run" if speed > 2.5 else "walk", speed if want_speed > 0.0 else 0.0, "idle")
+		actor.locomote("run" if speed > 1.8 else "walk", speed if want_speed > 0.0 else 0.0, "idle")
 		lamp.rotation_degrees.y = sin(Time.get_ticks_msec() / 900.0) * (6.0 if state == S.CHASE else 18.0)
 
 	func _flat(v: Vector3) -> Vector3:
@@ -2651,7 +2740,9 @@ class Hunter extends Node3D:
 		var to := chest - eye
 		var d := to.length()
 		var seen := false
-		if d < 24.0 and state != S.LEAVING:
+		# en pleine course, dans le noir, à travers son masque : il le perd de vue bien plus vite
+		var reach := 24.0 if state != S.CHASE else (20.0 if p.flashlight_on else 13.0)
+		if d < reach and state != S.LEAVING:
 			var fwd := -global_basis.z
 			var ang := fwd.dot(to.normalized())
 			if ang > cos(deg_to_rad(55.0)) and level.has_los(eye, chest):
@@ -2676,9 +2767,8 @@ class Hunter extends Node3D:
 				state = S.CHASE
 				last_seen = p.global_position
 				lost_t = 0.0
-				if not _said:
-					_said = true
-					Game.hud.say("Il m'a vu... COURS !", 1.8)
+				if Time.get_ticks_msec() / 1000.0 - _chased_at > 8.0:
+					level.on_spotted(self)
 			elif suspicion > 0.45 and seen and state != S.INVESTIGATE:
 				state = S.INVESTIGATE
 				target = p.global_position

@@ -131,13 +131,20 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    déchets, avis de recherche sur le poteau : tout déplaçable (ajouté une fois sur sa carte, drapeau « route »).
    La vidéo suit maintenant les vrais sentiers, en 4 plans (chemin de la cabane, la radio, chemin du camp, la
    course), sans les ennemis de cette nuit. Il a aussi demandé quand arrivent l'homme au masque et la créature.
+32. « Je trouve plus les cailloux », « l'homme au masque court de façon efféminée, je veux un truc d'homme », « il
+   court trop vite, je peux pas le semer », « un son pour savoir s'il m'a vu, pas "Il m'a vu" 36 fois ». Fait :
+   tas de 7 galets gris visibles dans la lampe + Théo les remarque une fois ; personnage « hunter » (le ravisseur
+   avec la course CMU 16_55 : buste penché, bras qui pompent ; l'ancienne 35_17 croisait les pieds) ; il court à
+   3,6 m/s, s'essouffle après 6 s (trot 2,4), le perd après 3 s hors de vue (portée 20 m lampe allumée, 13 m
+   éteinte) ; repéré = note stridente + grésillement de sa radio, ses pas et son souffle s'entendent ; répliques
+   et indices dits une seule fois par partie (même après une mort).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;
   `tools/dev/package.py` refait le zip après l'export).
 - Les cartes de l'utilisateur (maison, égouts, forêt) sont dans `maps/` (identiques à celles de son %APPDATA% au 26/10/2026 ;
-  sa forêt, ressauvegardée par lui le 26/10 à 21:05 : 463 objets, sans le mobilier de la route, ajouté au chargement).
+  sa forêt, ressauvegardée par lui le 26/10 à 22:07 avec le build de la route : 492 objets, drapeau « route »).
 
 ## Idées proposées, pas encore faites
 - Ronds dans l'eau et débris qui dérivent dans la cunette (le plus coûteux).

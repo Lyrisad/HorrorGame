@@ -1,0 +1,26 @@
+[
+ {
+  "name": "idle",
+  "frames": 230,
+  "seconds": 7.666666666666667,
+  "speed": 0.002
+ },
+ {
+  "name": "walk",
+  "frames": 34,
+  "seconds": 1.1333333333333333,
+  "speed": 1.159
+ },
+ {
+  "name": "strike",
+  "frames": 47,
+  "seconds": 1.5666666666666667,
+  "speed": 0.022
+ },
+ {
+  "name": "run",
+  "frames": 17,
+  "seconds": 0.5666666666666667,
+  "speed": 3.057
+ }
+]

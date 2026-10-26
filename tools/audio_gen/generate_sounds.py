@@ -667,6 +667,34 @@ def stinger_violin():
     return reverb(y + boom, 2.2, 0.35)
 
 
+def spotted_sting():
+    """Repéré par un homme au masque : un coup d'archet strident et court sur un coup sourd. Un signal net qu'on
+    reconnaît à chaque fois (pas un jumpscare)."""
+    d = 1.6
+    t = tt(d)
+    y = np.zeros_like(t)
+    for f in (1175, 1245, 1661, 1760):
+        vib = 1 + 0.01 * np.sin(2 * np.pi * rng.uniform(6, 8) * t + rng.uniform(0, 6))
+        y += saw(f * vib, d) * rng.uniform(0.6, 1)
+    y = bp(y, 900, 6500) * env_lin(d, [(0, 0), (0.012, 1), (0.18, 0.55), (0.7, 0.12), (d, 0)])
+    boom = sine(np.geomspace(90, 35, n_samples(d)), d) * env_exp(d, 0.001, 0.35) * 2.6
+    boom += lp(white(d), 500) * env_exp(d, 0.0005, 0.06) * 1.6
+    return reverb(y * 0.8 + boom, 1.4, 0.3)
+
+
+def radio_squelch():
+    """Talkie-walkie d'un homme au masque : clic d'alternat, souffle filtré, voix hachée incompréhensible, bip de fin."""
+    d = 0.9
+    t = tt(d)
+    hiss = bp(white(d), 500, 3200) * env_lin(d, [(0, 0), (0.01, 1), (0.62, 0.9), (0.64, 0), (d, 0)])
+    syl = (np.sin(2 * np.pi * 5.5 * t) > 0.1).astype(float) * env_lin(d, [(0, 0), (0.08, 0), (0.1, 1), (0.55, 1), (0.6, 0), (d, 0)])
+    voice = bp(saw(115 * (1 + 0.08 * np.sin(2 * np.pi * 3 * t)), d), 400, 2500) * lp(syl, 60) * 0.7
+    click = np.zeros_like(t)
+    click[:int(0.004 * SR)] = 1.0
+    beep = sine(1750, d) * env_lin(d, [(0, 0), (0.66, 0), (0.665, 1), (0.76, 1), (0.765, 0), (d, 0)]) * 0.45
+    return softclip(hiss * 0.8 + voice + click * 0.8 + beep, 1.8)
+
+
 def jumpscare():
     """Le choc du kidnappeur : coup sourd + cluster de cordes stridentes + souffle saturé, très court."""
     d = 2.2

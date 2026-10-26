@@ -69,6 +69,12 @@ CHARACTERS = {
         {"name": "pickup", "bvh": m("81_08"), "start": 72, "end": 432, "loop": False, "inplace": True, "face_at": 2.0},
         {"name": "drag", "bvh": m("81_08"), "start": 480, "end": 1260, "loop": True, "inplace": True, "face_at": 8.0, "min_loop": 1.5},
     ]),
+    # les hommes au masque de la forêt : même modèle que le ravisseur de la maison (gardé tel quel), mais une vraie
+    # course d'homme qui charge (16_55 : buste penché, foulée large, bras qui pompent ; 35_17 était un petit trot
+    # pieds croisés), prise en pleine vitesse (best_loop)
+    "hunter": dict(rocketbox("Military_Male_03"), clips=[c for c in HUMAN_CLIPS if c["name"] in ("idle", "walk")] + [STRIKE,
+        {"name": "run", "bvh": m("16_55"), "loop": True, "inplace": True, "min_loop": 0.5, "best_loop": True},
+    ]),
     # cadavres : à plat ventre après une chute (Karim), sur le côté (Inès), sur le dos (Max)
     "karim": dict(rocketbox("Male_Adult_12"), clips=[{"name": "dead", "bvh": m("90_16"), "static": "last", "inplace": False}]),
     "max": dict(rocketbox("Male_Adult_08"), clips=[{"name": "dead", "bvh": m("139_18"), "static": "first", "inplace": False}]),

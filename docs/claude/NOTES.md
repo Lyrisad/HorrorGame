@@ -31,6 +31,10 @@ Keep it current — add a line whenever you learn something non-obvious. History
 - Characters: `tools/blender_scripts/build_characters.py` → Blender `retarget.py` (needs `tools/blender/`, and
   `tools/rocketbox_src/` from `tools/dev/rb_download.py`). Clip options: start/end (source frames), inplace,
   loop, `face_at`, `ref:"facing"`, `yaw`. After rebuilding run `--headless --import` (render tools hang otherwise).
+- Clip option `best_loop` (retarget.py): search the best loop ANYWHERE in the capture (a run that starts from
+  standing), also for clips < 1.33 s that the default search skips. DON'T rebuild "kidnapper": the shipped glb was
+  made by an older retarget.py, a rebuild changes its walk/drag loops (drag loops badly) used in the house. The
+  forest masked men use their own character "hunter" (same Rocketbox model; idle, walk, strike + run 16_55).
 - Retarget gotchas: find the loop point BEFORE measuring travel/speed; CMU BVH frame 0 is a calibration T-pose
   (start ≥ 2); non-locomotion clips use average body facing; alignment must use the SAME reference child on both
   rigs (PREF_CHILD: pelvis→spine, upper spine→neck) or the torso twists. Corpses: static frames of 90_16 /
@@ -280,6 +284,15 @@ Keep it current — add a line whenever you learn something non-obvious. History
   hunters' and the drone's GeometryInstances go to layer 10 during the video (vcam sees 1|2 only), "Les téléphones" = a stranger's
   phone (Romain), "Aucun service" → jammer explanation (Théo's own phone stays in his inventory). Radio call →
   « Ouvrez la trappe » → creature from S13 → road → whistle → pole-camera reveal. Checkpoints "carry" / "chase".
+  Hunters (character "hunter"): WALK 1.15, RUN 3.6 for ~6 s (wind), then JOG 2.4 until wind > 0.5 (Théo: 4.7
+  for 6.5 s, then 1.95); in CHASE he sees 20 m (flashlight on) / 13 m (off) and gives up after 3 s out of sight
+  (→ SEARCH, level.on_lost = radio squelch). Spotted → level.on_spotted: spotted_sting (UI) + radio_squelch at him,
+  not again if he chased in the last 8 s; "Il m'a vu... COURS !" only once per game (Game.first_time, Game.told
+  cleared by new_game: lines/hints not repeated after a death). Boot steps step_<surface> pitch 0.8, gas-mask
+  breath faster/louder while chasing. Stones: 7 grey flattened pebbles per pile (seeded by name), Théo remarks
+  the first pile once (_look_for_stones). Test `--surfacetest=flee [--dark]`: spotted at 10 m on the road, Théo
+  sprints west, prints the gap every second (lamp on: gap 10 → ~16 m and he keeps seeing him on the open road;
+  lamp off: he loses him at ~7 s; trees break the line of sight).
   Hunter 0 walks DOWN the main trail toward the exit (~35 s): the first time his head is < 32 m, in view and in
   LOS, Théo says he sees a lamp / a mask + a hiding hint (_look_for_hunters). `cutscene` = true during cam13 video
   and the stranger's phone: hunters can't spot him unless already chasing. Drone (arrives at 30 s, orbits 6.5 m,

@@ -23,6 +23,7 @@ var level_params := {}
 var settings := {"sensitivity": 1.0, "volume": 0.8, "music": 1.0, "fullscreen": true, "brightness": 1.0, "mic": true, "mic_sens": 1.0, "mic_device": "Default"}
 var unlocked: Array = ["drive"]
 var playing := false
+var told := {}  ## répliques et indices déjà donnés dans la partie : pas répétés après une mort (rechargement)
 var args := {}
 
 # horloge affichée par la caméra
@@ -307,7 +308,16 @@ func boot(world_node: Node) -> void:
 		capture_mouse(false)
 
 
+## Vrai la première fois seulement (dans la partie en cours) : une réplique ou un indice qu'on ne répète pas.
+func first_time(key: String) -> bool:
+	if told.has(key):
+		return false
+	told[key] = true
+	return true
+
+
 func new_game() -> void:
+	told.clear()
 	ui.hide_menus()
 	capture_mouse(true)
 	ui.fade_rect.color.a = 1.0

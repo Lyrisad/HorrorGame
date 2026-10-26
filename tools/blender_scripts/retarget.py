@@ -279,15 +279,34 @@ def retarget_clip(tarm, clip, mapping):
     # sont calculées sur la boucle elle-même (sinon un acteur qui fait des allers-retours donne une
     # vitesse quasi nulle, et la boucle « recule » à chaque tour : le personnage semble planer)
     loop_cut = False
-    if clip.get("loop", False) and len(src) > 40 and not clip.get("static"):
-        chains = [(a, b) for a, b in (("Hips", "LeftUpLeg"), ("LeftUpLeg", "LeftLeg"), ("LeftLeg", "LeftFoot"),
-                                      ("Hips", "RightUpLeg"), ("RightUpLeg", "RightLeg"), ("RightLeg", "RightFoot"),
-                                      ("Hips", "LowerBack"), ("LowerBack", "Spine"))
-                  if a in smapped and b in smapped]
+    chains = [(a, b) for a, b in (("Hips", "LeftUpLeg"), ("LeftUpLeg", "LeftLeg"), ("LeftLeg", "LeftFoot"),
+                                  ("Hips", "RightUpLeg"), ("RightUpLeg", "RightLeg"), ("RightLeg", "RightFoot"),
+                                  ("Hips", "LowerBack"), ("LowerBack", "Spine"))
+              if a in smapped and b in smapped]
 
-        def lrot(m, a, b):
-            return (m[a].inverted() @ m[b]).to_quaternion()
+    def lrot(m, a, b):
+        return (m[a].inverted() @ m[b]).to_quaternion()
 
+    if clip.get("loop", False) and clip.get("best_loop") and not clip.get("static"):
+        # "best_loop" : la meilleure boucle n'importe où dans la capture (une course qui démarre arrêtée : on
+        # prend une foulée complète en pleine vitesse, pas le démarrage)
+        minlen = int(clip.get("min_loop", 0.5) * FPS)
+        best_a, best_i, best_d = 0, len(src) - 1, 1e9
+        for a in range(0, len(src) - minlen):
+            ra = {c: lrot(src[a], *c) for c in chains}
+            fa = src_facing(a)
+            hza = src[a]["Hips"].to_translation().z
+            for i in range(a + minlen, len(src)):
+                d = sum(ra[c].rotation_difference(lrot(src[i], *c)).angle for c in chains)
+                d += abs(src[i]["Hips"].to_translation().z - hza) / s_hip_h * 4.0
+                d += fa.angle(src_facing(i), 0.0)
+                if d < best_d:
+                    best_a, best_i, best_d = a, i, d
+        src = src[best_a:best_i + 1]
+        samples = samples[best_a:best_i + 1]
+        loop_cut = True
+        print(f"  boucle: {best_i - best_a} frames à partir de {best_a} (écart {best_d:.3f})")
+    elif clip.get("loop", False) and len(src) > 40 and not clip.get("static"):
         ref0 = {c: lrot(src[0], *c) for c in chains}
         face0 = src_facing(0)
         hz0 = src[0]["Hips"].to_translation().z
