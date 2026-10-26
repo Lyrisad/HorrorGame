@@ -132,7 +132,7 @@ static func mesh_from_model(slug: String, part := "") -> ArrayMesh:
 ## `kinds` : [[slug, part, poids, h_min, h_max], ...]
 ## Renvoie les troncs posés : [position, rayon] (arbres et rochers ; pas les buissons ni les jeunes pousses),
 ## pour leur donner une collision et en faire des obstacles (créature, regard d'un personnage).
-static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = []) -> Array:
+static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callable, seed := 7, kinds: Array = [], ground := Callable(), view_dist := 150.0) -> Array:
 	if kinds.is_empty():
 		kinds = [
 			["sf:pine_tree", "", 5.0, 11.0, 20.0],
@@ -169,6 +169,8 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 				break
 		var h := rng.randf_range(float(kinds[ki][3]), float(kinds[ki][4]))
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(h * rng.randf_range(0.85, 1.15), h, h * rng.randf_range(0.85, 1.15)))
+		if ground.is_valid():
+			p.y = ground.call(p)
 		buckets[ki].append(Transform3D(b, p + Vector3(0, -0.15, 0)))
 		placed += 1
 		var part: String = kinds[ki][1]
@@ -178,7 +180,7 @@ static func scatter_forest(parent: Node, area: Rect2, count: int, avoid: Callabl
 			trunks.append([p, clampf(h * 0.017, 0.12, 0.38)])
 	# découpage en parcelles : chaque parcelle est masquée hors champ et au-delà de VIEW_DIST
 	const CHUNK := 50.0
-	const VIEW_DIST := 150.0
+	var VIEW_DIST := view_dist
 	for i in kinds.size():
 		if buckets[i].is_empty():
 			continue

@@ -3,6 +3,7 @@
 - board_subjects.png : le tableau de liège de la régie, les 4 sujets de la session 14 (3 barrés, « EN COURS »)
 - screen_stream.png : la page du direct sur l'écran de la régie (spectateurs, dons, vote pour la suite)
 - cb_label.png : l'étiquette scotchée sur la radio de la cabane (canal 19)
+- hut_map.png : la carte IGN punaisée dans la cabane, annotée au stylo par David Roche (session 13)
 python generate_surface.py [dossier_sortie]
 """
 import math
@@ -157,9 +158,160 @@ def cb_label():
     print("   cb_label.png")
 
 
+def missing_posters():
+    """Avis de recherche agrafés aux arbres (les victimes des sessions d'avant) : papier délavé, photo, coulures."""
+    people = [("ROMAIN LEBRUN", "31 ans", "22/08/2026", "Saint-Ouen"), ("CLARA MEYER", "19 ans", "06/10/2026", "Montreuil"),
+              ("DAVID ROCHE", "41 ans", "03/11/2026", "agent de sécurité, Bobigny")]
+    for i, (name, age, date, where) in enumerate(people):
+        W, H = 512, 724
+        n = rng.random((H // 8 + 1, W // 8 + 1))
+        stain = np.array(Image.fromarray((n * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), np.float32) / 255
+        base = np.stack([228 - 40 * stain, 224 - 42 * stain, 210 - 50 * stain], -1)
+        img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8))
+        d = ImageDraw.Draw(img)
+        d.text((W / 2, 40), "DISPARU" if i != 1 else "DISPARUE", font=font("impact.ttf", 96), fill=(170, 20, 20), anchor="mt")
+        img.paste(portrait(300, 300, 90 + i, (110, 115, 120)), (106, 160))
+        d.text((W / 2, 480), name, font=font("segoeuib.ttf", 40), fill=(20, 20, 20), anchor="mt")
+        d.text((W / 2, 530), age + " — " + where, font=font("segoeui.ttf", 24), fill=(30, 30, 30), anchor="mt")
+        d.text((W / 2, 575), "Vu(e) pour la dernière fois le " + date, font=font("segoeui.ttf", 22), fill=(30, 30, 30), anchor="mt")
+        d.text((W / 2, 640), "Toute information : 06 41 27 88 0" + str(3 + i), font=font("segoeuib.ttf", 24), fill=(20, 20, 20), anchor="mt")
+        a = np.array(img, np.float32)
+        # pluie : coulures verticales et bords gondolés
+        for _ in range(40):
+            x = int(rng.uniform(0, W))
+            y0 = int(rng.uniform(0, H * 0.6))
+            ln = int(rng.uniform(40, 260))
+            a[y0:y0 + ln, max(0, x - 1):x + 2] *= rng.uniform(0.82, 0.93)
+        Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).save(os.path.join(OUT, "poster_missing_%d.png" % i))
+        print("   poster_missing_%d.png" % i)
+
+
+def hut_map():
+    """Carte topographique imprimée (courbes de niveau, route, sentier), annotée au stylo bille par la victime de
+    la session 13. Le nord est en haut : la route en haut, la cabane à l'ouest, le camp à l'est (comme dans le jeu)."""
+    W, H = 1200, 900
+    # monde : x de -42 à 48, z de -58 à 8 (z vers le bas de la carte)
+    def px(x, z):
+        return ((x + 42) / 90 * W, (z + 58) / 66 * H)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    base = np.zeros((H, W, 3), np.float32)
+    base[:] = (238, 236, 222)
+    # bois (vert pâle) par grandes taches
+    field = np.zeros((H, W), np.float32)
+    for k in range(7):
+        f = 0.004 * (1.7 ** k)
+        ph = rng.uniform(0, 6.28, 4)
+        field += (np.sin(xx * f + ph[0]) * np.cos(yy * f * 1.13 + ph[1]) + np.sin((xx + yy) * f * 0.7 + ph[2])) / (1.6 ** k)
+    wood = np.clip((field + 0.6) * 0.9, 0, 1)[..., None]
+    base = base * (1 - wood * 0.22) + np.array([196, 222, 186], np.float32) * wood * 0.22
+    # courbes de niveau (brun), une maîtresse plus épaisse de temps en temps
+    hgt = field * 9.0 + yy / H * 3.0
+    frac = np.abs(((hgt * 2.0) % 1.0) - 0.5)
+    lines = (frac > 0.47).astype(np.float32)
+    master = ((np.abs(((hgt * 0.4) % 1.0) - 0.5)) > 0.485).astype(np.float32)
+    lw = np.clip(lines * 0.55 + master * 0.8, 0, 1)[..., None]
+    base = base * (1 - lw) + np.array([178, 128, 82], np.float32) * lw
+    img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    # quadrillage kilométrique (bleu)
+    for gx in range(0, W, 150):
+        d.line([(gx, 0), (gx, H)], fill=(120, 150, 205), width=1)
+    for gy in range(0, H, 150):
+        d.line([(0, gy), (W, gy)], fill=(120, 150, 205), width=1)
+    # la route (en haut)
+    ry = px(0, -52)[1]
+    d.line([(0, ry), (W, ry)], fill=(60, 50, 40), width=15)
+    d.line([(0, ry), (W, ry)], fill=(245, 205, 90), width=10)
+    d.text((70, ry - 34), "D 117", font=font("arialbd.ttf", 22), fill=(60, 50, 40))
+    d.text((W - 260, ry + 14), "Forêt domaniale", font=font("ariali.ttf", 22), fill=(40, 90, 40))
+    # sentier imprimé (tirets noirs)
+    trail = [(0, 2), (-1.5, -8), (1.0, -17), (-0.5, -27), (1.0, -38), (0, -49)]
+    pts = [px(*p) for p in trail]
+    for a, b in zip(pts, pts[1:]):
+        n = int(math.dist(a, b) / 14)
+        for k in range(n):
+            if k % 2 == 0:
+                t0, t1 = k / n, (k + 1) / n
+                d.line([(a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0), (a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1)], fill=(30, 30, 30), width=3)
+    # la cabane (petit carré noir imprimé)
+    hx, hy = px(-24, -19)
+    d.rectangle([hx - 9, hy - 7, hx + 9, hy + 7], fill=(30, 30, 30))
+    d.text((hx - 60, hy + 14), "abri", font=font("ariali.ttf", 18), fill=(30, 30, 30))
+    img = img.filter(ImageFilter.GaussianBlur(0.6))
+    d = ImageDraw.Draw(img)
+    # ---- au stylo bille bleu, d'une main pressée
+    pen = (28, 38, 120)
+    red = (170, 25, 25)
+    hand = font("Inkfree.ttf", 30)
+    hand_s = font("Inkfree.ttf", 24)
+
+    def wobble_circle(cx, cy, r, color, width=4, turns=1.15):
+        pts = []
+        for k in range(80):
+            t = k / 79 * 6.283 * turns
+            rr = r * (1 + 0.08 * math.sin(t * 3.1) + rng.uniform(-0.02, 0.02))
+            pts.append((cx + math.cos(t) * rr, cy + math.sin(t) * rr * 0.8))
+        d.line(pts, fill=color, width=width, joint="curve")
+
+    wobble_circle(hx, hy, 42, pen)
+    d.text((hx - 110, hy - 100), "radio !! (morte)", font=hand, fill=pen)
+    d.text((hx - 110, hy - 66), "batterie ?", font=hand_s, fill=pen)
+    # la plaque S13 (là où il est sorti)
+    sx, sy = px(-6.5, -10)
+    wobble_circle(sx, sy, 22, red, 4)
+    d.text((sx - 250, sy - 12), "S13 = moi. 05h51", font=hand_s, fill=red)
+    # pièges : petites croix le long du sentier
+    for tx, tz in [(-1.1, -12.2), (0.7, -21.5), (0.3, -33.8)]:
+        cx, cy = px(tx, tz)
+        d.line([(cx - 8, cy - 8), (cx + 8, cy + 8)], fill=pen, width=3)
+        d.line([(cx - 8, cy + 8), (cx + 8, cy - 8)], fill=pen, width=3)
+    cx, cy = px(1.0, -21.5)
+    d.text((cx - 360, cy - 18), "PIÈGES (sous les feuilles)", font=hand_s, fill=pen)
+    # le camp : grosse croix rouge, flèche depuis le sentier
+    kx, ky = px(28, -31)
+    d.line([(kx - 26, ky - 26), (kx + 26, ky + 26)], fill=red, width=6)
+    d.line([(kx - 26, ky + 26), (kx + 26, ky - 26)], fill=red, width=6)
+    d.text((kx - 40, ky + 36), "EUX", font=font("Inkfree.ttf", 40), fill=red)
+    d.text((kx - 120, ky + 84), "écrans, groupe élec.", font=hand_s, fill=pen)
+    d.text((kx - 120, ky + 112), "le VAN = un 2e type", font=hand_s, fill=pen)
+    ax0, ay0 = px(4, -30)
+    d.line([(ax0, ay0), (kx - 40, ky - 4)], fill=pen, width=3)
+    d.line([(kx - 40, ky - 4), (kx - 58, ky - 16)], fill=pen, width=3)
+    d.line([(kx - 40, ky - 4), (kx - 56, ky + 10)], fill=pen, width=3)
+    # le drone, en marge
+    d.text((40, 130), "drone = il me filme. des cailloux ?", font=hand_s, fill=pen)
+    # la note en bas, signée
+    d.text((40, H - 150), "ils voient mais n'entendent rien. la bête : l'inverse.", font=hand, fill=pen)
+    d.text((40, H - 110), "ils la rappellent au sifflet.", font=hand, fill=pen)
+    d.text((W - 300, H - 70), "D.R.  03/11", font=hand, fill=pen)
+    # papier : pliures en croix, taches, bords jaunis, punaises
+    a = np.array(img, np.float32)
+    for fx in (W // 3, 2 * W // 3):
+        a[:, fx - 2:fx + 2] *= 0.86
+        a[:, fx + 2:fx + 10] *= 1.03
+    a[H // 2 - 2:H // 2 + 2, :] *= 0.86
+    edge = np.minimum(np.minimum(xx, W - 1 - xx), np.minimum(yy, H - 1 - yy))
+    yellow = np.clip(1 - edge / 70, 0, 1)[..., None]
+    a = a * (1 - yellow * 0.25) + np.array([200, 170, 110], np.float32) * yellow * 0.25
+    for _ in range(9):
+        cx, cy, r = rng.uniform(0, W), rng.uniform(0, H), rng.uniform(25, 90)
+        m = np.clip(1 - np.hypot(xx - cx, yy - cy) / r, 0, 1)[..., None]
+        a = a * (1 - m * 0.14) + np.array([150, 120, 80], np.float32) * m * 0.14
+    a = np.clip(a * rng.uniform(0.97, 1.0, (H, W, 1)), 0, 255)
+    img = Image.fromarray(a.astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    for cx, cy in [(26, 26), (W - 26, 26), (26, H - 26), (W - 26, H - 26)]:
+        d.ellipse([cx - 11, cy - 11, cx + 11, cy + 11], fill=(150, 20, 20), outline=(80, 10, 10), width=2)
+        d.ellipse([cx - 5, cy - 7, cx + 1, cy - 2], fill=(230, 120, 120))
+    img.save(os.path.join(OUT, "hut_map.png"))
+    print("   hut_map.png")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     spray_13()
     board_subjects()
     stream_page()
     cb_label()
+    missing_posters()
+    hut_map()

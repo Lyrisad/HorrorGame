@@ -45,6 +45,12 @@
 | `assets/sketchfab/generator` | [Generator](https://sketchfab.com/3d-models/generator-b0de972e500a48d6a26a7d1ef6f5143f) | victorberdugo1 |
 | `assets/sketchfab/cb_radio` | [Cobra 139XLR CBRadio](https://sketchfab.com/3d-models/cobra-139xlr-cbradio-low-poly-pbr-game-ready-9e4881935f3146159cec5199d3335bf8) | caelykkaty_3d |
 | `assets/sketchfab/tarp` | [Tent](https://sketchfab.com/3d-models/tent-35b2c98626ac46c79ab312a00424b9de) | trueaimisbetterthandarudas |
+| `assets/sketchfab/log_cabin` | [Wooden Log Cabin](https://sketchfab.com/3d-models/wooden-log-cabin-21bf3df011b147598cdb43fea839cef7) | donnichols |
+| `assets/sketchfab/canvas_tent` | [Tent](https://sketchfab.com/3d-models/tent-fa46028e8d3849399ba5271df07ed99c) | Gajk.Mv |
+| `assets/sketchfab/military_furniture` | [FMB_Military Furniture_001](https://sketchfab.com/3d-models/fmb-military-furniture-001-fe2d019b22f7401284eaf92d8dcbb2b0) | FreeMeshBase |
+| `assets/sketchfab/work_light` | [Industrial Work Light](https://sketchfab.com/3d-models/industrial-work-light-ff0abe17dc64498191bb41c905d00ab0) | denis_cliofas |
+| `assets/sketchfab/sat_dish` | [Rusty House Satellite Dish](https://sketchfab.com/3d-models/rusty-house-satellite-dish-929f056abe02416da19d7b1aa805d235) | TomasKiniulis |
+| `assets/sketchfab/antennas` | [Rusted Antennas](https://sketchfab.com/3d-models/rusted-antennas-86303d7c8cb442c2bcd138abe2b01c9f) | Blank2574 |
 
 Modifications : modèles recadrés, recolorés, découpés en pièces ; la créature garde les animations
 de son auteur (mises à l'échelle, renommées, calées au sol).
@@ -59,7 +65,7 @@ florianreichelt (459964), ryansitz (342932),
 martinimeniscus (164457, 164458), Rickmk2 (164315), ralph.whitehead (331451), PotatokingXII (352870),
 monte32 (353799), Yuval (206030), straget (411206), shyguy014 (463789), Zabuhailo (143125),
 egomassive (536753), galeku (46938), BeeProductive (395593), ThabzMalik (767054), PostProdDog (578493),
-plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993), Archeos (325548), SoundsForHim (395563), scarbelly25 (33939), randbsoundbites (798649), Drkvixn91 (318079), ThePacifist (349483), Wigglesworth (830466), Bini_trns (354094), DCPoke (387984), kyles (453995), petebuchwald (288899), fractionalist (644245), monotraum (208695), SpliceSound (218318), lolamadeus (179360), Nox_Sound (567701), RutgerMuller (50750) — https://freesound.org/s/<numéro>/
+plasterbrain (402451), DanJFilms (687242), machine_831 (257300), AlanCat (381645), sandb1ns (558969), unfa (207993), Archeos (325548), SoundsForHim (395563), scarbelly25 (33939), randbsoundbites (798649), Drkvixn91 (318079), ThePacifist (349483), Wigglesworth (830466), Bini_trns (354094), DCPoke (387984), kyles (453995), petebuchwald (288899), fractionalist (644245), monotraum (208695), SpliceSound (218318), lolamadeus (179360), Nox_Sound (567701), RutgerMuller (50750), florianreichelt (459981), Breviceps (465697), Anthousai (398734), deleted_user_2104797 (164472), mrjingles (17184), ahriik (508110) — https://freesound.org/s/<numéro>/
 
 ## Voix
 Voix de l'égoutier : fournies par l'auteur du jeu (voix de synthèse), nettoyées par `tools/audio_gen/process_voices.py`.

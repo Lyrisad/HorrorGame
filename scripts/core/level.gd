@@ -174,6 +174,8 @@ func spawn_player(pos: Vector3, yaw_deg: float) -> Player:
 	if Game.args.has("warp"):
 		var w := str(Game.args["warp"]).split(",")
 		player.global_position = Vector3(float(w[0]), pos.y, float(w[1]))
+		if has_method("floor_y"):
+			player.global_position.y = call("floor_y", player.global_position) + 0.05
 	if Game.args.has("yaw") or Game.args.has("pitch"):
 		player.set_look(deg_to_rad(float(Game.args.get("yaw", yaw_deg))), deg_to_rad(float(Game.args.get("pitch", 0.0))))
 	return player

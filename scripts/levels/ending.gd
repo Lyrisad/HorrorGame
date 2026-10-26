@@ -1,101 +1,95 @@
 extends Level
-## Chapitre final — Surface.
-## Théo sort par une bouche d'égout au petit matin, dans la forêt. Sur le sentier : des traces des treize sessions
-## d'avant, des pièges à loup sous les feuilles, un drone qui le filme pour le direct. La caméra d'une victime
-## parle d'une cabane avec une radio ; la radio est morte, il faut une batterie... au camp des ravisseurs (régie,
-## écrans, dossiers, dons, son propre téléphone). Prendre la batterie fait sortir l'homme au masque du van : il
-## voit mais entend mal. À la radio, la voix qui répond est celle du direct : « Ouvrez la trappe. » La créature
-## sort de la plaque « S·13 » : course jusqu'à la route... où une caméra sur un poteau se tourne vers lui.
+## Chapitre final — Surface. Il est 5 h 47, en novembre : il fait nuit noire dans la forêt.
+## Théo sort par une bouche d'égout. Des hommes au masque patrouillent avec leurs lampes (ils voient mais
+## entendent mal), un drone le filme pour le direct. Sur le sentier : des avis de recherche agrafés aux arbres,
+## des affaires abandonnées, des pièges à loup sous les feuilles, et la caméra d'une victime de la session 13 dont
+## la dernière vidéo montre une cabane avec une radio... morte, il faut une batterie. Elle est au camp des
+## ravisseurs (régie, flux du drone, page du direct, tableau des sujets, téléphones confisqués). La prendre fait
+## sortir le deuxième homme du van. À la radio, c'est le direct qui répond : « Ouvrez la trappe. » La créature
+## sort de la plaque « S·13 » : course jusqu'à la route, où une caméra sur un poteau se tourne vers lui.
+##
+## Tout ce qui compte est déplaçable dans l'éditeur (F8, carte « surface ») : la cabane, les pièces du camp, les
+## pièges, les cailloux, la caméra, la batterie... Le terrain et les sentiers suivent la cabane et le camp.
 
 const ROAD_Z := -52.0
 const POLE := Vector3(3.5, 0, -47.5)
-const HUT := Vector3(-24.0, 0, -19.0)  ## cabane du garde forestier (porte à l'est)
-const CAMP := Vector3(28.0, 0, -31.0)  ## camp des ravisseurs
-const S13 := Vector3(-6.5, 0, -10.0)  ## plaque d'égout « S·13 » (la créature en sortira)
-const CAM13 := Vector3(-2.3, 0, -13.4)  ## caméra-piéton de la victime de la session 13
-const TRAIL := [Vector3(0, 0, 3), Vector3(-1.5, 0, -8), Vector3(1.0, 0, -17), Vector3(-0.5, 0, -27), Vector3(1.0, 0, -38), Vector3(0, 0, -50)]
-const HUT_PATH := [Vector3(0.8, 0, -16.5), Vector3(-9.0, 0, -19.5), Vector3(-19.5, 0, -19.0)]
-const CAMP_PATH := [Vector3(-0.3, 0, -27.0), Vector3(10.0, 0, -29.5), Vector3(20.0, 0, -31.0)]
-const TRAPS := [Vector3(-1.1, 0, -12.2), Vector3(0.7, 0, -21.5), Vector3(-12.8, 0, -19.4), Vector3(14.6, 0, -30.1), Vector3(0.3, 0, -33.8)]
-const STONES := [Vector3(1.7, 0, -3.5), Vector3(-2.2, 0, -16.0), Vector3(-15.5, 0, -17.6), Vector3(7.5, 0, -28.2), Vector3(-1.8, 0, -31.0), Vector3(21.0, 0, -26.5)]
-## ronde de l'homme au masque : autour du camp, jusqu'au sentier, et vers la cabane
-const ROUTE := [Vector3(22.0, 0, -29.5), Vector3(14.0, 0, -29.8), Vector3(5.0, 0, -28.5), Vector3(0.5, 0, -22.0),
-	Vector3(-6.0, 0, -19.4), Vector3(-1.0, 0, -26.0), Vector3(9.0, 0, -29.6), Vector3(30.0, 0, -24.0), Vector3(33.0, 0, -35.0)]
+const AREA := Rect2(-60, -62, 120, 82)  ## terrain en relief (x de -60 à 60, z de -62 à 20)
+const TRAIL := [Vector3(0, 0, 2), Vector3(-1.5, 0, -8), Vector3(1.0, 0, -17), Vector3(-0.5, 0, -27), Vector3(1.0, 0, -38), Vector3(0, 0, -49)]
 
 var pole_cam: SecurityCamera
 var revealed := false
 var wind: AudioStreamPlayer
-var stage := "start"  ## start → battery (radio morte : il faut une batterie) → carry (il la rapporte) → chase → done
+var stage := "start"  ## start → battery (radio morte) → carry (il rapporte la batterie) → chase → done
 var has_battery := false
 var battery_in := false
 var stones := 0
 var dying := false
+var editing := false
 var trunks: Array = []
 var creature: Creature
-var hunter: Hunter
+var hunters: Array = []  ## [Hunter] : celui qui patrouille dès le début, celui du van
 var drone: Drone
 var drones_left := 2
 var feed: SecurityFeed
 var _feed_mat: ShaderMaterial
+# éléments déplaçables (meta « editobj »)
+var hut: Node3D
+var desk: Node3D
+var van: Node3D
+var crate: Node3D
+var battery: Node3D
+var board: Node3D
+var fire: Node3D
+var work_light: Node3D
+var generator: Node3D
+var antenna: Node3D
+var s13: Node3D
+var cam13: Node3D
+var exit_hole: Node3D
+var traps: Array = []  ## [nœud, déclenché]
+var piles: Array = []
+# terrain
+var _noise := FastNoiseLite.new()
+var _hgrid := PackedFloat32Array()
+var _gw := 0
+var _gd := 0
+var _paths: Array = []  ## [[points], largeur]
+var _clearings: Array = []  ## [centre, rayon]
 var _trunk_grid := {}
-var _traps: Array = []  ## [nœud, position, déclenché]
-var _knows_hut := false
+var _layout: Variant = null  ## disposition sauvegardée par le joueur (éditeur), ou null
+# état
+var _trapped := -1
+var _trap_prog := 0.0
 var _road_said := false
 var _radio_glow: OmniLight3D
 var _radio_static: AudioStreamPlayer3D
-var _battery_node: Node3D
-var _battery_slot: Node3D
-var _van: Node3D
-var _drone_cd := 25.0
+var _drone_cd := 40.0
 var _report_cd := 8.0
 var _phone_done := false
+var _snap_cd := 20.0
+var _owl_cd := 12.0
+var _s13_heard := false
+
+
+func editor_map() -> Dictionary:
+	return {"id": "surface", "root": self, "nom": "Forêt (surface)"}
 
 
 func _ready() -> void:
-	var sky := ProceduralSkyMaterial.new()
-	sky.sky_top_color = Color(0.05, 0.07, 0.13)
-	sky.sky_horizon_color = Color(0.32, 0.3, 0.33)
-	sky.ground_horizon_color = Color(0.12, 0.12, 0.13)
-	sky.ground_bottom_color = Color(0.02, 0.02, 0.02)
-	sky.sky_energy_multiplier = 0.9
-	make_environment({
-		"sky": sky,
-		"ambient": Color(0.09, 0.1, 0.13),
-		"ambient_energy": 0.8,
-		"fog": true,
-		"fog_color": Color(0.1, 0.11, 0.13),
-		"fog_density": 0.026,
-		"vfog": true,
-		"vfog_density": 0.014,
-		"vfog_albedo": Color(0.6, 0.62, 0.68),
-		"vfog_length": 80.0,
-		"auto_exposure": false,
-		"exposure": 1.9,
-	})
-	var dawn := DirectionalLight3D.new()
-	dawn.light_color = Color(0.55, 0.62, 0.8)
-	dawn.light_energy = 0.55
-	dawn.rotation_degrees = Vector3(-12, -150, 0)
-	add_child(dawn)
-	Game.set_fx("grain", 0.05)
-	Game.set_fx("gain", 0.4)
-	Game.set_fx("saturation", 0.6)
-	Game.set_fx("tint", Color(0.92, 0.96, 1.05))
-	Sound.set_reverb(0.2, 0.05, 0.8)
-	Game.set_clock(5, 47, 12, 15)
-
-	Nature.ground(self, 400.0, "brown_mud_leaves_01", 3.0, Vector3(0, -0.01, -20), Color(0.6, 0.6, 0.55))
-	trunks = Nature.scatter_forest(self, Rect2(-120, -150, 240, 260), 1100, _keep_clear, 33)
-	trunks.append_array(Nature.scatter_forest(self, Rect2(-62, -62, 124, 82), 520, _keep_clear, 61))
-	_build_trunk_colliders()
-	_build_exit_and_road()
-	_build_traces()
-	_build_hut()
-	_build_camp()
-	for p: Vector3 in TRAPS:
-		_build_trap(p)
-	for p: Vector3 in STONES:
-		_build_stones(p)
+	editing = params.get("editor", false)
+	_build_environment()
+	_layout = MapLayout.load_entries("surface")
+	_build_objects()
+	MapLayout.apply_objs("surface", self)
+	_compute_paths()
+	_build_terrain()
+	_snap_objects()
+	_build_forest()
+	_build_decor()
+	if _layout != null:
+		MapLayout.spawn(_layout, self)
+	_decor_obstacles()
+	_build_road_and_pole()
 	_build_bounds()
 
 	creature = Creature.new()
@@ -103,53 +97,61 @@ func _ready() -> void:
 	add_child(creature)
 	creature.deactivate()
 	creature.caught_player.connect(func() -> void: _die("creature"))
-	hunter = Hunter.new()
-	hunter.level = self
-	hunter.camp = CAMP
-	hunter.route = ROUTE
-	add_child(hunter)
-	hunter.global_position = CAMP + Vector3(3.0, 0, -4.0)
+	for k in 2:
+		var h := Hunter.new()
+		h.level = self
+		add_child(h)
+		hunters.append(h)
+	_place_hunters()
 
 	var cp := str(params.get("checkpoint", Game.args.get("checkpoint", "")))
 	drones_left = int(params.get("drones", 2))
-	match cp:
-		"carry":
-			# reprise : sur le chemin du camp, hors de sa vue ; lui repart de l'autre côté
-			player = spawn_player(Vector3(11.0, 0, -29.6), 90.0)
-			_setup_player()
-			has_battery = true
-			stones = 4
-			stage = "carry"
-			_battery_node.queue_free()
-			Game.ui.fade_rect.color.a = 0.0
-			Game.hud.objective("Rapporter la batterie à la cabane, sans te faire voir")
-			hunter.wake(false)
-			hunter.wp = 7
-			var away: Vector3 = ROUTE[7] - hunter.global_position
-			hunter.heading = atan2(-away.x, -away.z)
-			_drone_cd = 6.0
-		"chase":
-			player = spawn_player(HUT + Vector3(0.6, 0, 0.4), -90.0)
-			_setup_player()
-			battery_in = true
-			stage = "chase"
-			_battery_node.queue_free()
-			_install_battery_visual()
-			Game.ui.fade_rect.color.a = 0.0
-			_release_creature(true)
-		_:
-			player = spawn_player(Vector3(0, 0, 0.9), 0.0)
-			_setup_player()
-			_play()
+	if editing:
+		player = spawn_player(exit_hole.global_position + Vector3(0, 0, 0.9), 0.0)
+		_setup_player()
+		Game.ui.fade_rect.color.a = 0.0
+	else:
+		match cp:
+			"carry":
+				var resp := _path_point(desk.global_position, 0.45)
+				player = spawn_player(resp, rad_to_deg(atan2(-(hut.global_position - resp).x, -(hut.global_position - resp).z)))
+				_setup_player()
+				has_battery = true
+				stones = 4
+				stage = "carry"
+				battery.visible = false
+				_clear_interactables(battery)
+				Game.ui.fade_rect.color.a = 0.0
+				Game.hud.objective("Rapporter la batterie à la cabane, sans te faire voir")
+				hunters[0].wake(false)
+				hunters[1].wake(false)
+				hunters[1].wp = 4
+				_drone_cd = 6.0
+			"chase":
+				var door := hut.global_transform * Vector3(1.4, 0, 0.6)
+				player = spawn_player(door, rad_to_deg(hut.rotation.y) + 180.0)
+				_setup_player()
+				battery_in = true
+				stage = "chase"
+				battery.visible = false
+				_clear_interactables(battery)
+				_install_battery_visual()
+				Game.ui.fade_rect.color.a = 0.0
+				_release_creature(true)
+			_:
+				player = spawn_player(exit_hole.global_position + Vector3(0, 0, 0.9), 0.0)
+				_setup_player()
+				hunters[0].wake(false)
+				_play()
 	pole_cam.target = player
 	add_trigger(Vector3(0.0, 0, ROAD_Z + 3.0), 9.0, _at_road, false)
-	add_trigger(HUT + Vector3(4.0, 0, 0), 4.0, func() -> void:
-		if stage == "start" and not _knows_hut:
+	add_trigger(_path_point(hut.global_position, 0.8), 4.0, func() -> void:
+		if stage == "start":
 			Game.hud.say("Une cabane... Il y a peut-être quelqu'un. Ou un téléphone.", 3.2))
-	add_trigger(CAMP + Vector3(-8.0, 0, 0), 9.0, func() -> void:
+	add_trigger(_path_point(desk.global_position, 0.7), 8.0, func() -> void:
 		if stage in ["start", "battery"]:
 			Game.hud.say("Un groupe électrogène... Des écrans. C'est leur camp.", 3.2))
-	# test : --freecam=x,y,z --freelook=x,y,z → caméra libre (inspection d'un détail)
+	add_trigger(s13.global_position, 5.0, _s13_scratch)
 	if Game.args.has("freecam"):
 		var fc := Camera3D.new()
 		fc.fov = float(Game.args.get("freefov", 50.0))
@@ -158,6 +160,8 @@ func _ready() -> void:
 		var b3 := str(Game.args.get("freelook", "0,0,0")).split(",")
 		fc.look_at_from_position(Vector3(float(a3[0]), float(a3[1]), float(a3[2])), Vector3(float(b3[0]), float(b3[1]), float(b3[2])))
 		fc.current = true
+		if Game.args.has("freelight"):
+			B.omni(fc, Vector3.ZERO, Color(1, 1, 1), float(Game.args["freelight"]), 40.0)
 	if Game.args.has("torch"):
 		player.set_flashlight(true, true)
 	if Game.args.has("surfacetest"):
@@ -166,14 +170,20 @@ func _ready() -> void:
 
 func _setup_player() -> void:
 	player.has_flashlight = true
+	# dehors, rien ne renvoie la lumière : le faisceau porte plus loin que dans les tunnels (sinon on ne voit pas
+	# une cabane à six mètres)
+	player.flashlight.spot_range = 34.0
+	player.flashlight.spot_attenuation = 0.85
 	Game.hud.show_hud(true)
 	Game.hud.set_battery(1)
 
 
 func inventory() -> Array:
-	var items: Array = [{"id": "flashlight", "name": "Lampe torche", "desc": "Ta lampe de service. [F] pour l'allumer."}]
+	var items: Array = [
+		{"id": "flashlight", "name": "Lampe torche", "desc": "Ta lampe de service. [F] pour l'allumer : indispensable dans le noir, mais elle se voit de loin."},
+		{"id": "phone", "name": "Ton téléphone", "desc": "Aucun réseau. Rien depuis la maison."}]
 	if stones > 0:
-		items.append({"id": "stone", "name": "Cailloux", "count": stones, "desc": "À lancer ([G] ou clic droit) : sur le drone, ou loin de toi pour détourner l'homme au masque."})
+		items.append({"id": "stone", "name": "Cailloux", "count": stones, "desc": "À lancer ([G] ou clic droit) : sur le drone, ou loin de toi pour détourner les hommes au masque."})
 	if has_battery:
 		items.append({"id": "battery", "name": "Batterie 12 V", "desc": "Lourde. Pour la radio de la cabane."})
 	return items
@@ -184,20 +194,161 @@ func get_surface(_pos: Vector3) -> String:
 
 
 func _play() -> void:
-	Game.ui.fade_rect.color = Color(1, 1, 1, 1)
-	wind = Sound.loop("wind_loop", -10.0)
-	Sound.loop("birds_loop", -16.0)
+	Game.ui.fade_rect.color = Color(0, 0, 0, 1)
 	var tw := create_tween()
 	tw.tween_property(Game.ui.fade_rect, "color:a", 0.0, 2.5)
 	await tw.finished
-	Game.ui.fade_rect.color = Color(0, 0, 0, 0)
 	Game.hud.say("J'suis sorti... J'suis sorti !", 3.0)
 	await wait(3.5)
-	Game.hud.say("Une route. Il faut que je trouve quelqu'un.", 3.0)
+	Game.hud.say("Il fait nuit noire... Une route, quelque part. Il faut que je trouve quelqu'un.", 3.6)
 	Game.hud.objective("Trouver de l'aide")
+	await wait(4.5)
+	Game.hud.hint("[F] lampe torche (elle se voit de loin)   ·   [C] s'accroupir", 6.0)
 
 
-# ================================================================== forêt
+# ================================================================== ambiance : la nuit
+func _build_environment() -> void:
+	var sky := ProceduralSkyMaterial.new()
+	sky.sky_top_color = Color(0.01, 0.014, 0.026)
+	sky.sky_horizon_color = Color(0.045, 0.05, 0.068)
+	sky.ground_horizon_color = Color(0.015, 0.016, 0.02)
+	sky.ground_bottom_color = Color(0.0, 0.0, 0.0)
+	sky.sky_energy_multiplier = 1.0
+	make_environment({
+		"sky": sky,
+		"ambient": Color(0.06, 0.075, 0.11),
+		"ambient_energy": 0.45,
+		"fog": true,
+		"fog_color": Color(0.028, 0.033, 0.045),
+		"fog_density": 0.016,
+		"vfog": true,
+		"vfog_density": 0.01,
+		"vfog_albedo": Color(0.5, 0.53, 0.6),
+		"vfog_length": 60.0,
+		"auto_exposure": false,
+		"exposure": 1.55,
+	})
+	# la lune, voilée : juste assez pour deviner les troncs et les silhouettes
+	var moon := DirectionalLight3D.new()
+	moon.light_color = Color(0.55, 0.65, 1.0)
+	moon.light_energy = 0.14
+	moon.light_volumetric_fog_energy = 0.6
+	moon.rotation_degrees = Vector3(-38, -150, 0)
+	add_child(moon)
+	Game.set_fx("grain", 0.07)
+	Game.set_fx("gain", 0.45)
+	Game.set_fx("saturation", 0.5)
+	Game.set_fx("tint", Color(0.88, 0.95, 1.08))
+	Sound.set_reverb(0.25, 0.08, 0.7)
+	Game.set_clock(5, 47, 12, 15)
+	if not editing:
+		wind = Sound.loop("forest_wind_loop", -14.0)
+		Sound.loop("wind_loop", -20.0)
+
+
+# ================================================================== éléments déplaçables
+func _obj(id: String, pos: Vector3, yaw := 0.0) -> Node3D:
+	var n := Node3D.new()
+	add_child(n)
+	n.name = id
+	n.position = pos
+	n.rotation_degrees.y = yaw
+	n.set_meta("editobj", "surface_" + id)
+	return n
+
+
+func _build_objects() -> void:
+	exit_hole = _obj("exit", Vector3(0, 0, 0.6))
+	B.model(exit_hole, "water_manhole_cover", Vector3(0.9, 0.0, 0.1), 30.0, {"width": 0.8})
+	var hole := B.cylinder(exit_hole, 0.36, 0.36, 0.02, Vector3(0, 0.01, 0), B.color_mat(Color(0, 0, 0), 1.0), false, 20)
+	hole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_build_hut(_obj("hut", Vector3(-24, 0, -19), 90.0))
+	_build_camp()
+	s13 = _obj("s13", Vector3(-6.5, 0, -10))
+	var lid := B.model(s13, "water_manhole_cover", Vector3.ZERO, 0.0, {"width": 0.8})
+	lid.name = "Lid"
+	B.decal(s13, "res://assets/gen/decal_spray13.png", Vector3(0, 0.1, 0), Vector3.UP, 1.3, 1.3, 0.4)
+	_build_cam13(_obj("cam13", Vector3(-2.3, 0, -13.4)))
+	var trap_spots := [Vector3(-1.1, 0, -12.2), Vector3(0.7, 0, -21.5), Vector3(-12.8, 0, -19.4), Vector3(14.6, 0, -30.1), Vector3(0.3, 0, -33.8)]
+	for i in trap_spots.size():
+		var t := _obj("trap_%d" % i, trap_spots[i], randf_range(0, 360))
+		B.model(t, "sf:bear_trap", Vector3(0, 0.005, 0), 0.0, {"width": 0.42})
+		_litter(t, 14, 0.38)
+		traps.append([t, false])
+	var stone_spots := [Vector3(1.7, 0, -3.5), Vector3(-2.2, 0, -16.0), Vector3(-15.5, 0, -17.6), Vector3(7.5, 0, -28.2), Vector3(-1.8, 0, -31.0), Vector3(21.0, 0, -26.5)]
+	for i in stone_spots.size():
+		_build_stones(_obj("stones_%d" % i, stone_spots[i]))
+
+
+## Feuilles mortes à plat sur le sol (à moitié par-dessus un piège ou une caméra tombée).
+func _litter(holder: Node3D, count: int, radius: float) -> void:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load("res://assets/gen/water_debris.png")
+	m.uv1_scale = Vector3(0.25, 1, 1)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.4
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 0.95
+	m.albedo_color = Color(0.75, 0.68, 0.6)
+	var q := QuadMesh.new()
+	q.size = Vector2(0.12, 0.12)
+	for k in count:
+		var leaf := MeshInstance3D.new()
+		leaf.mesh = q
+		leaf.material_override = m
+		leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		holder.add_child(leaf)
+		var a := randf() * TAU
+		var r := sqrt(randf()) * radius
+		leaf.position = Vector3(cos(a) * r, 0.012 + k * 0.0015, sin(a) * r)
+		leaf.rotation = Vector3(-PI / 2 + randf_range(-0.15, 0.15), randf() * TAU, 0)
+		leaf.scale = Vector3.ONE * randf_range(0.8, 1.5)
+
+
+## Les éléments déplaçables sont posés sur le relief (après qu'on connaît leurs positions et le terrain).
+func _snap_objects() -> void:
+	for n in MapLayout.movables(self):
+		var nd := n as Node3D
+		nd.global_position.y = floor_y(nd.global_position)
+
+
+func _clear_interactables(n: Node) -> void:
+	for c in n.find_children("*", "", true, false):
+		if c is Interactable:
+			c.queue_free()
+
+
+# ================================================================== terrain
+## Sentiers : le sentier principal (sortie → route) et deux embranchements vers la cabane et le camp.
+func _compute_paths() -> void:
+	_paths = [[TRAIL, 1.3], [_branch(hut.global_transform * Vector3(1.45, 0, 3.4)), 1.0], [_branch(desk.global_position), 1.1]]
+	_clearings = [[hut.global_position, 5.5], [desk.global_position, 11.0], [exit_hole.global_position, 3.5], [s13.global_position, 2.0], [POLE, 3.0]]
+
+
+## Point du sentier principal le plus proche de `to`, puis un coude, puis `to`.
+func _branch(to: Vector3) -> Array:
+	var best: Vector3 = TRAIL[0]
+	var bd := 1e9
+	for i in TRAIL.size() - 1:
+		for k in 9:
+			var q: Vector3 = (TRAIL[i] as Vector3).lerp(TRAIL[i + 1], k / 8.0)
+			var d := Vector2(q.x - to.x, q.z - to.z).length()
+			if d < bd:
+				bd = d
+				best = q
+	var mid := best.lerp(to, 0.5) + Vector3(0, 0, 1.5 * sign(to.x))
+	return [best, mid, to]
+
+
+## Un point sur l'embranchement vers `target` (0 = au sentier, 1 = arrivé).
+func _path_point(target: Vector3, t: float) -> Vector3:
+	var br := _branch(target)
+	var a: Vector3 = br[0]
+	var p := a.lerp(target, t)
+	p.y = floor_y(p)
+	return p
+
+
 func _seg_dist(p: Vector3, a: Vector3, b: Vector3) -> float:
 	var ab := Vector2(b.x - a.x, b.z - a.z)
 	var ap := Vector2(p.x - a.x, p.z - a.z)
@@ -205,32 +356,173 @@ func _seg_dist(p: Vector3, a: Vector3, b: Vector3) -> float:
 	return (ap - ab * t).length()
 
 
-func _near_path(p: Vector3, path: Array, w: float) -> bool:
-	for i in path.size() - 1:
-		if _seg_dist(p, path[i], path[i + 1]) < w:
+func _path_dist(p: Vector3) -> float:
+	var d := 1e9
+	for path in _paths:
+		var pts: Array = path[0]
+		for i in pts.size() - 1:
+			d = minf(d, _seg_dist(p, pts[i], pts[i + 1]) - float(path[1]))
+	return d
+
+
+## Distance au plus proche endroit dégagé (sentier, clairière, route) ; 0 dedans.
+func _clear_dist(p: Vector3) -> float:
+	var d := _path_dist(p)
+	for c in _clearings:
+		var cp: Vector3 = c[0]
+		d = minf(d, Vector2(p.x - cp.x, p.z - cp.z).length() - float(c[1]))
+	d = minf(d, absf(p.z - ROAD_Z) - 4.5)
+	return maxf(d, 0.0)
+
+
+func _height_raw(x: float, z: float) -> float:
+	var flat := smoothstep(0.4, 7.0, _clear_dist(Vector3(x, 0, z)))
+	var h := _noise.get_noise_2d(x, z) * 1.25 + _noise.get_noise_2d(x * 2.7 + 31.0, z * 2.7 - 17.0) * 0.18
+	var edge := minf(minf(x - AREA.position.x, AREA.end.x - x), minf(z - AREA.position.y, AREA.end.y - z))
+	return h * flat * smoothstep(0.0, 8.0, edge)
+
+
+func floor_y(p: Vector3) -> float:
+	var fx := p.x - AREA.position.x
+	var fz := p.z - AREA.position.y
+	if _hgrid.is_empty() or fx < 0.0 or fz < 0.0 or fx >= _gw - 1 or fz >= _gd - 1:
+		return 0.0
+	var i := int(fx)
+	var j := int(fz)
+	var tx := fx - i
+	var tz := fz - j
+	var h00 := _hgrid[j * _gw + i]
+	var h10 := _hgrid[j * _gw + i + 1]
+	var h01 := _hgrid[(j + 1) * _gw + i]
+	var h11 := _hgrid[(j + 1) * _gw + i + 1]
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), tz)
+
+
+func _floor_p(p: Vector3) -> float:
+	return floor_y(p)
+
+
+## Relief doux (bosses, creux, racines), aplani et tassé sur les sentiers ; collision par carte de hauteurs.
+func _build_terrain() -> void:
+	_noise.seed = 5
+	_noise.frequency = 0.035
+	_noise.fractal_octaves = 3
+	_gw = int(AREA.size.x) + 1
+	_gd = int(AREA.size.y) + 1
+	_hgrid.resize(_gw * _gd)
+	for j in _gd:
+		for i in _gw:
+			_hgrid[j * _gw + i] = _height_raw(AREA.position.x + i, AREA.position.y + j)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in _gd:
+		for i in _gw:
+			var x := AREA.position.x + i
+			var z := AREA.position.y + j
+			var h := _hgrid[j * _gw + i]
+			var p := Vector3(x, h, z)
+			var core := 1e9
+			for path in _paths:
+				var pts: Array = path[0]
+				for k in pts.size() - 1:
+					core = minf(core, _seg_dist(p, pts[k], pts[k + 1]))
+			var path_f := 1.0 - smoothstep(0.5, 1.7, core)
+			var dc := Vector2(x - desk.global_position.x, z - desk.global_position.z).length()
+			path_f = maxf(path_f, 0.6 * (1.0 - smoothstep(4.0, 10.0, dc)))
+			var dh := Vector2(x - hut.global_position.x, z - hut.global_position.z).length()
+			path_f = maxf(path_f, 0.45 * (1.0 - smoothstep(3.0, 6.0, dh)))
+			st.set_color(Color(path_f, clampf(-h * 1.6 + 0.35, 0.0, 1.0), 0))
+			st.add_vertex(p)
+	for j in _gd - 1:
+		for i in _gw - 1:
+			var a := j * _gw + i
+			st.add_index(a)
+			st.add_index(a + 1)
+			st.add_index(a + _gw)
+			st.add_index(a + 1)
+			st.add_index(a + _gw + 1)
+			st.add_index(a + _gw)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.name = "Terrain"
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/forest_ground.gdshader")
+	var tx := func(slug: String, kind: String) -> Texture2D: return load("res://assets/textures/%s/%s_%s.jpg" % [slug, slug, kind])
+	m.set_shader_parameter("litter_diff", tx.call("forest_leaves_04", "diff"))
+	m.set_shader_parameter("litter_nor", tx.call("forest_leaves_04", "nor"))
+	m.set_shader_parameter("needles_diff", tx.call("forest_floor", "diff"))
+	m.set_shader_parameter("needles_nor", tx.call("forest_floor", "nor"))
+	m.set_shader_parameter("path_diff", tx.call("muddy_tracks", "diff"))
+	m.set_shader_parameter("path_nor", tx.call("muddy_tracks", "nor"))
+	m.set_shader_parameter("moss_diff", tx.call("moss_wood", "diff"))
+	var nt := NoiseTexture2D.new()
+	var nn := FastNoiseLite.new()
+	nn.frequency = 0.02
+	nt.noise = nn
+	nt.seamless = true
+	m.set_shader_parameter("mask_noise", nt)
+	mi.material_override = m
+	add_child(mi)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var hm := HeightMapShape3D.new()
+	hm.map_width = _gw
+	hm.map_depth = _gd
+	hm.map_data = _hgrid
+	cs.shape = hm
+	body.add_child(cs)
+	add_child(body)
+	body.position = Vector3(AREA.position.x + (_gw - 1) * 0.5, 0, AREA.position.y + (_gd - 1) * 0.5)
+	# au-delà : la lisière, à plat (le brouillard cache tout)
+	var litter := B.mat("forest_leaves_04", 2.6, {"color": Color(0.55, 0.52, 0.5)})
+	for spec in [[Vector3(0, -0.02, AREA.position.y - 100), Vector3(400, 0.02, 200)], [Vector3(0, -0.02, AREA.end.y + 100), Vector3(400, 0.02, 200)],
+			[Vector3(AREA.position.x - 100, -0.02, AREA.get_center().y), Vector3(200, 0.02, AREA.size.y)], [Vector3(AREA.end.x + 100, -0.02, AREA.get_center().y), Vector3(200, 0.02, AREA.size.y)]]:
+		B.box(self, spec[1], spec[0], litter, true)
+
+
+# ================================================================== forêt et sous-bois
+func _tree_avoid(p: Vector3) -> bool:
+	return _clear_dist(p) < 1.2
+
+
+func _brush_avoid(p: Vector3) -> bool:
+	if _path_dist(p) < -0.2:
+		return true
+	for c in _clearings:
+		var cp: Vector3 = c[0]
+		if Vector2(p.x - cp.x, p.z - cp.z).length() < float(c[1]) * 0.9:
 			return true
-	return false
+	return absf(p.z - ROAD_Z) < 4.0
 
 
-## Pas d'arbre sur les sentiers, dans les clairières (cabane, camp), autour des plaques d'égout et sur la route.
-func _keep_clear(p: Vector3) -> bool:
-	if _near_path(p, TRAIL, 2.6) or _near_path(p, HUT_PATH, 2.0) or _near_path(p, CAMP_PATH, 2.2):
-		return true
-	if Vector2(p.x - HUT.x, p.z - HUT.z).length() < 6.5 or Vector2(p.x - CAMP.x, p.z - CAMP.z).length() < 11.5:
-		return true
-	if Vector2(p.x, p.z).length() < 4.0 or Vector2(p.x - S13.x, p.z - S13.z).length() < 2.5:
-		return true
-	return absf(p.z - ROAD_Z) < 6.0 or Vector2(p.x - POLE.x, p.z - POLE.z).length() < 3.0
+func _build_forest() -> void:
+	trunks = Nature.scatter_forest(self, Rect2(-120, -150, 240, 260), 1100, _tree_avoid, 33, [], _floor_p)
+	trunks.append_array(Nature.scatter_forest(self, Rect2(-60, -62, 120, 82), 560, _tree_avoid, 61, [], _floor_p))
+	# sous-bois : fougères, buissons, souches, rochers moussus, branches mortes (près du sentier, là où on passe)
+	var brush := [
+		["fern_02", "", 6.0, 0.45, 0.9],
+		["sf:conifer_pack", "ConiferousShrub", 1.6, 0.8, 1.8],
+		["shrub_03", "", 1.0, 0.6, 1.1],
+		["weed_plant_02", "", 1.4, 0.3, 0.6],
+		["dry_branches_medium_01", "", 2.0, 0.25, 0.4],
+		["rock_moss_set_01", "", 0.5, 0.35, 0.8],
+		["rock_moss_set_02", "", 0.5, 0.35, 0.8],
+		["tree_stump_01", "", 0.5, 0.4, 0.7],
+		["tree_stump_02", "", 0.4, 0.4, 0.7],
+		["rock_09", "", 0.5, 0.3, 0.7],
+	]
+	Nature.scatter_forest(self, Rect2(-55, -60, 110, 76), 1500, _brush_avoid, 77, brush, _floor_p, 45.0)
+	_build_trunk_colliders()
 
 
-## Les troncs bloquent le joueur, la vue de l'homme au masque, et la créature les contourne.
 func _build_trunk_colliders() -> void:
 	var body := StaticBody3D.new()
 	add_child(body)
 	for t in trunks:
 		var p: Vector3 = t[0]
 		var r: float = t[1]
-		if absf(p.x) > 70.0 or p.z < -75.0 or p.z > 25.0:
+		if not AREA.grow(10.0).has_point(Vector2(p.x, p.z)):
 			continue
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
@@ -258,10 +550,93 @@ func trunks_near(p: Vector3) -> Array:
 	return out
 
 
+## Les troncs couchés et les arbres ajoutés dans l'éditeur deviennent des obstacles (créature, hommes au masque).
+func _decor_obstacles() -> void:
+	for n in MapLayout.collect(self):
+		var model := str((n.get_meta("spec", {}) as Dictionary).get("model", ""))
+		if model.contains("dead_tree_trunk"):
+			var dir := n.global_basis.x.normalized()
+			var half := float((n.get_meta("size", Vector3.ONE) as Vector3).x) * 0.45
+			for k in range(-2, 3):
+				_add_obstacle(n.global_position + dir * half * k * 0.5, 0.45)
+		elif model.contains("pine") or model.contains("conifer"):
+			_add_obstacle(n.global_position, 0.3)
+
+
+## Décor déplaçable (ignoré si le joueur a sauvegardé sa propre disposition : elle est recréée depuis le fichier).
+func deco(slug: String, pos: Vector3, yaw := 0.0, fit := {}) -> Node3D:
+	if _layout != null:
+		return null
+	var n := B.model(self, slug, Vector3(pos.x, floor_y(pos), pos.z), yaw, fit)
+	n.set_meta("decor", true)
+	return n
+
+
+func _build_decor() -> void:
+	if _layout != null:
+		return
+	# décor du camp, autour de la régie (déplaçable / supprimable dans l'éditeur)
+	var c := desk.global_position
+	deco("sf:canvas_tent", c + Vector3(5.0, 0, 5.5), 200.0, {"width": 4.0})
+	deco("sf:sat_dish", c + Vector3(-6.0, 0, 3.5), 140.0, {"width": 1.4})
+	deco("sf:military_furniture", c + Vector3(3.5, 0, 3.0), 90.0, {"part": "SM_MTable_001_1", "scale": 1.0})
+	deco("sf:military_furniture", c + Vector3(-2.6, 0, 7.4), 30.0, {"part": "SM_MChair_002", "scale": 1.0})
+	deco("sf:military_furniture", c + Vector3(-0.4, 0, 7.6), -40.0, {"part": "SM_MChair_002", "scale": 1.0})
+	deco("metal_jerrycan", c + Vector3(-7.2, 0, -1.6), 10.0, {"height": 0.45})
+	deco("plastic_jerrycan", c + Vector3(-5.8, 0, -3.6), 60.0, {"height": 0.4})
+	deco("propane_tank", c + Vector3(2.4, 0, 2.6), 0.0, {"height": 0.6})
+	deco("old_military_crate", c + Vector3(-3.6, 0, -1.8), 20.0, {"width": 1.0})
+	deco("wooden_crate_01", c + Vector3(1.2, 0, -3.2), 40.0, {"height": 0.55})
+	deco("sf:sleeping_bag", c + Vector3(4.2, 0.02, 7.6), 100.0, {"width": 1.8})
+	deco("wooden_axe", c + Vector3(-2.4, 0, 5.2), 70.0, {"height": 0.7})
+	# troncs couchés en travers du sentier
+	deco("dead_tree_trunk", Vector3(0.6, 0, -24.0), 75.0, {"width": 5.0, "collide": true})
+	deco("dead_tree_trunk_02", Vector3(-0.8, 0, -36.5), 105.0, {"width": 5.5, "collide": true})
+	deco("dead_tree_trunk", Vector3(-10.0, 0, -22.6), 15.0, {"width": 4.5, "collide": true})
+	# affaires des victimes d'avant, au bord du sentier
+	deco("sf:sneakers_brown", Vector3(1.9, 0, -9.6), 130.0, {"width": 0.34})
+	deco("vintage_suitcase", Vector3(-3.1, 0, -25.5), 200.0, {"width": 0.6})
+	deco("sf:worn_cap", Vector3(-2.6, 0.0, -39.8), 70.0, {"depth": 0.27})
+	deco("sf:sleeping_bag", Vector3(13.0, 0, -32.6), 40.0, {"width": 1.8})
+	deco("sf:flashlight_dead", Vector3(2.2, 0, -30.4), 210.0, {"depth": 0.24})
+	# avis de recherche agrafés aux troncs qui bordent le sentier (face au sentier, à hauteur d'yeux)
+	var posted := 0
+	for t in trunks:
+		if posted >= 6:
+			break
+		var p: Vector3 = t[0]
+		var r: float = t[1]
+		if r < 0.18 or r > 0.36 or _path_dist(p) > 2.2 or _path_dist(p) < 0.0:
+			continue
+		var to := _nearest_on_trail(p) - p
+		to.y = 0.0
+		if to.length() < 0.5:
+			continue
+		var out := to.normalized()
+		var pst := MapLayout.spawn_entry({"model": "proc:poster_%d" % (posted % 3)}, self)
+		pst.global_position = Vector3(p.x, floor_y(p) + 1.35, p.z) + out * (r + 0.01)
+		pst.rotation.y = atan2(out.x, out.z)
+		posted += 1
+
+
+func _nearest_on_trail(p: Vector3) -> Vector3:
+	var best := p
+	var bd := 1e9
+	for path in _paths:
+		var pts: Array = path[0]
+		for i in pts.size() - 1:
+			for k in 11:
+				var q: Vector3 = (pts[i] as Vector3).lerp(pts[i + 1], k / 10.0)
+				var d := Vector2(q.x - p.x, q.z - p.z).length()
+				if d < bd:
+					bd = d
+					best = q
+	return best
+
+
 func _build_bounds() -> void:
-	# lisière : on ne s'enfonce pas au-delà (le brouillard cache la limite)
-	for spec in [[Vector3(0, 2, 16), Vector3(130, 4, 1)], [Vector3(0, 2, -60), Vector3(130, 4, 1)],
-			[Vector3(-56, 2, -22), Vector3(1, 4, 80)], [Vector3(56, 2, -22), Vector3(1, 4, 80)]]:
+	for spec in [[Vector3(0, 2, AREA.end.y - 3.0), Vector3(130, 6, 1)], [Vector3(0, 2, AREA.position.y + 1.0), Vector3(130, 6, 1)],
+			[Vector3(AREA.position.x + 3.0, 2, AREA.get_center().y), Vector3(1, 6, 90)], [Vector3(AREA.end.x - 3.0, 2, AREA.get_center().y), Vector3(1, 6, 90)]]:
 		var b := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
@@ -279,23 +654,16 @@ func nav_path(_from: Vector3, to: Vector3) -> PackedVector3Array:
 
 func random_point(near: Vector3, max_tiles: int) -> Vector3:
 	var r := float(max_tiles) * 2.8
-	return near + Vector3(randf_range(-r, r), 0, randf_range(-r, r))
+	var p := near + Vector3(randf_range(-r, r), 0, randf_range(-r, r))
+	p.y = floor_y(p)
+	return p
 
 
 func has_los(a: Vector3, b: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(a, b, 1)
-	# le corps de Théo ne compte pas comme un obstacle (on vise sa poitrine)
 	if player != null:
 		q.exclude = [player.get_rid()]
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
-
-
-func floor_y(_p: Vector3) -> float:
-	return 0.0
-
-
-func _ground_y(_p: Vector3) -> float:
-	return 0.0
 
 
 func obstacles() -> Array:
@@ -303,36 +671,23 @@ func obstacles() -> Array:
 
 
 func on_noise(pos: Vector3, radius: float) -> void:
-	if hunter != null:
-		hunter.hear(pos, radius)
+	for h in hunters:
+		(h as Hunter).hear(pos, radius)
 	if creature != null and creature.visible:
 		creature.hear(pos, radius)
 
 
-# ================================================================== sortie, route, poteau
-func _build_exit_and_road() -> void:
-	B.model(self, "water_manhole_cover", Vector3(0.9, 0.0, 0.6), 30.0, {"width": 0.8})
-	var hole := B.cylinder(self, 0.36, 0.36, 0.02, Vector3(0, 0.005, 0), B.color_mat(Color(0, 0, 0), 1.0), false, 20)
-	hole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var asphalt := B.mat("asphalt_02", 4.0, {"color": Color(0.5, 0.5, 0.5), "roughness": 0.6})
+# ================================================================== route et poteau
+func _build_road_and_pole() -> void:
+	var asphalt := B.mat("asphalt_02", 4.0, {"color": Color(0.4, 0.4, 0.4), "roughness": 0.55})
 	B.box(self, Vector3(300, 0.04, 7.0), Vector3(0, 0.0, ROAD_Z), asphalt, false)
-	B.box(self, Vector3(300, 0.045, 0.12), Vector3(0, 0.0, ROAD_Z), B.color_mat(Color(0.8, 0.8, 0.75), 0.5), false)
-	# troncs tombés en travers du sentier (on les contourne : en pleine course, ça coûte cher)
-	for spec in [[Vector3(0.6, 0, -24.0), 75.0], [Vector3(-0.8, 0, -36.5), 105.0], [Vector3(-10.0, 0, -22.4), 15.0]]:
-		var fallen := B.model(self, "dead_tree_trunk", spec[0], spec[1], {"width": 5.0, "collide": true})
-		fallen.name = "FallenLog"
-		var yaw := deg_to_rad(float(spec[1]))
-		var dir := Vector3(sin(yaw), 0, cos(yaw))
-		for k in range(-2, 3):
-			var c: Vector3 = spec[0]
-			_add_obstacle(c + dir * k * 0.9, 0.45)
-	# poteau avec caméra et lampadaire au sodium
+	B.box(self, Vector3(300, 0.045, 0.12), Vector3(0, 0.0, ROAD_Z), B.color_mat(Color(0.7, 0.7, 0.65), 0.5), false)
 	var pole_pos := POLE
-	B.cylinder(self, 0.11, 0.14, 7.5, pole_pos + Vector3(0, 3.75, 0), B.mat("bark_willow", 1.0, {"color": Color(0.35, 0.3, 0.25)}), true, 10)
+	B.cylinder(self, 0.11, 0.14, 7.5, pole_pos + Vector3(0, 3.75, 0), B.mat("pine_bark", 1.0, {"color": Color(0.35, 0.3, 0.25)}), true, 10)
 	B.box(self, Vector3(0.08, 0.08, 1.6), pole_pos + Vector3(0, 7.0, 0.6), B.color_mat(Color(0.25, 0.25, 0.25), 0.5, 0.8), false)
 	B.box(self, Vector3(0.3, 0.1, 0.5), pole_pos + Vector3(0, 6.95, 1.35), B.color_mat(Color(0.2, 0.2, 0.2), 0.5, 0.8), false)
 	var sodium := B.spot(self, pole_pos + Vector3(0, 6.85, 1.35), pole_pos + Vector3(0, 0, 4.0), Color(1.0, 0.62, 0.3), 3.0, 18.0, 55.0, true)
-	sodium.light_volumetric_fog_energy = 2.0
+	sodium.light_volumetric_fog_energy = 2.5
 	Game.add_flare(sodium, 1.4, 1.3)
 	var mount_y := 4.6
 	var r := lerpf(0.14, 0.11, mount_y / 7.5)
@@ -346,38 +701,20 @@ func _build_exit_and_road() -> void:
 	pole_cam.pivot.global_basis = Basis.looking_at(Vector3(-1.0, -0.15, -0.35).normalized(), Vector3.UP)
 
 
-# ================================================================== traces des sessions d'avant
-func _build_traces() -> void:
-	# la plaque de la session 13, marquée à la bombe (c'est d'ici que sortira la créature)
-	var lid13 := B.model(self, "water_manhole_cover", S13, 0.0, {"width": 0.8})
-	lid13.name = "S13Lid"
-	B.decal(self, "res://assets/gen/decal_spray13.png", S13 + Vector3(0, 0.1, 0), Vector3.UP, 1.3, 1.3, 0.4)
-	# des lambeaux de vêtements noués aux branches, à hauteur d'homme : des trophées
-	var cloth := [Color(0.5, 0.08, 0.08), Color(0.12, 0.16, 0.3), Color(0.55, 0.52, 0.45), Color(0.15, 0.25, 0.15), Color(0.3, 0.3, 0.32)]
-	var spots := [Vector3(2.9, 1.7, -6.0), Vector3(-3.4, 1.9, -10.5), Vector3(3.2, 1.6, -19.0), Vector3(-3.0, 1.8, -29.0),
-		Vector3(3.3, 1.7, -33.0), Vector3(-11.0, 1.6, -21.4), Vector3(12.0, 1.8, -27.6), Vector3(-2.8, 1.5, -41.0)]
-	for i in spots.size():
-		var at: Vector3 = spots[i]
-		var rag := B.box(self, Vector3(0.09, 0.5, 0.012), at - Vector3(0, 0.25, 0), B.color_mat(cloth[i % cloth.size()], 0.95), false, Vector3(randf_range(-8, 8), randf_range(0, 360), randf_range(-6, 6)))
-		rag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		B.cylinder(self, 0.025, 0.035, 0.6, at + Vector3(0.0, 0.02, 0.0), B.mat("bark_willow", 1.0, {"color": Color(0.3, 0.26, 0.22)}), false, 6, Vector3(0, 0, 80))
-	# une basket dans les feuilles, une valise éventrée, un sac de couchage pourri, une casquette
-	B.model(self, "sf:sneakers_brown", Vector3(1.9, 0, -9.6), 130.0, {"width": 0.34})
-	B.model(self, "vintage_suitcase", Vector3(-3.1, 0, -24.5), 200.0, {"width": 0.6})
-	B.model(self, "sf:sleeping_bag", Vector3(13.0, 0, -32.6), 40.0, {"width": 1.8})
-	B.model(self, "sf:worn_cap", Vector3(-2.6, 0.0, -38.8), 70.0, {"depth": 0.27})
-	# la caméra-piéton de la victime de la session 13, tombée dans les feuilles
-	var cam13 := Node3D.new()
-	add_child(cam13)
-	cam13.position = CAM13
-	cam13.rotation_degrees = Vector3(0, 35, 82)
+# ================================================================== la caméra de la victime (session 13)
+func _build_cam13(holder: Node3D) -> void:
+	cam13 = holder
+	var body := Node3D.new()
+	holder.add_child(body)
+	body.rotation_degrees = Vector3(0, 35, 82)
 	var black := B.color_mat(Color(0.03, 0.03, 0.035), 0.35, 0.4)
-	B.box(cam13, Vector3(0.065, 0.1, 0.032), Vector3(0, 0.05, 0), black, false)
-	B.cylinder(cam13, 0.016, 0.016, 0.012, Vector3(0, 0.075, 0.021), B.color_mat(Color(0.02, 0.02, 0.025), 0.1, 0.6), false, 16, Vector3(90, 0, 0))
-	B.box(cam13, Vector3(0.05, 0.012, 0.02), Vector3(0, 0.02, -0.022), B.color_mat(Color(0.2, 0.2, 0.22), 0.4, 0.8), false)
+	B.box(body, Vector3(0.065, 0.1, 0.032), Vector3(0, 0.05, 0), black, false)
+	B.cylinder(body, 0.016, 0.016, 0.012, Vector3(0, 0.075, 0.021), B.color_mat(Color(0.02, 0.02, 0.025), 0.1, 0.6), false, 16, Vector3(90, 0, 0))
+	B.box(body, Vector3(0.05, 0.012, 0.02), Vector3(0, 0.02, -0.022), B.color_mat(Color(0.2, 0.2, 0.22), 0.4, 0.8), false)
+	_litter(holder, 10, 0.3)
 	# sa diode de batterie faible clignote encore, faiblement, dans les feuilles
-	var led := B.omni(self, CAM13 + Vector3(0, 0.06, 0), Color(1.0, 0.1, 0.05), 0.12, 0.7)
-	var dot := B.cylinder(cam13, 0.004, 0.004, 0.003, Vector3(0.02, 0.09, 0.017), B.emissive(Color(1.0, 0.08, 0.05), 5.0, true), false, 8, Vector3(90, 0, 0))
+	var led := B.omni(holder, Vector3(0, 0.06, 0), Color(1.0, 0.1, 0.05), 0.12, 0.7)
+	var dot := B.cylinder(body, 0.004, 0.004, 0.003, Vector3(0.02, 0.09, 0.017), B.emissive(Color(1.0, 0.08, 0.05), 5.0, true), false, 8, Vector3(90, 0, 0))
 	var blink := create_tween().set_loops()
 	blink.tween_callback(func() -> void:
 		led.visible = true
@@ -387,83 +724,192 @@ func _build_traces() -> void:
 		led.visible = false
 		dot.visible = false)
 	blink.tween_interval(1.9)
-	Nature.leaves(self, CAM13, _ground_y, 9)
-	var it := Interactable.create(self, CAM13 + Vector3(0, 0.08, 0), Vector3(0.5, 0.3, 0.5), "Ramasser la caméra", Callable())
+	var it := Interactable.create(holder, Vector3(0, 0.08, 0), Vector3(0.5, 0.3, 0.5), "Ramasser la caméra", Callable())
 	it.on_use = func() -> void:
 		it.queue_free()
-		_read_cam13()
+		holder.visible = false
+		_play_cam13()
 
 
-func _read_cam13() -> void:
+## Théo ramasse la caméra et relit son dernier fichier sur le petit écran : la victime de la session 13 traverse
+## cette même forêt, trouve la cabane, voit les lumières du camp... puis des phares, un moteur, la fin.
+## (La vidéo est rendue en direct depuis le décor, avec la caméra qui suit son trajet.)
+func _play_cam13() -> void:
+	player.control_enabled = false
 	Sound.play("pickup", -8.0, 0.9)
-	Game.hud.say("Une caméra... comme la mienne. BWC-7, série 0402.", 3.0)
-	await wait(3.2)
-	await read_document("Caméra BWC-7 — n° 0402 — derniers fichiers",
-		"[b]Fichier 0402-031 — 03/11/2026 — 05:40[/b]\n" +
-		"(essoufflé) ...je suis sorti. Je suis dehors. Il fait encore nuit... Une cabane, sur la gauche du sentier. " +
-		"Il y a une radio, mais elle est morte. Faut une batterie. Ils ont un camp, à l'est, avec un groupe électrogène... " +
-		"je vais aller voir.\n\n" +
-		"[b]Fichier 0402-032 — 03/11/2026 — 05:51[/b]\n" +
-		"(on court) (un moteur) ...non. Non — NON —\n" +
-		"[i]— fin de l'enregistrement —[/i]", "typed")
-	_knows_hut = true
-	Game.hud.say("Une radio... dans une cabane, à gauche du sentier.", 3.0)
+	Game.hud.say("Une caméra... comme la mienne. BWC-7, série 0402. Il reste un fichier.", 3.4)
+	await wait(1.0)
+	var vp := SubViewport.new()
+	vp.size = Vector2i(640, 360)
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	vp.audio_listener_enable_3d = false
+	add_child(vp)
+	var vcam := Camera3D.new()
+	vcam.fov = 78.0
+	vcam.far = 80.0
+	vcam.cull_mask = 1 | 2
+	# sa caméra filmait en mode nuit (infrarouge) : image noir et blanc, bien plus claire que la nôtre
+	var e := (env as Environment).duplicate() as Environment
+	e.volumetric_fog_enabled = false
+	e.fog_density = 0.035
+	e.ambient_light_energy *= 5.0
+	e.tonemap_exposure *= 2.6
+	e.adjustment_enabled = true
+	e.adjustment_saturation = 0.0
+	e.adjustment_contrast = 1.25
+	vcam.environment = e
+	vp.add_child(vcam)
+	var vlamp := SpotLight3D.new()
+	vlamp.spot_range = 22.0
+	vlamp.spot_angle = 38.0
+	vlamp.light_energy = 3.0
+	vcam.add_child(vlamp)
+	var osd := Label.new()
+	var ls := LabelSettings.new()
+	ls.font_size = 18
+	ls.font_color = Color(1, 1, 1, 0.9)
+	ls.outline_size = 2
+	ls.outline_color = Color.BLACK
+	osd.label_settings = ls
+	osd.position = Vector2(10, 8)
+	vp.add_child(osd)
+	# la caméra en main, écran retourné vers Théo
+	var dev := Node3D.new()
+	player.cam.add_child(dev)
+	dev.position = Vector3(0.0, 0.004, -0.17)
+	dev.rotation_degrees = Vector3(4, 0, 0)
+	var shell := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.19, 0.115, 0.03)
+	shell.mesh = bm
+	shell.material_override = B.color_mat(Color(0.03, 0.03, 0.035), 0.35, 0.4)
+	dev.add_child(shell)
+	var scr := StandardMaterial3D.new()
+	scr.albedo_color = Color.BLACK
+	scr.emission_enabled = true
+	scr.emission_texture = vp.get_texture()
+	scr.emission_energy_multiplier = 1.1
+	var lcd := B.quad(dev, Vector2(0.168, 0.0945), Vector3(0, 0, 0.0155), scr)
+	lcd.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# son trajet : du sentier vers la cabane, puis vers les lumières du camp
+	var h := hut.global_position
+	var c := desk.global_position
+	var a := _path_point(h, 0.0)
+	var keys := [[0.0, a + Vector3(0, 0, 1.5), h + Vector3(0, 1.4, 0)], [4.5, h.lerp(a, 0.4), h + Vector3(0, 1.4, 0)], [8.0, a + Vector3(0, 0, -1.0), c + Vector3(0, 1.0, 0)],
+		[13.5, a.lerp(c, 0.55), c + Vector3(0, 1.0, 0)], [16.0, a.lerp(c, 0.72), c + Vector3(-4, 1.0, -4)]]
+	var pant := Sound.loop("breath_heavy_loop", -16.0, "UI")
+	var lines := [[0.4, "(essoufflé) ...je suis sorti. Je suis dehors. Il fait nuit noire..."], [4.6, "Une cabane... Il y a une radio. Elle est morte. Faut une batterie."],
+		[8.8, "De la lumière, là-bas... un groupe électrogène. C'est leur camp. Ils doivent en avoir une."], [13.6, "(il court) Un moteur... des phares... non — NON —"]]
+	var li := 0
+	var t := 0.0
+	while t < 16.5:
+		await ticked
+		var dt := get_process_delta_time()
+		t += dt
+		var k := 0
+		while k < keys.size() - 2 and t > float(keys[k + 1][0]):
+			k += 1
+		var t0: float = keys[k][0]
+		var t1: float = keys[k + 1][0]
+		var w := smoothstep(0.0, 1.0, clampf((t - t0) / maxf(t1 - t0, 0.01), 0.0, 1.0))
+		var pos: Vector3 = (keys[k][1] as Vector3).lerp(keys[k + 1][1], w)
+		var look: Vector3 = (keys[k][2] as Vector3).lerp(keys[k + 1][2], w)
+		var run := 2.2 if t > 13.0 else 1.0
+		pos.y = floor_y(pos) + 1.5 + absf(sin(t * 7.0 * run)) * 0.04 * run
+		pos += vcam.global_basis.x * sin(t * 7.0 * run) * 0.03 if vcam.is_inside_tree() else Vector3.ZERO
+		if (look - pos).length() > 0.2:
+			vcam.global_transform = Transform3D(Basis.looking_at((look - pos).normalized(), Vector3.UP), pos)
+		osd.text = "BWC-7   SN 0402   ▶ LECTURE   IR\n03/11/2026   05:%02d:%02d" % [40 + int(t / 60.0), int(t) % 60]
+		if li < lines.size() and t >= float(lines[li][0]):
+			Game.hud.say(lines[li][1], 4.0, "Caméra 0402")
+			li += 1
+		# les phares du van, puis plus rien
+		if t > 15.0:
+			vlamp.light_energy = 3.0 + (t - 15.0) * 30.0
+	if is_instance_valid(pant):
+		pant.queue_free()
+	Sound.play("glitch_0", -6.0)
+	scr.emission_texture = null
+	scr.emission = Color(0.6, 0.6, 0.6)
+	await wait(0.8)
+	dev.queue_free()
+	vp.queue_free()
+	player.control_enabled = true
+	Game.hud.say("...Une cabane avec une radio. Il lui faut une batterie. Et leur camp en a une.", 4.0)
 	if stage == "start":
 		Game.hud.objective("La cabane du garde forestier (à gauche du sentier)")
 
 
-# ================================================================== pièges à loup
-func _build_trap(p: Vector3) -> void:
-	var trap := B.model(self, "sf:bear_trap", p + Vector3(0, 0.005, 0), randf_range(0, 360), {"width": 0.42})
-	# à moitié caché sous les feuilles : seul l'acier qui accroche la lampe le trahit
-	Nature.leaves(self, p, _ground_y, 6)
-	_traps.append([trap, p, false])
-
-
-func _check_traps() -> void:
-	if dying or not player.control_enabled:
+## Près de la plaque « S·13 », on entend gratter dessous. (La créature, déjà.)
+func _s13_scratch() -> void:
+	if _s13_heard or stage != "start":
 		return
-	for i in _traps.size():
-		var tr: Array = _traps[i]
-		if tr[2]:
+	_s13_heard = true
+	Sound.play_at(Sound.variant("claw", 4), s13.global_position + Vector3(0, -0.3, 0), 0.0, 0.8, 3.0, 18.0, null, "Creature")
+	await wait(0.9)
+	Sound.play_at(Sound.variant("claw", 4), s13.global_position + Vector3(0, -0.3, 0), -3.0, 0.75, 3.0, 18.0, null, "Creature")
+	await wait(1.6)
+	Game.hud.say("...Ça gratte. Là-dessous.", 2.4)
+
+
+# ================================================================== pièges à loup
+func _check_traps() -> void:
+	if _trapped >= 0:
+		_struggle()
+		return
+	if not player.control_enabled:
+		return
+	for i in traps.size():
+		var tr: Array = traps[i]
+		if tr[1]:
 			continue
-		var p: Vector3 = tr[1]
+		var p := (tr[0] as Node3D).global_position
 		if Vector2(player.global_position.x - p.x, player.global_position.z - p.z).length() < 0.33:
 			_spring_trap(i)
 			return
 
 
-## Le piège se referme sur la jambe : claquement, cri, sang ; Théo est bloqué jusqu'à ce qu'il desserre les
-## mâchoires (maintenir E), puis il boite. Le bruit porte loin.
+## Le piège se referme sur la jambe : claquement, cri, sang. Il faut marteler E pour écarter les mâchoires
+## (la barre retombe si on lâche). Le bruit attire les hommes au masque.
 func _spring_trap(i: int) -> void:
-	_traps[i][2] = true
-	var p: Vector3 = _traps[i][1]
+	traps[i][1] = true
+	var p := (traps[i][0] as Node3D).global_position
 	Sound.play_at("trap_snap", p + Vector3(0, 0.2, 0), 6.0, 1.0, 5.0, 60.0)
 	Game.shake(1.6)
 	Game.flash(0.5)
 	Game.glitch(0.5, false)
 	player.control_enabled = false
 	player.limp = minf(0.7, player.limp + 0.4)
-	player.set_look(player.yaw, deg_to_rad(-62.0))
+	player.set_look(player.yaw, deg_to_rad(-55.0))
 	B.decal(self, "res://assets/gen/decal_blood_pool.png", p + Vector3(0, 0.1, 0), Vector3.UP, 0.6, 0.6, 0.3, Color(1, 1, 1, 0.85))
 	on_noise(p, 30.0)
 	Game.hud.say("AAAH ! Putain... ma jambe !", 2.4)
-	await wait(1.0)
-	var it := Interactable.create(self, p + Vector3(0, 0.15, 0), Vector3(1.2, 0.6, 1.2), "Desserrer le piège", Callable(), 2.4)
-	it.on_use = func() -> void:
-		it.queue_free()
+	_trapped = i
+	_trap_prog = 0.0
+	await wait(0.8)
+	Game.hud.hint("Martèle [E] pour écarter les mâchoires du piège", 5.0)
+
+
+func _struggle() -> void:
+	var dt := get_process_delta_time()
+	_trap_prog = maxf(0.0, _trap_prog - dt * 0.22)
+	if Input.is_action_just_pressed("interact"):
+		_trap_prog += 0.09
+		Game.shake(0.25)
+		Sound.play("flashlight_tap_0", -16.0, randf_range(0.5, 0.7))
+	Game.hud.hold(maxf(_trap_prog, 0.001))
+	if _trap_prog >= 1.0:
+		var p := (traps[_trapped][0] as Node3D).global_position
+		_trapped = -1
+		Game.hud.hold(0.0)
 		Sound.play_at("trap_snap", p + Vector3(0, 0.2, 0), -6.0, 0.7, 3.0, 20.0)
 		player.control_enabled = true
 		Game.hud.say("...Ça saigne. Je peux encore marcher. Un peu.", 3.0)
-	Game.hud.hint("Regarde le piège et maintiens [E] pour desserrer les mâchoires", 5.0)
 
 
 # ================================================================== cailloux
-func _build_stones(p: Vector3) -> void:
-	var grey := B.mat("hacked_concrete", 0.3, {"color": Color(0.42, 0.41, 0.38), "roughness": 1.0})
-	var pile := Node3D.new()
-	add_child(pile)
-	pile.position = p
+func _build_stones(holder: Node3D) -> void:
+	var grey := B.mat("hacked_concrete", 0.3, {"color": Color(0.4, 0.39, 0.36), "roughness": 1.0})
 	for k in 4:
 		var sm := SphereMesh.new()
 		sm.radius = randf_range(0.035, 0.06)
@@ -473,19 +919,21 @@ func _build_stones(p: Vector3) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = sm
 		mi.material_override = grey
-		pile.add_child(mi)
-		mi.position = Vector3(randf_range(-0.12, 0.12), sm.height * 0.4, randf_range(-0.12, 0.12))
-	var it := Interactable.create(self, p + Vector3(0, 0.1, 0), Vector3(0.5, 0.3, 0.5), "Ramasser des cailloux", Callable())
+		holder.add_child(mi)
+		mi.position = Vector3(randf_range(-0.12, 0.12), sm.height * 0.35, randf_range(-0.12, 0.12))
+	var it := Interactable.create(holder, Vector3(0, 0.1, 0), Vector3(0.5, 0.3, 0.5), "Ramasser des cailloux", Callable())
 	it.on_use = func() -> void:
 		it.queue_free()
-		pile.queue_free()
+		holder.visible = false
 		stones += 3
 		Sound.play("pickup", -10.0, 0.8)
 		Game.hud.pickup("Cailloux (%d)" % stones)
 		if stones <= 3:
 			Game.hud.hint("[G] ou [clic droit]  lancer un caillou : sur le drone, ou loin de toi pour faire diversion", 6.0)
+	piles.append(holder)
 
 
+## Lancer : si le drone est près du centre de l'image, le caillou part droit sur lui (on vise à l'œil, pas au pixel).
 func _throw_stone() -> void:
 	stones -= 1
 	var rb := RigidBody3D.new()
@@ -507,13 +955,22 @@ func _throw_stone() -> void:
 	sm.rings = 3
 	var mi := MeshInstance3D.new()
 	mi.mesh = sm
-	mi.material_override = B.mat("hacked_concrete", 0.3, {"color": Color(0.42, 0.41, 0.38), "roughness": 1.0})
+	mi.material_override = B.mat("hacked_concrete", 0.3, {"color": Color(0.4, 0.39, 0.36), "roughness": 1.0})
 	rb.add_child(mi)
 	add_child(rb)
 	var cam := player.cam
 	var fwd := -cam.global_basis.z
-	rb.global_position = cam.global_position + fwd * 0.4 + cam.global_basis.x * 0.12 - Vector3(0, 0.1, 0)
-	rb.linear_velocity = fwd * 16.0 + Vector3(0, 2.2, 0) + Vector3(player.velocity.x, 0, player.velocity.z)
+	var start := cam.global_position + fwd * 0.4 + cam.global_basis.x * 0.12 - Vector3(0, 0.1, 0)
+	rb.global_position = start
+	var vel := fwd * 16.0 + Vector3(0, 2.2, 0) + Vector3(player.velocity.x, 0, player.velocity.z)
+	if drone != null and is_instance_valid(drone) and not drone.down:
+		var to := drone.global_position - cam.global_position
+		if to.length() < 28.0 and fwd.dot(to.normalized()) > cos(deg_to_rad(16.0)):
+			# trajectoire balistique qui l'atteint (en tenant compte de sa vitesse)
+			var tt := to.length() / 17.0
+			var aim := drone.global_position + drone.vel * tt
+			vel = (aim - start) / tt + Vector3(0, 0.5 * 9.8 * tt, 0)
+	rb.linear_velocity = vel
 	rb.angular_velocity = Vector3(randf_range(-10, 10), randf_range(-4, 4), randf_range(-10, 10))
 	Sound.play("flashlight_tap_0", -14.0, 0.6)
 	var done := [false]
@@ -525,59 +982,123 @@ func _throw_stone() -> void:
 			drone.hit()
 		else:
 			Sound.play_at(Sound.variant("rock_hit", 3), rb.global_position, 0.0, randf_range(0.9, 1.1), 4.0, 35.0)
-			# le caillou qui tombe attire l'homme au masque (il ne l'a pas vu partir)
-			on_noise(rb.global_position, 16.0))
+			# le caillou qui retombe attire les hommes au masque (ils ne l'ont pas vu partir)
+			on_noise(rb.global_position, 24.0))
 	await wait(6.0)
 	if is_instance_valid(rb):
 		rb.queue_free()
 
 
 # ================================================================== la cabane du garde forestier
-func _build_hut() -> void:
-	var h := HUT
-	var planks := B.mat("weathered_plank_siding", 1.2, {"color": Color(0.55, 0.5, 0.45), "roughness": 0.95})
-	var floor_m := B.mat("worn_planks", 1.4, {"color": Color(0.5, 0.45, 0.4)})
-	var roof_m := B.mat("grey_roof_tiles", 1.5, {"color": Color(0.45, 0.45, 0.45)})
-	var w := 4.2
-	var dp := 3.4
-	var hh := 2.3
-	B.box(self, Vector3(w, 0.12, dp), h + Vector3(0, 0.06, 0), floor_m, true)
-	# murs : ouest plein, sud plein, nord avec une fenêtre, est avec la porte
-	B.box(self, Vector3(0.1, hh, dp), h + Vector3(-w / 2, hh / 2, 0), planks, true)
-	B.box(self, Vector3(w, hh, 0.1), h + Vector3(0, hh / 2, dp / 2), planks, true)
-	B.box(self, Vector3(1.2, hh, 0.1), h + Vector3(-w / 2 + 0.6, hh / 2, -dp / 2), planks, true)
-	B.box(self, Vector3(1.9, hh, 0.1), h + Vector3(w / 2 - 0.95, hh / 2, -dp / 2), planks, true)
-	B.box(self, Vector3(1.1, 0.95, 0.1), h + Vector3(-w / 2 + 1.75, 0.475, -dp / 2), planks, true)
-	B.box(self, Vector3(1.1, 0.55, 0.1), h + Vector3(-w / 2 + 1.75, hh - 0.275, -dp / 2), planks, true)
-	B.box(self, Vector3(0.1, hh, 1.25), h + Vector3(w / 2, hh / 2, -dp / 2 + 0.625), planks, true)
-	B.box(self, Vector3(0.1, hh, 1.25), h + Vector3(w / 2, hh / 2, dp / 2 - 0.625), planks, true)
-	B.box(self, Vector3(0.1, 0.35, 0.9), h + Vector3(w / 2, hh - 0.175, 0), planks, true)
-	# toit à deux pans
-	for s in [-1.0, 1.0]:
-		B.box(self, Vector3(w + 0.6, 0.08, dp * 0.6), h + Vector3(0, hh + 0.42, s * dp * 0.26), roof_m, false, Vector3(s * 22.0, 0, 0))
-	# dedans : table, radio, chaise, caisse, bidon, boîte de conserve
-	var table_top := h + Vector3(-w / 2 + 0.5, 0.78, 0.2)
-	B.box(self, Vector3(0.7, 0.05, 1.3), table_top, planks, true)
-	for dz in [-0.55, 0.55]:
-		B.box(self, Vector3(0.6, 0.76, 0.05), table_top + Vector3(0, -0.4, dz), planks, false)
-	var radio := B.model(self, "sf:cb_radio", table_top + Vector3(0.0, 0.025, 0.1), 90.0, {"width": 0.2})
+## Une vraie cabane en rondins (porte arrachée) : une table avec la radio CB, un lit de camp, une hache, des
+## conserves, une lampe morte. Repère local : porte à l'avant (+Z), un peu à droite.
+## La cabane de chasse : une entrée (la porte arrachée), une cloison percée d'un passage, et la pièce où David
+## Roche (session 13) s'est caché : la radio sur la table, sa carte annotée au mur, le lit de camp.
+## Repère de la cabane : plancher à y = 0,16 ; pièce x de -2,1 à 0,55 ; entrée x de 0,75 à 2,25 ; z de -1,25 à 1,18 ;
+## porte côté +z (x de 1,05 à 1,85) ; passage dans la cloison (x = 0,64) pour z de -0,9 à -0,1.
+func _build_hut(holder: Node3D) -> void:
+	hut = holder
+	B.model(holder, "sf:log_cabin", Vector3.ZERO, 0.0, {"height": 3.7, "remove": ["Door"], "collide": "mesh"})
+	var inside := Node3D.new()
+	holder.add_child(inside)
+	inside.name = "Inside"
+	var fl := 0.16
+	# --- la pièce : la table contre le mur du fond, la radio, la chaise tirée
+	B.model(inside, "small_wooden_table_01", Vector3(-1.3, fl, -0.92), 0.0, {"height": 0.75, "collide": true})
+	var top := fl + 0.75
+	var radio := B.model(inside, "sf:cb_radio", Vector3(-1.25, top, -1.02), 0.0, {"width": 0.24})
 	radio.name = "CBRadio"
 	var label := StandardMaterial3D.new()
 	label.albedo_texture = load("res://assets/gen/cb_label.png")
-	B.quad(self, Vector2(0.14, 0.05), table_top + Vector3(0.12, 0.03, -0.32), label, Vector3(-90, 90, 0))
-	# les câbles d'alimentation pendent, coupés de leur batterie
+	B.quad(inside, Vector2(0.14, 0.05), Vector3(-1.0, top + 0.002, -0.84), label, Vector3(-90, 0, 0))
 	for k in 2:
-		var wire := B.cylinder(self, 0.004, 0.004, 0.55, table_top + Vector3(0.28, -0.25, 0.1 + k * 0.03), B.color_mat(Color(0.7, 0.05, 0.05) if k == 0 else Color(0.05, 0.05, 0.05), 0.5), false, 5)
+		var wire := B.cylinder(inside, 0.004, 0.004, 0.55, Vector3(-0.7 + k * 0.03, top - 0.27, -0.66), B.color_mat(Color(0.7, 0.05, 0.05) if k == 0 else Color(0.05, 0.05, 0.05), 0.5), false, 5)
 		wire.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_battery_slot = Node3D.new()
-	add_child(_battery_slot)
-	_battery_slot.position = h + Vector3(-w / 2 + 0.55, 0.12, 0.85)
-	B.model(self, "dining_chair_02", h + Vector3(-w / 2 + 1.05, 0.12, 0.25), -90.0, {"height": 0.9})
-	B.model(self, "wooden_crate_01", h + Vector3(w / 2 - 0.5, 0.12, dp / 2 - 0.5), 10.0, {"height": 0.5})
-	B.model(self, "can_rusted", table_top + Vector3(0.1, 0.025, 0.5), 0.0, {"height": 0.12})
-	B.model(self, "metal_jerrycan", h + Vector3(-w / 2 + 0.4, 0.12, -1.2), 80.0, {"height": 0.45})
-	var it := Interactable.create(self, table_top + Vector3(0, 0.1, 0.1), Vector3(0.6, 0.4, 0.7), "La radio", _use_radio)
+	var slot := Node3D.new()
+	inside.add_child(slot)
+	slot.name = "BatterySlot"
+	slot.position = Vector3(-0.5, fl, -0.95)
+	B.model(inside, "dining_chair_02", Vector3(-1.4, fl, -0.25), 165.0, {"height": 0.9})
+	B.model(inside, "russian_food_cans_01", Vector3(-1.78, top, -0.82), 0.0, {"height": 0.11})
+	B.model(inside, "sf:flashlight_dead", Vector3(-0.95, top, -0.78), 70.0, {"depth": 0.22})
+	# sa carte, punaisée au-dessus de la table
+	var map_mat := StandardMaterial3D.new()
+	map_mat.albedo_texture = load("res://assets/gen/hut_map.png")
+	map_mat.roughness = 0.95
+	B.quad(inside, Vector2(0.64, 0.48), Vector3(-1.3, fl + 1.42, -1.235), map_mat)
+	Interactable.create(inside, Vector3(-1.3, fl + 1.42, -1.15), Vector3(0.7, 0.55, 0.2), "La carte", _read_map)
+	B.model(inside, "wall_clock", Vector3(-0.3, fl + 1.55, -1.24), 0.0, {"height": 0.26})
+	# le lit de camp le long du mur, un sac de couchage roulé en boule
+	B.model(inside, "old_bed_frame", Vector3(-1.05, fl, 0.72), 90.0, {"depth": 1.9, "collide": true})
+	B.model(inside, "sf:sleeping_bag", Vector3(-1.2, fl + 0.42, 0.7), 80.0, {"width": 1.6})
+	B.model(inside, "metal_jerrycan", Vector3(-1.95, fl, -0.3), 80.0, {"height": 0.45})
+	# l'étagère contre la cloison : conserves, bocal, bouteilles
+	B.model(inside, "wooden_bookshelf_worn", Vector3(0.36, fl, 0.72), -90.0, {"height": 1.55, "collide": true})
+	B.model(inside, "jug_01", Vector3(0.36, fl + 1.55, 0.55), 0.0, {"height": 0.22})
+	B.model(inside, "wine_bottles_01", Vector3(0.36, fl + 1.55, 0.9), 0.0, {"height": 0.3})
+	B.model(inside, "caged_hanging_light", Vector3(-0.8, 2.44 - 0.3, 0.1), 0.0, {"height": 0.3})
+	for w in [Vector3(-2.0, 2.44, -1.15), Vector3(0.45, 2.44, 1.1), Vector3(-2.0, 2.44, 1.1), Vector3(2.15, 2.44, -1.15)]:
+		var web := Props.cobweb(inside)
+		web.position = w - Vector3(0, 0.48, 0)
+	# --- l'entrée : bois de chauffage contre le mur, bottes, pelle, hache
+	_woodpile(inside, Vector3(2.08, fl, -0.45), 0.36, 1.5, 0.95, 90.0)
+	B.model(inside, "rubber_boots", Vector3(2.0, fl, 0.9), 200.0, {"height": 0.4})
+	B.model(inside, "rusted_spade_01", Vector3(0.85, fl, 1.05), 10.0, {"height": 1.0})
+	B.model(inside, "metal_jerrycan", Vector3(0.95, fl, -1.05), 20.0, {"height": 0.45})
+	var it := Interactable.create(inside, Vector3(-1.25, top + 0.12, -1.0), Vector3(0.6, 0.4, 0.6), "La radio", _use_radio)
 	it.name = "RadioUse"
+	# --- dehors : le gros tas de bûches contre le pignon, le billot et sa hache, un tonneau d'eau de pluie
+	_woodpile(holder, Vector3(-2.95, 0.0, -0.4), 0.45, 2.2, 1.15, 90.0)
+	B.model(holder, "tree_stump_01", Vector3(3.4, 0.0, 2.6), 0.0, {"height": 0.45})
+	B.model(holder, "wooden_axe", Vector3(3.38, 0.36, 2.6), 30.0, {"height": 0.7, "rot": Vector3(160, 0, 0)})
+	B.model(holder, "Barrel_01", Vector3(-2.95, 0.0, 1.55), 0.0, {"height": 0.9, "collide": true})
+	B.model(holder, "old_tyre", Vector3(3.1, 0.0, -1.0), 0.0, {"width": 0.65})
+	B.model(holder, "dry_branches_medium_01", Vector3(2.6, 0.0, -2.4), 40.0, {"width": 1.2})
+
+
+## Un tas de bûches rangées (base au sol, `length` le long de l'axe x local tourné de `yaw`), avec sa collision.
+func _woodpile(parent: Node3D, pos: Vector3, depth: float, length: float, height: float, yaw: float) -> void:
+	var pile := Node3D.new()
+	parent.add_child(pile)
+	pile.position = pos
+	pile.rotation_degrees.y = yaw
+	var bark := B.mat("pine_bark", 0.6, {"color": Color(0.55, 0.47, 0.38)})
+	var cut := B.mat("pine_bark", 0.15, {"color": Color(1.5, 1.25, 0.95)})
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(pos.x * 100.0 + pos.z * 7.0)
+	var r := 0.075
+	var y := r
+	while y < height - r * 0.5:
+		var x := -length * 0.5 + r
+		while x < length * 0.5 - r * 0.5:
+			var rr := r * rng.randf_range(0.8, 1.15)
+			var log_mi := B.cylinder(pile, rr, rr, depth * rng.randf_range(0.9, 1.05), Vector3(x, y, rng.randf_range(-0.03, 0.03)), bark, false, 7, Vector3(90, 0, 0))
+			log_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			# bout scié, plus clair, côté visible (à l'opposé du mur)
+			var face := B.cylinder(pile, rr * 0.92, rr * 0.92, 0.01, log_mi.position - Vector3(0, 0, log_mi.mesh.get("height") * 0.5 + 0.004), cut, false, 7, Vector3(90, 0, 0))
+			face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			x += r * 2.0
+		y += r * 1.75
+	_solid(pile, Vector3(length, height, depth), Vector3(0, height * 0.5, 0))
+
+
+func _solid(parent: Node3D, size: Vector3, pos: Vector3) -> void:
+	var sb := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	sb.add_child(cs)
+	parent.add_child(sb)
+	sb.position = pos
+
+
+func _read_map() -> void:
+	await read_document("La carte de la cabane", "[center][img=860]res://assets/gen/hut_map.png[/img][/center]", "paper")
+	if stage in ["start", "battery"]:
+		Game.hud.say("« D.R. »... David Roche. Le gars des avis de recherche. Il était ici avant moi.", 3.8)
+		await wait(4.0)
+		Game.hud.say("Leur camp, à l'est. « Batterie ? »... Il a eu la même idée que moi.", 3.6)
 
 
 func _use_radio() -> void:
@@ -595,7 +1116,7 @@ func _use_radio() -> void:
 		await wait(2.0)
 		_radio_power_on()
 		Game.hud.objective("Appeler à l'aide (la radio)")
-		var it := find_child("RadioUse", false, false) as Interactable
+		var it := hut.find_child("RadioUse", true, false) as Interactable
 		if it != null:
 			it.prompt = "Appeler à l'aide"
 		return
@@ -603,26 +1124,26 @@ func _use_radio() -> void:
 	if stage == "start":
 		stage = "battery"
 		await wait(4.2)
-		Game.hud.say("Leur camp, à l'est... Ils doivent bien en avoir une.", 3.0)
-		Game.hud.objective("Trouver une batterie 12 V (le camp, à l'est)")
+		Game.hud.say("Leur camp... Ils doivent bien en avoir une.", 3.0)
+		Game.hud.objective("Trouver une batterie 12 V (le camp des ravisseurs, à l'est)")
 
 
 func _install_battery_visual() -> void:
-	_build_battery(_battery_slot, Vector3.ZERO)
+	_build_battery_mesh(hut.find_child("BatterySlot", true, false) as Node3D)
 
 
 func _radio_power_on() -> void:
-	var radio := find_child("CBRadio", false, false) as Node3D
-	var at := radio.global_position + Vector3(0.05, 0.06, 0) if radio != null else HUT
-	_radio_glow = B.omni(self, at, Color(1.0, 0.55, 0.2), 0.25, 1.2)
-	_radio_static = Sound.loop_at("radio_static_loop", radio if radio != null else self, -10.0, 1.5, 12.0)
+	var radio := hut.find_child("CBRadio", true, false) as Node3D
+	var at := radio.global_position + Vector3(0, 0.08, 0) if radio != null else hut.global_position
+	_radio_glow = B.omni(self, at, Color(1.0, 0.55, 0.2), 0.3, 1.4)
+	_radio_static = Sound.loop_at("radio_static_loop", radio if radio != null else hut, -10.0, 1.5, 12.0)
 	Sound.play_at("ui_beep", at, -8.0, 0.8, 2.0, 10.0)
 
 
 ## Il appelle à l'aide... et c'est le direct qui répond. Le public a voté : on ouvre la trappe.
 func _radio_call() -> void:
 	stage = "chase"
-	var it := find_child("RadioUse", false, false) as Interactable
+	var it := hut.find_child("RadioUse", true, false) as Interactable
 	if it != null:
 		it.queue_free()
 	player.control_enabled = false
@@ -653,26 +1174,26 @@ func _radio_call() -> void:
 	_release_creature(false)
 
 
-## La créature sort de la plaque « S·13 » : un clic dans le brouillard... puis elle fonce. Il faut courir jusqu'à
-## la route. L'homme au masque, lui, rentre dans son van : le spectacle n'a plus besoin de lui.
+## La créature sort de la plaque « S·13 »... puis elle fonce. Les hommes au masque rentrent au van.
 func _release_creature(quick: bool) -> void:
 	stage = "chase"
-	if hunter != null:
-		hunter.leave()
-	Sound.play_at("lamp_break_0", S13 + Vector3(0, 0.3, 0), 2.0, 0.6, 8.0, 80.0)
-	var lid := find_child("S13Lid", false, false) as Node3D
+	for h in hunters:
+		(h as Hunter).leave()
+	var at := s13.global_position
+	Sound.play_at("lamp_break_0", at + Vector3(0, 0.3, 0), 2.0, 0.6, 8.0, 80.0)
+	var lid := s13.find_child("Lid", true, false) as Node3D
 	if lid != null:
 		var tw := create_tween()
 		tw.tween_property(lid, "position", lid.position + Vector3(1.2, 0.0, 0.6), 0.35)
 		tw.parallel().tween_property(lid, "rotation_degrees:z", 70.0, 0.35)
 	await wait(0.4 if quick else 0.8)
-	Sound.play_at("creature_shriek", S13 + Vector3(0, 1.0, 0), 4.0, 1.0, 10.0, 90.0, null, "Creature")
+	Sound.play_at("creature_shriek", at + Vector3(0, 1.0, 0), 4.0, 1.0, 10.0, 90.0, null, "Creature")
 	Game.glitch(0.6)
 	if not quick:
 		await wait(1.2)
 		Game.hud.say("Non... non, non, non.", 2.0)
 	creature.player = player
-	creature.global_position = S13
+	creature.global_position = at
 	creature.activate(Creature.State.CHASE)
 	player.control_enabled = true
 	player.stamina = 1.0
@@ -683,77 +1204,49 @@ func _release_creature(quick: bool) -> void:
 
 # ================================================================== le camp des ravisseurs
 func _build_camp() -> void:
-	var c := CAMP
-	_van = B.model(self, "sf:old_van", c + Vector3(4.0, 0, -4.0), 110.0, {"width": 5.2, "collide": true})
-	# la bâche, la table de la régie, les écrans
-	B.model(self, "sf:tarp", c + Vector3(-1.5, 0, 0.5), 90.0, {"width": 4.5})
-	var top := c + Vector3(-1.5, 0.76, 0.0)
-	B.box(self, Vector3(2.0, 0.05, 0.8), top, B.color_mat(Color(0.32, 0.32, 0.33), 0.6, 0.6), true)
-	for dx in [-0.9, 0.9]:
-		B.box(self, Vector3(0.05, 0.74, 0.7), top + Vector3(dx, -0.39, 0), B.color_mat(Color(0.2, 0.2, 0.2), 0.5, 0.8), false)
-	# écran du drone (flux en direct), page du direct, ordinateur portable
+	var c := Vector3(28, 0, -31)
+	# la régie : bâche camouflage, table militaire, écrans, ordinateur, chaises
+	desk = _obj("camp_desk", c, 0.0)
+	B.model(desk, "sf:tarp", Vector3(0, 0, 0.2), 90.0, {"width": 4.5})
+	B.model(desk, "sf:military_furniture", Vector3(0, 0, 0), 0.0, {"part": "SM_MTable_001", "scale": 1.0, "collide": true})
+	var top := 0.94
 	feed = SecurityFeed.new()
 	feed.cam_label = "DRONE 2"
 	add_child(feed)
 	_feed_mat = feed.screen_material(1.0)
-	var mon_mat := B.color_mat(Color(0.05, 0.05, 0.06), 0.4, 0.4)
-	B.box(self, Vector3(0.62, 0.38, 0.04), top + Vector3(-0.45, 0.25, -0.25), mon_mat, false)
-	SecurityFeed.screen(self, Vector2(0.58, 0.34), top + Vector3(-0.45, 0.25, -0.228), Vector3.ZERO, _feed_mat)
-	B.box(self, Vector3(0.62, 0.38, 0.04), top + Vector3(0.25, 0.25, -0.25), mon_mat, false, Vector3(0, -10, 0))
+	B.model(desk, "sf:flat_tv", Vector3(-0.5, top, -0.25), 90.0, {"height": 0.42})
+	B.model(desk, "sf:flat_tv", Vector3(0.25, top, -0.3), 78.0, {"height": 0.42})
+	var sz1 := Vector3(0.68, 0.42, 0.21)
+	SecurityFeed.screen(desk, Vector2(sz1.x * 0.9, sz1.y * 0.72), Vector3(-0.5, top + sz1.y * 0.58, -0.25 + sz1.z * 0.5 + 0.004), Vector3.ZERO, _feed_mat)
 	var stream := StandardMaterial3D.new()
 	stream.albedo_color = Color.BLACK
 	stream.emission_enabled = true
 	stream.emission_texture = load("res://assets/gen/screen_stream.png")
 	stream.emission_energy_multiplier = 1.1
-	SecurityFeed.screen(self, Vector2(0.58, 0.34), top + Vector3(0.254, 0.25, -0.228), Vector3(0, -10, 0), stream)
+	var scr2 := SecurityFeed.screen(desk, Vector2(sz1.x * 0.9, sz1.y * 0.72), Vector3(0.25, top + sz1.y * 0.58, -0.3), Vector3(0, -12, 0), stream)
+	scr2.position += scr2.global_basis.z * (sz1.z * 0.5 + 0.004)
 	var lap_mat := StandardMaterial3D.new()
 	lap_mat.albedo_color = Color.BLACK
 	lap_mat.emission_enabled = true
 	lap_mat.emission_texture = load("res://assets/gen/screen_stream.png")
 	lap_mat.emission_energy_multiplier = 0.9
-	Props.laptop(self, top + Vector3(0.75, 0.025, 0.15), -35.0, lap_mat)
-	B.omni(self, top + Vector3(0, 0.45, 0.3), Color(0.7, 0.78, 1.0), 0.35, 3.0)
-	# lampe de chantier : la seule vraie lumière du camp
-	var lamp := B.spot(self, c + Vector3(-3.6, 2.2, 2.2), top, Color(1.0, 0.85, 0.65), 4.0, 12.0, 60.0, true)
-	lamp.light_volumetric_fog_energy = 1.6
-	B.cylinder(self, 0.02, 0.025, 2.2, c + Vector3(-3.6, 1.1, 2.2), B.color_mat(Color(0.8, 0.6, 0.1), 0.5, 0.4), false, 8)
-	# groupe électrogène qui ronfle, bidons, caisses
-	var gen := B.model(self, "sf:generator", c + Vector3(-6.0, 0, -2.0), 30.0, {"width": 0.75})
-	Sound.loop_at("generator_loop", gen, -2.0, 3.0, 30.0)
-	B.model(self, "metal_jerrycan", c + Vector3(-6.8, 0, -1.2), 10.0, {"height": 0.45})
-	B.model(self, "plastic_jerrycan", c + Vector3(-5.3, 0, -2.9), 60.0, {"height": 0.4})
-	B.model(self, "propane_tank", c + Vector3(1.5, 0, 3.0), 0.0, {"height": 0.6})
-	B.model(self, "old_military_crate", c + Vector3(-3.4, 0, -1.6), 20.0, {"width": 1.0})
-	B.model(self, "wooden_crate_01", c + Vector3(0.5, 0, 2.6), 40.0, {"height": 0.55})
-	B.model(self, "sf:sleeping_bag", c + Vector3(-2.5, 0.02, 3.2), 100.0, {"width": 1.8})
-	# le tableau des sujets, sur un chevalet
-	var board := StandardMaterial3D.new()
-	board.albedo_texture = load("res://assets/gen/board_subjects.png")
-	board.roughness = 0.9
-	B.quad(self, Vector2(1.4, 0.98), c + Vector3(-3.2, 1.3, 0.0), board, Vector3(0, 70, 0))
-	for k in [-0.55, 0.55]:
-		B.cylinder(self, 0.018, 0.018, 1.9, c + Vector3(-3.25, 0.95, k), B.color_mat(Color(0.3, 0.25, 0.2), 0.8), false, 6)
-	Interactable.create(self, c + Vector3(-3.1, 1.3, 0.0), Vector3(0.4, 1.0, 1.4), "Le tableau", func() -> void:
-		await read_document("Le tableau — session 14",
-			"[b]SESSION 14 — 4 sujets[/b]   [i]« le public a choisi »[/i]\n\n" +
-			"Sujet 1 — Maxime D., 24 ans — [color=#b33]✗[/color]\nSujet 2 — Inès F., 23 ans — [color=#b33]✗[/color]\n" +
-			"Sujet 3 — Karim H., 25 ans — [color=#b33]✗[/color]\nSujet 4 — Théo M., 24 ans, agent de sécurité — [b]EN COURS[/b]\n\n" +
-			"Pas d'intervention avant la sortie.\nLa bête se rappelle au sifflet.", "paper")
-		Game.hud.say("Le public a choisi... Nous quatre. Comme des numéros.", 3.4))
-	# le registre des sessions, sur la table
-	B.box(self, Vector3(0.22, 0.01, 0.3), top + Vector3(-0.85, 0.03, 0.15), B.color_mat(Color(0.85, 0.83, 0.78), 0.9), false, Vector3(0, 15, 0))
-	Interactable.create(self, top + Vector3(-0.85, 0.08, 0.15), Vector3(0.35, 0.2, 0.4), "Le registre", func() -> void:
+	Props.laptop(desk, Vector3(0.85, top, 0.1), -35.0, lap_mat)
+	B.omni(desk, Vector3(0, top + 0.45, 0.35), Color(0.6, 0.7, 1.0), 0.4, 3.0)
+	B.model(desk, "sf:military_furniture", Vector3(-0.4, 0, 0.9), 180.0, {"part": "SM_MChair_001", "scale": 1.0})
+	B.model(desk, "sf:military_furniture", Vector3(0.6, 0, 0.95), 160.0, {"part": "SM_MChair_001", "scale": 1.0})
+	B.box(desk, Vector3(0.22, 0.01, 0.3), Vector3(-0.95, top + 0.005, 0.15), B.color_mat(Color(0.85, 0.83, 0.78), 0.9), false, Vector3(0, 15, 0))
+	Interactable.create(desk, Vector3(-0.95, top + 0.06, 0.15), Vector3(0.35, 0.2, 0.4), "Le registre", func() -> void:
 		await read_document("Registre des sessions",
 			"[b]SESSIONS — 2026[/b]\n\n" +
 			"01 — 14/02 — 1 sujet — 312 spectateurs — 2 h 10 — non retrouvé\n" +
 			"04 — 03/05 — 2 sujets — 870 spectateurs — 3 h 02 — non retrouvés\n" +
-			"09 — 22/08 — 3 sujets — 2 140 spectateurs — 4 h 15 — non retrouvés\n" +
-			"12 — 06/10 — 2 sujets — 2 980 spectateurs — 4 h 41 — non retrouvés\n" +
-			"13 — 03/11 — 1 sujet (agent de sécurité, 41 ans) — 3 655 spectateurs — 5 h 02 — sorti à 05:51 — [i]récupéré au van[/i]\n" +
+			"09 — 22/08 — 1 sujet (R. Lebrun) — 2 140 spectateurs — 4 h 15 — non retrouvé\n" +
+			"12 — 06/10 — 1 sujet (C. Meyer) — 2 980 spectateurs — 4 h 41 — non retrouvée\n" +
+			"13 — 03/11 — 1 sujet (D. Roche, agent de sécurité) — 3 655 spectateurs — 5 h 02 — sorti à 05:51 — [i]récupéré au van[/i]\n" +
 			"[b]14 — 14/11 — 4 sujets — EN COURS — 4 312 spectateurs[/b]\n\n" +
 			"Recettes (dons) : 61 400 €\nProchaine étape : vote du public.", "typed")
-		Game.hud.say("Treize avant nous... Et personne ne les a jamais retrouvés.", 3.4))
-	Interactable.create(self, top + Vector3(0.75, 0.15, 0.15), Vector3(0.5, 0.3, 0.45), "L'ordinateur", func() -> void:
+		Game.hud.say("Les avis de recherche, sur les arbres... C'était eux. Personne ne les a jamais retrouvés.", 4.0))
+	Interactable.create(desk, Vector3(0.85, top + 0.12, 0.1), Vector3(0.5, 0.3, 0.45), "L'ordinateur", func() -> void:
 		await read_document("Le direct — session 14",
 			"[b]● DIRECT — SESSION 14 — 4 312 spectateurs[/b]\n\n" +
 			"[color=#7af]vlad_88[/color] [color=#5d7]50 €[/color] — fais-le passer par l'eau\n" +
@@ -764,81 +1257,210 @@ func _build_camp() -> void:
 			"[color=#7af]Dmitri[/color] [color=#5d7]250 €[/color] — plus long que la 13 svp\n\n" +
 			"[b]PROCHAINE ÉTAPE — vote en cours :[/b]  « LA RADIO » 61 %  ·  « LA ROUTE » 39 %", "phone")
 		Game.hud.say("« La radio »... Ils votent. Ils votent pour ce qui va m'arriver.", 3.6))
-	Interactable.create(self, top + Vector3(-0.45, 0.25, -0.2), Vector3(0.6, 0.4, 0.2), "L'écran", func() -> void:
+	Interactable.create(desk, Vector3(-0.5, top + 0.25, -0.15), Vector3(0.7, 0.45, 0.25), "L'écran", func() -> void:
 		if drone != null and is_instance_valid(drone) and not drone.down:
 			Game.hud.say("C'est moi... vu d'en haut. Le drone. Ils me filment en ce moment même.", 3.6)
 		else:
 			Game.hud.say("Plus d'image. Le drone est par terre.", 2.6))
-	# la caisse des téléphones confisqués (ceux des sessions d'avant)... le sien est dessus
-	B.model(self, "plastic_crate_01", c + Vector3(-0.2, 0, 1.6), 15.0, {"height": 0.32})
-	for k in 7:
-		Props.phone(self, c + Vector3(-0.2 + randf_range(-0.12, 0.12), 0.22 + k * 0.012, 1.6 + randf_range(-0.08, 0.08)), randf_range(0, 360),
+	# le van (le deuxième homme dort dedans)
+	van = _obj("van", c + Vector3(5.5, 0, -5.0), 110.0)
+	B.model(van, "sf:old_van", Vector3.ZERO, 0.0, {"width": 5.2, "collide": true})
+	# le tableau des sujets, sur un chevalet
+	board = _obj("camp_board", c + Vector3(-3.4, 0, 0.3), 70.0)
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_texture = load("res://assets/gen/board_subjects.png")
+	bmat.roughness = 0.9
+	B.box(board, Vector3(1.5, 1.06, 0.03), Vector3(0, 1.3, -0.02), B.color_mat(Color(0.25, 0.18, 0.12), 0.8), false)
+	B.quad(board, Vector2(1.4, 0.98), Vector3(0, 1.3, 0.0), bmat)
+	for k in [-0.55, 0.55]:
+		B.cylinder(board, 0.02, 0.02, 1.9, Vector3(k, 0.95, -0.06), B.color_mat(Color(0.3, 0.25, 0.2), 0.8), false, 6)
+	Interactable.create(board, Vector3(0, 1.3, 0.1), Vector3(1.4, 1.0, 0.3), "Le tableau", func() -> void:
+		await read_document("Le tableau — session 14",
+			"[b]SESSION 14 — 4 sujets[/b]   [i]« le public a choisi »[/i]\n\n" +
+			"Sujet 1 — Maxime D., 24 ans — [color=#b33]✗[/color]\nSujet 2 — Inès F., 23 ans — [color=#b33]✗[/color]\n" +
+			"Sujet 3 — Karim H., 25 ans — [color=#b33]✗[/color]\nSujet 4 — Théo M., 24 ans, agent de sécurité — [b]EN COURS[/b]\n\n" +
+			"Pas d'intervention avant la sortie.\nLa bête se rappelle au sifflet.", "paper")
+		Game.hud.say("Le public a choisi... Nous quatre. Comme des numéros.", 3.4))
+	# le feu de camp : braises, fumée, lueur qui vacille (la seule chaleur ici)
+	fire = _obj("camp_fire", c + Vector3(-1.5, 0, 6.0))
+	_campfire(fire)
+	# lampe de chantier sur trépied, braquée sur la régie
+	work_light = _obj("camp_light", c + Vector3(-3.0, 0, 2.6), rad_to_deg(atan2(-3.0, 2.6)))
+	B.model(work_light, "sf:work_light", Vector3.ZERO, 0.0, {"height": 1.6})
+	var lamp := SpotLight3D.new()
+	lamp.light_color = Color(1.0, 0.86, 0.66)
+	lamp.light_energy = 5.0
+	lamp.spot_range = 14.0
+	lamp.spot_angle = 50.0
+	lamp.shadow_enabled = true
+	lamp.light_volumetric_fog_energy = 1.8
+	work_light.add_child(lamp)
+	lamp.position = Vector3(0, 1.55, 0)
+	lamp.rotation_degrees = Vector3(-22, 0, 0)
+	Game.add_flare(lamp, 1.0, 1.0)
+	# groupe électrogène qui ronfle
+	generator = _obj("camp_generator", c + Vector3(-6.5, 0, -2.5), 30.0)
+	B.model(generator, "sf:generator", Vector3.ZERO, 0.0, {"width": 0.75})
+	Sound.loop_at("generator_loop", generator, -4.0, 3.0, 30.0)
+	# mât d'antennes (le brouilleur : c'est pour ça que rien ne capte), diode rouge
+	antenna = _obj("camp_antenna", c + Vector3(-4.5, 0, -5.5))
+	B.cylinder(antenna, 0.03, 0.04, 3.2, Vector3(0, 1.6, 0), B.color_mat(Color(0.35, 0.35, 0.36), 0.5, 0.8), false, 8)
+	B.model(antenna, "sf:antennas", Vector3(0, 3.0, 0), 0.0, {"height": 0.9})
+	B.box(antenna, Vector3(0.3, 0.4, 0.2), Vector3(0, 0.2, 0), B.color_mat(Color(0.12, 0.12, 0.13), 0.6, 0.4), false)
+	var led := B.omni(antenna, Vector3(0, 3.3, 0), Color(1.0, 0.05, 0.05), 0.4, 2.0)
+	var blink := create_tween().set_loops()
+	blink.tween_callback(func() -> void: led.visible = not led.visible)
+	blink.tween_interval(0.7)
+	# la caisse des téléphones confisqués (ceux des sessions d'avant)
+	crate = _obj("camp_crate", c + Vector3(-0.6, 0, 2.2), 15.0)
+	B.model(crate, "plastic_crate_01", Vector3.ZERO, 0.0, {"height": 0.32})
+	for k in 8:
+		Props.phone(crate, Vector3(randf_range(-0.12, 0.12), 0.2 + k * 0.012, randf_range(-0.08, 0.08)), randf_range(0, 360),
 			[Color(0.05, 0.05, 0.06), Color(0.7, 0.68, 0.66), Color(0.12, 0.2, 0.35), Color(0.4, 0.1, 0.1)][k % 4])
-	var mine := Props.phone(self, c + Vector3(-0.2, 0.33, 1.6), 20.0, Color(0.04, 0.04, 0.05))
-	mine.name = "MyPhone"
-	Interactable.create(self, c + Vector3(-0.2, 0.38, 1.6), Vector3(0.45, 0.25, 0.45), "Ton téléphone", _use_phone)
+	Interactable.create(crate, Vector3(0, 0.36, 0), Vector3(0.45, 0.3, 0.45), "Les téléphones", _use_phone)
 	# la batterie de secours, à côté du groupe
-	_battery_node = Node3D.new()
-	add_child(_battery_node)
-	_battery_node.position = c + Vector3(-5.2, 0, -1.0)
-	_build_battery(_battery_node, Vector3.ZERO)
-	var bit := Interactable.create(_battery_node, Vector3(0, 0.15, 0), Vector3(0.5, 0.35, 0.45), "Débrancher la batterie", Callable(), 1.4)
+	battery = _obj("camp_battery", c + Vector3(-5.6, 0, -1.3))
+	_build_battery_mesh(battery)
+	var bit := Interactable.create(battery, Vector3(0, 0.15, 0), Vector3(0.5, 0.35, 0.45), "Débrancher la batterie", Callable(), 1.4)
 	bit.on_use = _take_battery
 
 
-func _build_battery(parent: Node3D, at: Vector3) -> void:
-	var case := B.box(parent, Vector3(0.27, 0.19, 0.17), at + Vector3(0, 0.095, 0), B.color_mat(Color(0.06, 0.06, 0.07), 0.6, 0.1), false)
+## Feu de camp : cercle de pierres, bûches en tipi à moitié consumées, lit de braises, flammes, étincelles, fumée.
+func _campfire(holder: Node3D) -> void:
+	B.model(holder, "stone_fire_pit", Vector3.ZERO, 0.0, {"width": 1.2})
+	var coals := B.cylinder(holder, 0.34, 0.36, 0.05, Vector3(0, 0.04, 0), B.emissive(Color(1.0, 0.22, 0.04), 1.6), false, 14)
+	coals.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var char_mat := B.color_mat(Color(0.05, 0.04, 0.035), 0.95)
+	var bark := B.mat("pine_bark", 0.5, {"color": Color(0.35, 0.3, 0.25)})
+	for k in 5:
+		var a := k * TAU / 5.0 + 0.3
+		var log_mi := B.cylinder(holder, 0.045, 0.06, 0.62, Vector3(cos(a) * 0.16, 0.24, sin(a) * 0.16), bark if k % 2 == 0 else char_mat, false, 7)
+		log_mi.rotation = Vector3(0, -a, 0)
+		log_mi.rotate_object_local(Vector3(0, 0, 1), 0.55)
+	# une bûche tombée sur le côté, rougeoyante
+	var fallen := B.cylinder(holder, 0.05, 0.05, 0.55, Vector3(0.12, 0.08, -0.1), char_mat, false, 7, Vector3(0, 30, 90))
+	fallen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var flame := B.omni(holder, Vector3(0, 0.5, 0), Color(1.0, 0.45, 0.15), 1.4, 8.0, true)
+	flame.name = "Flame"
+	flame.light_volumetric_fog_energy = 1.2
+	holder.add_child(_fire_particles(64, 0.6, 0.15, Vector2(0.2, 0.34), [Color(1.5, 0.95, 0.4, 0.9), Color(1.3, 0.45, 0.08, 0.6), Color(0.5, 0.08, 0.02, 0.0)], 0.5, 1.6))
+	var sparks := _fire_particles(10, 1.8, 0.12, Vector2(0.025, 0.025), [Color(4.0, 2.2, 0.8, 1.0), Color(3.0, 0.8, 0.1, 0.7), Color(1.0, 0.2, 0.0, 0.0)], 1.4, 0.5)
+	sparks.process_material.set("spread", 25.0)
+	sparks.process_material.set("turbulence_enabled", true)
+	sparks.process_material.set("turbulence_noise_strength", 2.0)
+	holder.add_child(sparks)
+	var smoke := Nature.steam(holder, Vector3(0, 0.9, 0), Vector3.UP)
+	smoke.position = Vector3(0, 0.9, 0)
+	Sound.loop_at("fire_loop", holder, -8.0, 1.0, 12.0)
+
+
+func _fire_particles(amount: int, life: float, radius: float, size: Vector2, ramp: Array, speed: float, rise: float) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = life
+	p.position = Vector3(0, 0.12, 0)
+	p.visibility_aabb = AABB(Vector3(-1, -0.2, -1), Vector3(2, 3.5, 2))
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = radius
+	pm.direction = Vector3.UP
+	pm.spread = 12.0
+	pm.initial_velocity_min = speed * 0.6
+	pm.initial_velocity_max = speed
+	pm.gravity = Vector3(0, rise, 0)
+	pm.damping_min = 0.5
+	pm.damping_max = 1.0
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.6))
+	sc.add_point(Vector2(0.25, 1.0))
+	sc.add_point(Vector2(1, 0.15))
+	var sct := CurveTexture.new()
+	sct.curve = sc
+	pm.scale_curve = sct
+	var g := Gradient.new()
+	g.colors = PackedColorArray(ramp)
+	g.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	var gt := GradientTexture1D.new()
+	gt.gradient = g
+	pm.color_ramp = gt
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = size
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var soft := GradientTexture2D.new()
+	soft.fill = GradientTexture2D.FILL_RADIAL
+	soft.fill_from = Vector2(0.5, 0.5)
+	soft.fill_to = Vector2(0.5, 0.0)
+	var sg := Gradient.new()
+	sg.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
+	soft.gradient = sg
+	m.albedo_texture = soft
+	q.material = m
+	p.draw_pass_1 = q
+	return p
+
+
+func _build_battery_mesh(parent: Node3D) -> void:
+	if parent == null:
+		return
+	var case := B.box(parent, Vector3(0.27, 0.19, 0.17), Vector3(0, 0.095, 0), B.color_mat(Color(0.06, 0.06, 0.07), 0.6, 0.1), false)
 	case.name = "Battery"
-	B.box(parent, Vector3(0.27, 0.012, 0.17), at + Vector3(0, 0.196, 0), B.color_mat(Color(0.12, 0.12, 0.13), 0.6), false)
-	B.cylinder(parent, 0.012, 0.012, 0.025, at + Vector3(-0.09, 0.21, 0.04), B.color_mat(Color(0.75, 0.08, 0.06), 0.5, 0.3), false, 8)
-	B.cylinder(parent, 0.012, 0.012, 0.025, at + Vector3(0.09, 0.21, 0.04), B.color_mat(Color(0.12, 0.12, 0.12), 0.5, 0.3), false, 8)
+	B.box(parent, Vector3(0.27, 0.012, 0.17), Vector3(0, 0.196, 0), B.color_mat(Color(0.12, 0.12, 0.13), 0.6), false)
+	B.cylinder(parent, 0.012, 0.012, 0.025, Vector3(-0.09, 0.21, 0.04), B.color_mat(Color(0.75, 0.08, 0.06), 0.5, 0.3), false, 8)
+	B.cylinder(parent, 0.012, 0.012, 0.025, Vector3(0.09, 0.21, 0.04), B.color_mat(Color(0.12, 0.12, 0.12), 0.5, 0.3), false, 8)
 
 
-## Il débranche la batterie... et la porte latérale du van coulisse : l'homme au masque était dedans.
+## Il débranche la batterie... et la porte du van claque : le deuxième homme était dedans.
 func _take_battery() -> void:
 	if has_battery:
 		return
 	has_battery = true
 	Sound.play("pickup", -6.0, 0.7)
 	Game.hud.pickup("Batterie 12 V")
-	_battery_node.queue_free()
+	battery.visible = false
+	_clear_interactables(battery)
 	stage = "carry"
 	params = {"checkpoint": "carry", "drones": drones_left}
 	Game.level_params = params
 	Game.hud.say("Je l'ai. Lourde... Vite, à la cabane.", 2.6)
 	await wait(2.4)
-	Sound.play_at("door_slam", _van.global_position + Vector3(0, 1.0, 0), 4.0, 0.85, 6.0, 50.0)
+	Sound.play_at("door_slam", van.global_position + Vector3(0, 1.0, 0), 4.0, 0.85, 6.0, 50.0)
 	await wait(0.7)
-	hunter.wake(true)
+	(hunters[1] as Hunter).wake(true)
 	Game.glitch(0.4)
 	await wait(1.4)
-	Game.hud.say("Le van... Il était dedans. Il m'a pas vu. Pas encore.", 3.2)
+	Game.hud.say("Le van... Il y en avait un deuxième dedans. Il m'a pas vu. Pas encore.", 3.4)
 	Game.hud.objective("Rapporter la batterie à la cabane, sans te faire voir")
-	await wait(3.4)
-	Game.hud.hint("Il voit, mais il entend mal : reste hors de sa lampe, accroupis-toi ([C]), éteins ta lampe ([F]). Un caillou lancé loin l'attire.", 8.0)
+	await wait(3.6)
+	Game.hud.hint("Ils voient, mais entendent mal : reste hors de leurs lampes, accroupis-toi ([C]), éteins ta lampe ([F]). Un caillou lancé loin les attire.", 8.0)
 
 
-## Son propre téléphone : 3 %, une barre. Le 17 ne passe pas, le message non plus. Puis plus de batterie.
+## Un téléphone pris au hasard dans la caisse : celui d'un autre. Des messages de sa famille, des semaines
+## d'appels manqués... Et « aucun service » : ils brouillent tout. C'est pour ça que rien ne capte.
 func _use_phone() -> void:
 	if _phone_done:
-		Game.hud.say("Mort. Plus de batterie.", 2.0)
+		Game.hud.say("Rien. Aucun réseau, sur aucun.", 2.0)
 		return
 	_phone_done = true
-	var desk_phone := find_child("MyPhone", false, false)
-	if desk_phone != null:
-		desk_phone.queue_free()
 	player.control_enabled = false
 	var ui := PhoneUI.new()
 	add_child(ui)
 	var phone := Node3D.new()
 	player.cam.add_child(phone)
-	phone.position = Vector3(0.02, -0.07, -0.3)
+	phone.position = Vector3(0.0, -0.035, -0.28)
 	phone.rotation_degrees = Vector3(8, 0, 0)
 	var shell := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.0765, 0.1605, 0.0085)
 	shell.mesh = bm
-	shell.material_override = B.color_mat(Color(0.03, 0.03, 0.035), 0.3, 0.6)
+	shell.material_override = B.color_mat(Color(0.7, 0.68, 0.66), 0.3, 0.6)
 	phone.add_child(shell)
 	var scr_mat := StandardMaterial3D.new()
 	scr_mat.albedo_color = Color(0.015, 0.015, 0.018)
@@ -852,50 +1474,68 @@ func _use_phone() -> void:
 	await get_tree().process_frame
 	ui.set_time("05:58")
 	ui.show_screen("lock")
-	ui.notify("Maman", "14 appels manqués")
-	ui.notify("Batterie", "3 % — batterie faible")
+	ui.notify("Papa", "Romain rappelle-moi. Ta mère ne dort plus.")
+	ui.notify("Léa", "t'es où ??? ça fait 3 semaines")
+	ui.notify("Gendarmerie", "Avis de recherche partagé 2 140 fois")
+	ui.notify("Batterie", "4 %")
 	await wait(0.6)
-	Game.hud.say("Mon téléphone... 3 %. Une barre de réseau.", 2.8)
-	await wait(3.0)
-	ui.call_contact("17")
-	Sound.play("ringback", -14.0)
+	Game.hud.say("C'est pas le mien... « Romain ». Celui de l'avis de recherche.", 3.4)
 	await wait(3.6)
-	ui.set_call_status("Échec de l'appel")
+	ui.call_contact("17")
+	await wait(2.4)
+	ui.set_call_status("Aucun service")
 	Sound.play("ui_beep", -10.0, 0.6)
-	Game.hud.say("Allez... ALLEZ !", 1.6)
-	await wait(2.0)
-	ui.open_chat("Maman")
-	await ui.type_reply("aide moi forêt route ils filment tout")
-	await wait(0.8)
-	Game.hud.say("Envoie... Envoie-toi !", 2.0)
-	await wait(2.2)
-	ui.notify("Message", "Échec de l'envoi")
-	ui.show_screen("lock")
-	await wait(1.4)
+	Game.hud.say("« Aucun service »... Les antennes, là-bas. Ils brouillent tout.", 3.4)
+	await wait(3.6)
+	Game.hud.say("C'est pour ça que rien ne capte. Depuis la maison.", 2.8)
+	await wait(2.6)
 	var tw := create_tween()
 	tw.tween_property(scr_mat, "emission_energy_multiplier", 0.0, 0.6)
 	tw.parallel().tween_property(glow, "light_energy", 0.0, 0.6)
 	await tw.finished
-	Game.hud.say("...Mort.", 1.6)
-	await wait(1.2)
 	phone.queue_free()
 	ui.queue_free()
 	player.control_enabled = true
+
+
+# ================================================================== hommes au masque
+func _place_hunters() -> void:
+	var a := hunters[0] as Hunter
+	a.global_position = fire.global_position + Vector3(1.5, 0, 0.5)
+	a.route = _route(0)
+	var b := hunters[1] as Hunter
+	b.global_position = van.global_position + van.global_basis.x * 1.4
+	b.route = _route(1)
+	b.camp = battery.global_position
+
+
+## Rondes : l'un tourne entre le camp, le sentier et la cabane ; l'autre (celui du van) reste plus près du camp.
+func _route(k: int) -> Array:
+	var c := desk.global_position
+	var h := hut.global_position
+	var j_camp := _path_point(c, 0.0)
+	var j_hut := _path_point(h, 0.0)
+	if k == 0:
+		return [c + Vector3(-7, 0, 2), _path_point(c, 0.5), j_camp, j_camp.lerp(j_hut, 0.5), j_hut, _path_point(h, 0.75),
+			j_hut, j_camp, c + Vector3(4, 0, 7), c + Vector3(-3, 0, -7)]
+	return [c + Vector3(-5, 0, -3), c + Vector3(-8, 0, 4), _path_point(c, 0.35), c + Vector3(3, 0, 6), c + Vector3(6, 0, -1)]
 
 
 # ================================================================== le drone
 func _update_drone(delta: float) -> void:
 	if drone != null and is_instance_valid(drone) and not drone.down:
 		feed.cam.global_transform = drone.view_transform()
-		# il « signale » Théo à l'homme au masque : abattre le drone a un vrai intérêt
-		if hunter != null and hunter.state in [Hunter.S.PATROL, Hunter.S.SEARCH]:
-			_report_cd -= delta
-			if _report_cd <= 0.0:
-				_report_cd = 11.0
-				if has_los(drone.global_position, player.eye_position()):
-					hunter.hear(player.global_position, 999.0)
+		# il signale Théo aux hommes au masque : l'abattre a un vrai intérêt
+		_report_cd -= delta
+		if _report_cd <= 0.0:
+			_report_cd = 11.0
+			if has_los(drone.global_position, player.eye_position()):
+				for h in hunters:
+					if (h as Hunter).state in [Hunter.S.PATROL, Hunter.S.SEARCH]:
+						(h as Hunter).hear(player.global_position, 999.0)
+						break
 		return
-	if stage in ["chase", "done"] or drones_left <= 0:
+	if stage in ["chase", "done"] or drones_left <= 0 or editing:
 		return
 	_drone_cd -= delta
 	if _drone_cd <= 0.0:
@@ -904,11 +1544,11 @@ func _update_drone(delta: float) -> void:
 		drone = Drone.new()
 		drone.level = self
 		add_child(drone)
-		drone.global_position = (CAMP if drones_left < 1 else player.global_position) + Vector3(randf_range(-6, 6), 9.0, -14.0)
+		drone.global_position = player.global_position + Vector3(randf_range(-8, 8), 10.0, -16.0)
 		_feed_mat.set_shader_parameter("static_mix", 0.0)
 		await wait(4.0)
 		if drones_left == 1:
-			Game.hud.say("C'est quoi ce bruit... Un drone ?! Il me filme...", 3.2)
+			Game.hud.say("C'est quoi ce bourdonnement... Un drone ?! Il me filme...", 3.2)
 		else:
 			Game.hud.say("Un autre drone... Ils en avaient un deuxième.", 3.0)
 
@@ -917,6 +1557,23 @@ func on_drone_down(_d: Node) -> void:
 	_feed_mat.set_shader_parameter("static_mix", 1.0)
 	Game.hud.say("Touché !" if drones_left > 0 else "Et de deux. Plus d'yeux dans le ciel.", 2.0)
 	_drone_cd = 55.0
+
+
+# ================================================================== la nuit qui vit
+func _night_sounds(delta: float) -> void:
+	_owl_cd -= delta
+	if _owl_cd <= 0.0:
+		_owl_cd = randf_range(25.0, 50.0)
+		var a := randf() * TAU
+		Sound.play_at(Sound.variant("owl", 2), player.global_position + Vector3(cos(a) * 30.0, 8.0, sin(a) * 30.0), -6.0, randf_range(0.9, 1.05), 15.0, 80.0)
+	# une branche qui craque dans le noir, derrière lui
+	_snap_cd -= delta
+	if _snap_cd <= 0.0:
+		_snap_cd = randf_range(30.0, 70.0)
+		var back := player.cam.global_basis.z
+		back.y = 0.0
+		var p := player.global_position + back.normalized() * randf_range(8.0, 14.0) + Vector3(randf_range(-4, 4), 0, randf_range(-4, 4))
+		Sound.play_at(Sound.variant("twig_snap", 2), p, -2.0, randf_range(0.8, 1.1), 5.0, 30.0)
 
 
 # ================================================================== la route, la mort, la fin
@@ -938,7 +1595,7 @@ func _creature_recalled() -> void:
 	creature.stand_and_watch(null, "listen", 0.8)
 	creature.twitch.spasm(1.0)
 	await wait(1.6)
-	creature.script_walk(PackedVector3Array([S13]), 2.6)
+	creature.script_walk(PackedVector3Array([s13.global_position]), 2.6)
 	await wait(4.0)
 	creature.deactivate()
 
@@ -947,17 +1604,26 @@ func _die(cause: String) -> void:
 	if dying or stage == "done":
 		return
 	dying = true
+	_trapped = -1
+	Game.hud.hold(0.0)
 	player.control_enabled = false
 	player.look_enabled = false
 	var start := player.head.global_transform
-	var who: Vector3 = creature.head_position() if cause == "creature" else hunter.global_position + Vector3(0, 1.6, 0)
+	var killer: Hunter = null
+	var nearest := 1e9
+	for h in hunters:
+		var dd := (h as Hunter).global_position.distance_to(player.global_position)
+		if (h as Hunter).visible and dd < nearest:
+			nearest = dd
+			killer = h
+	var who: Vector3 = creature.head_position() if cause == "creature" or killer == null else killer.global_position + Vector3(0, 1.6, 0)
 	var face := Transform3D(Basis.looking_at((who - start.origin).normalized(), Vector3.UP), start.origin)
 	var tw := create_tween()
 	tw.tween_method(func(w: float) -> void: player.set_cinematic(start.interpolate_with(face, w), 1.0), 0.0, 1.0, 0.2)
 	if cause == "creature":
 		Sound.play("creature_attack", 4.0)
-	else:
-		hunter.actor.play("strike", 0.1, 1.2)
+	elif killer != null:
+		killer.actor.play("strike", 0.1, 1.2)
 		Sound.play("hit_impact", 0.0)
 	Game.glitch(1.0, false)
 	Game.shake(3.0)
@@ -1042,23 +1708,31 @@ func _reveal() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
-	if player == null or dying:
+	if player == null or dying or editing:
 		return
 	_check_traps()
 	_update_drone(delta)
+	_night_sounds(delta)
 	if Input.is_action_just_pressed("throw") and stones > 0 and player.can_act():
 		_throw_stone()
-	# danger : la créature ou l'homme au masque tout près
+	# le feu vacille
+	if fire != null:
+		var fl := fire.find_child("Flame", false, false) as OmniLight3D
+		if fl != null:
+			fl.light_energy = 1.2 + sin(Time.get_ticks_msec() / 90.0) * 0.15 + randf_range(-0.12, 0.12)
 	var d := 99.0
 	if creature != null and creature.visible:
 		d = creature.global_position.distance_to(player.global_position)
-	if hunter != null and hunter.state != Hunter.S.HIDDEN:
-		d = minf(d, hunter.global_position.distance_to(player.global_position) * (0.6 if hunter.state == Hunter.S.CHASE else 1.4))
+	for h in hunters:
+		var hh := h as Hunter
+		if hh.state != Hunter.S.HIDDEN:
+			d = minf(d, hh.global_position.distance_to(player.global_position) * (0.6 if hh.state == Hunter.S.CHASE else 1.4))
 	player.danger = clampf(1.0 - d / 16.0, 0.0, 1.0)
 
 
 func prewarm_extras() -> Array:
-	var out: Array = [creature, hunter]
+	var out: Array = [creature]
+	out.append_array(hunters)
 	var d := Drone.new()
 	d.level = self
 	d.process_mode = Node.PROCESS_MODE_DISABLED
@@ -1068,45 +1742,80 @@ func prewarm_extras() -> Array:
 	return out
 
 
-## Tests : --surfacetest=trap|drone|hunter|chase|phone
+## Tests : --surfacetest=look|trap|trapmash|drone|dronehit|droneview|hunterview|seen|chase|radio|road|phone|cam|dump
 func _surface_test(kind: String) -> void:
 	await wait(1.0)
 	player.set_flashlight(true, true)
+	var fwd := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
 	match kind:
-		"trapview":
-			var tv: Vector3 = TRAPS[0]
-			player.global_position = tv + Vector3(0, 0.05, 1.3)
-			player.set_look(0.0, deg_to_rad(-45.0))
+		"trap":
+			player.global_position = (traps[0][0] as Node3D).global_position + Vector3(0, 0.05, 0.2)
+		"trapmash":
+			# on marche sur le piège, puis on martèle E (environ 7 appuis par seconde)
+			player.global_position = (traps[0][0] as Node3D).global_position + Vector3(0, 0.05, 0.1)
+			await wait(1.5)
+			var presses := 0
+			while _trapped >= 0 and presses < 60:
+				var ev := InputEventAction.new()
+				ev.action = "interact"
+				ev.pressed = true
+				Input.parse_input_event(ev)
+				await get_tree().process_frame
+				await get_tree().process_frame
+				var up := InputEventAction.new()
+				up.action = "interact"
+				Input.parse_input_event(up)
+				presses += 1
+				await wait(0.14)
+			print("PIEGE libéré après %d appuis : %s" % [presses, "oui" if _trapped < 0 else "NON"])
+		"dronehit":
+			# le drone en vol stationnaire, on vise à côté (8°) et on lance : l'aide à la visée doit le toucher
+			stones = 3
+			_drone_cd = 0.0
+			await wait(6.0)
+			for k in 3:
+				if drone == null or drone.down:
+					break
+				var to := drone.global_position - player.eye_position()
+				var yaw_to := atan2(-to.x, -to.z) + deg_to_rad(8.0)
+				var pitch_to := atan2(to.y, Vector2(to.x, to.z).length())
+				player.set_look(yaw_to, pitch_to)
+				await get_tree().process_frame
+				_throw_stone()
+				await wait(2.0)
+				print("DRONE essai %d : distance %.1f m, abattu = %s" % [k + 1, to.length(), "oui" if drone == null or drone.down else "non"])
+		"drone":
+			_drone_cd = 0.0
+		"look":
+			# captures du décor : personne ne patrouille
+			for h in hunters:
+				(h as Node3D).process_mode = Node.PROCESS_MODE_DISABLED
+				(h as Node3D).visible = false
+			_drone_cd = 1e9
+		"droneview":
+			var dv := Drone.new()
+			dv.level = self
+			add_child(dv)
+			dv.global_position = player.global_position + fwd * 1.6 + Vector3(0, 1.5, 0)
+			await wait(0.4)
+			dv.process_mode = Node.PROCESS_MODE_DISABLED
+		"hunterview":
+			var h := hunters[0] as Hunter
+			h.global_position = player.global_position + fwd * 4.0
+			h.heading = player.yaw + PI
+			h.rotation.y = h.heading
+			h.actor.play("idle", 0.0)
+			await wait(0.3)
+			h.process_mode = Node.PROCESS_MODE_DISABLED
 		"seen":
-			var fwd2 := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
-			hunter.wake(false)
-			hunter.global_position = player.global_position + fwd2 * 12.0
-			hunter.heading = player.yaw + PI
-			hunter.rotation.y = hunter.heading
-			hunter.state = Hunter.S.SEARCH
-		"droneview", "hunterview":
-			var fwd := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
-			if kind == "droneview":
-				var dv := Drone.new()
-				dv.level = self
-				add_child(dv)
-				dv.global_position = player.global_position + fwd * 1.6 + Vector3(0, 1.5, 0)
-				await wait(0.3)
-				dv.process_mode = Node.PROCESS_MODE_DISABLED
-			else:
-				hunter.wake(false)
-				hunter.global_position = player.global_position + fwd * 4.0
-				if Game.args.has("seetest"):
-					hunter.heading = player.yaw + PI
-					hunter.rotation.y = hunter.heading
-					return
-				hunter.heading = player.yaw
-				hunter.rotation.y = player.yaw
-				hunter.actor.play("idle", 0.0)
-				await wait(0.3)
-				hunter.process_mode = Node.PROCESS_MODE_DISABLED
+			var h2 := hunters[0] as Hunter
+			h2.global_position = player.global_position + fwd * 12.0
+			h2.heading = player.yaw + PI
+			h2.state = Hunter.S.SEARCH
+		"chase":
+			_release_creature(true)
 		"radio":
-			player.global_position = HUT + Vector3(0.4, 0.05, 0.3)
+			player.global_position = hut.global_transform * Vector3(-0.6, 0.05, -0.2)
 			battery_in = true
 			_install_battery_visual()
 			_radio_power_on()
@@ -1115,23 +1824,25 @@ func _surface_test(kind: String) -> void:
 			_release_creature(true)
 			await wait(2.0)
 			player.global_position = Vector3(0.0, 0.05, ROAD_Z + 4.0)
-		"trap":
-			var p: Vector3 = TRAPS[0]
-			player.global_position = p + Vector3(0, 0.05, 0.2)
-		"drone":
-			_drone_cd = 0.0
-		"hunter":
-			hunter.wake(true)
-		"chase":
-			_release_creature(true)
 		"phone":
 			_use_phone()
+		"cam":
+			_play_cam13()
+		"dump":
+			for n in MapLayout.movables(self):
+				var nd := n as Node3D
+				var bb := B.local_aabb(nd)
+				print("OBJ %s pos=%s taille=%s enfants=%d" % [nd.name, nd.global_position.snapped(Vector3.ONE * 0.1), bb.size.snapped(Vector3.ONE * 0.01), nd.get_child_count()])
+				for ch in nd.get_children():
+					if ch is Node3D:
+						print("     - %s %s taille=%s" % [ch.name, (ch as Node3D).position.snapped(Vector3.ONE * 0.01), (ch.get_meta("size", Vector3.ZERO) as Vector3).snapped(Vector3.ONE * 0.01)])
 	for i in 12:
 		await wait(1.0)
-		var hs: String = Hunter.S.keys()[hunter.state]
+		var hs: String = Hunter.S.keys()[(hunters[0] as Hunter).state]
+		var hs2: String = Hunter.S.keys()[(hunters[1] as Hunter).state]
 		var cs: String = Creature.State.keys()[creature.state]
 		var dr := "oui" if drone != null and is_instance_valid(drone) and not drone.down else "non"
-		print("SURFACE t=%d étape=%s chasseur=%s soupçon=%.2f créature=%s boite=%.2f drone=%s" % [i + 1, stage, hs, hunter.suspicion, cs, player.limp, dr])
+		print("SURFACE t=%d étape=%s masque1=%s masque2=%s soupçon=%.2f créature=%s boite=%.2f drone=%s piège=%.2f" % [i + 1, stage, hs, hs2, (hunters[0] as Hunter).suspicion, cs, player.limp, dr, _trap_prog])
 
 
 # ================================================================== drone
@@ -1142,7 +1853,7 @@ class Drone extends Node3D:
 	var body: StaticBody3D
 	var led: OmniLight3D
 	var buzz: AudioStreamPlayer3D
-	var props: Array[Node3D] = []
+	var discs: Array[Node3D] = []
 	var down := false
 	var vel := Vector3.ZERO
 	var t := 0.0
@@ -1150,20 +1861,36 @@ class Drone extends Node3D:
 
 	func _ready() -> void:
 		model = B.model(self, "sf:drone", Vector3.ZERO, 0.0, {"width": 0.55})
+		# hélices : on cache les pales figées et on met à leur place un disque flou qui tourne (comme à l'image)
+		var blur := StandardMaterial3D.new()
+		blur.albedo_color = Color(0.1, 0.1, 0.11, 0.35)
+		blur.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		blur.cull_mode = BaseMaterial3D.CULL_DISABLED
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			var n := String(mi.name).to_lower()
-			if n.contains("prop") or n.contains("rotor") or n.contains("blade") or n.contains("vint"):
-				props.append(mi as Node3D)
+			if String(mi.name).to_lower().contains("propeller"):
+				var c := global_transform.affine_inverse() * (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb().get_center()
+				(mi as MeshInstance3D).visible = false
+				var disc := MeshInstance3D.new()
+				var cm := CylinderMesh.new()
+				cm.top_radius = 0.11
+				cm.bottom_radius = 0.11
+				cm.height = 0.004
+				cm.radial_segments = 20
+				disc.mesh = cm
+				disc.material_override = blur
+				add_child(disc)
+				disc.position = c
+				discs.append(disc)
 		led = OmniLight3D.new()
 		led.light_color = Color(1.0, 0.1, 0.08)
-		led.light_energy = 0.8
-		led.omni_range = 2.5
+		led.light_energy = 0.9
+		led.omni_range = 3.0
 		add_child(led)
 		led.position = Vector3(0, -0.05, 0.12)
 		var dot := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.014
-		sm.height = 0.028
+		sm.radius = 0.016
+		sm.height = 0.032
 		dot.mesh = sm
 		dot.material_override = B.emissive(Color(1.0, 0.1, 0.08), 6.0, true)
 		led.add_child(dot)
@@ -1172,7 +1899,7 @@ class Drone extends Node3D:
 		body.collision_mask = 0
 		var cs := CollisionShape3D.new()
 		var sh := SphereShape3D.new()
-		sh.radius = 0.45
+		sh.radius = 0.6
 		cs.shape = sh
 		body.add_child(cs)
 		add_child(body)
@@ -1187,41 +1914,40 @@ class Drone extends Node3D:
 		if p == null:
 			return
 		orbit += delta * 0.16
-		var target := p.global_position + Vector3(cos(orbit) * 6.5, 4.4 + sin(t * 0.7) * 0.4, sin(orbit) * 6.5)
+		var target := p.global_position + Vector3(cos(orbit) * 6.5, 4.6 + sin(t * 0.7) * 0.4, sin(orbit) * 6.5)
 		var want := (target - global_position) * 1.1
 		if want.length() > 6.5:
 			want = want.normalized() * 6.5
 		vel = vel.lerp(want, 1.0 - exp(-2.0 * delta))
 		global_position += vel * delta
-		# il fixe Théo ; il penche dans le sens où il file
 		var to := p.global_position - global_position
 		rotation.y = atan2(-to.x, -to.z)
 		var local := global_basis.inverse() * vel
 		model.rotation = Vector3(clampf(local.z * 0.06, -0.3, 0.3), 0, clampf(-local.x * 0.06, -0.3, 0.3))
-		for pr in props:
-			pr.rotate_object_local(Vector3.UP, delta * 70.0)
+		for d in discs:
+			d.rotate_object_local(Vector3.UP, delta * 90.0)
 		led.visible = fmod(t, 1.0) < 0.18
 
-	## Point de vue de sa caméra (sous le drone, braquée sur Théo) pour l'écran de la régie.
 	func view_transform() -> Transform3D:
 		var p: Player = level.player
 		var eye := global_position + Vector3(0, -0.12, 0)
 		return Transform3D(Basis.looking_at((p.global_position + Vector3(0, 1.0, 0) - eye).normalized(), Vector3.UP), eye)
 
-	## Touché : il part en vrille et s'écrase. Le ronflement s'étrangle.
 	func hit() -> void:
 		if down:
 			return
 		down = true
 		led.visible = false
+		for d in discs:
+			d.visible = false
 		Sound.play_at("lamp_break_0", global_position, 4.0, 0.8, 6.0, 50.0)
 		if is_instance_valid(buzz):
 			var tw0 := buzz.create_tween()
 			tw0.tween_property(buzz, "pitch_scale", 0.4, 1.0)
 			tw0.parallel().tween_property(buzz, "volume_db", -60.0, 1.2)
-		var ground := Vector3(global_position.x, 0.12, global_position.z)
+		var ground := Vector3(global_position.x, level.floor_y(global_position) + 0.12, global_position.z)
 		var tw := create_tween()
-		tw.tween_property(self, "global_position", ground, sqrt(2.0 * maxf(global_position.y, 0.5) / 9.8)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(self, "global_position", ground, sqrt(2.0 * maxf(global_position.y - ground.y, 0.5) / 9.8)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tw.parallel().tween_property(self, "rotation", rotation + Vector3(2.4, 6.0, 1.1), 1.0)
 		tw.tween_callback(func() -> void:
 			Sound.play_at(Sound.variant("rock_hit", 3), global_position, 2.0, 0.6, 4.0, 30.0)
@@ -1235,7 +1961,7 @@ class Hunter extends Node3D:
 	const WALK := 1.15
 	const RUN := 4.2
 	var level
-	var camp := Vector3.ZERO
+	var camp := Vector3.ZERO  ## où il va d'abord (la batterie volée)
 	var route: Array = []
 	var actor: Actor
 	var lamp: SpotLight3D
@@ -1243,6 +1969,7 @@ class Hunter extends Node3D:
 	var state := S.HIDDEN
 	var wp := 0
 	var target := Vector3.ZERO
+	var home := Vector3.ZERO
 	var suspicion := 0.0
 	var last_seen := Vector3.ZERO
 	var lost_t := 0.0
@@ -1256,7 +1983,7 @@ class Hunter extends Node3D:
 		actor = Actor.new()
 		actor.character = "kidnapper"
 		actor.ready.connect(func() -> void:
-			actor.tint("", Color(0.22, 0.22, 0.24), 0.8)
+			actor.tint("", Color(0.16, 0.16, 0.17), 0.85)
 			actor.hide_material("helmet")
 			var mask := Node3D.new()
 			B.model(mask, "sf:gasmask_gp5", Vector3.ZERO, 180.0, {"remove": ["Icosphere"], "height": 0.43})
@@ -1264,36 +1991,36 @@ class Hunter extends Node3D:
 		add_child(actor)
 		lamp = SpotLight3D.new()
 		lamp.light_color = Color(1.0, 0.95, 0.85)
-		lamp.light_energy = 5.0
-		lamp.spot_range = 22.0
-		lamp.spot_angle = 20.0
+		lamp.light_energy = 6.0
+		lamp.spot_range = 24.0
+		lamp.spot_angle = 18.0
 		lamp.shadow_enabled = true
-		lamp.light_volumetric_fog_energy = 1.4
+		lamp.light_volumetric_fog_energy = 2.2
 		add_child(lamp)
 		lamp.position = Vector3(0.22, 1.35, -0.25)
 		lamp.rotation_degrees = Vector3(-8, 0, 0)
 		visible = false
 
-	## Il sort du van (ou est déjà dehors) : sa ronde commence.
 	func wake(from_van: bool) -> void:
 		visible = true
 		state = S.PATROL
 		wp = 0
-		heading = PI * 0.5
+		home = global_position
+		if route.size() > 0:
+			var to: Vector3 = route[0] - global_position
+			heading = atan2(-to.x, -to.z)
 		breath = Sound.loop_at("gasmask_breath_loop", self, -2.0, 2.0, 16.0)
 		if breath != null:
 			breath.position.y = 1.6
 		if from_van:
-			# il va d'abord voir le groupe électrogène (là où était la batterie)
 			state = S.INVESTIGATE
-			target = camp + Vector3(-5.0, 0, -1.0)
+			target = camp
 
-	## Il remonte dans le van : la suite ne le regarde plus.
 	func leave() -> void:
 		if state == S.HIDDEN:
 			return
 		state = S.LEAVING
-		target = camp + Vector3(3.0, 0, -4.0)
+		target = home
 
 	func hear(pos: Vector3, radius: float) -> void:
 		if state in [S.HIDDEN, S.CHASE, S.LEAVING]:
@@ -1313,14 +2040,16 @@ class Hunter extends Node3D:
 		var want_speed := 0.0
 		match state:
 			S.PATROL:
+				if route.is_empty():
+					return
 				goal = route[wp]
 				want_speed = WALK
-				if _flat(goal - global_position).length() < 0.6:
+				if _flat(goal - global_position).length() < 0.7:
 					wp = (wp + 1) % route.size()
 			S.INVESTIGATE:
 				goal = target
 				want_speed = WALK * 1.5
-				if _flat(goal - global_position).length() < 0.8:
+				if _flat(goal - global_position).length() < 0.9:
 					state = S.SEARCH
 					wait_t = 0.0
 			S.SEARCH:
@@ -1341,7 +2070,7 @@ class Hunter extends Node3D:
 			S.LEAVING:
 				goal = target
 				want_speed = WALK * 1.4
-				if _flat(goal - global_position).length() < 0.8:
+				if _flat(goal - global_position).length() < 0.9:
 					state = S.HIDDEN
 					visible = false
 					if breath != null:
@@ -1353,7 +2082,6 @@ class Hunter extends Node3D:
 			heading = lerp_angle(heading, atan2(-to.x, -to.z), 1.0 - exp(-5.0 * delta))
 			var fwd := Vector3(-sin(heading), 0, -cos(heading))
 			global_position += fwd * speed * delta
-			# il contourne les troncs
 			for o in level.trunks_near(global_position):
 				var c: Vector3 = o[0]
 				var r: float = float(o[1]) + 0.35
@@ -1363,9 +2091,8 @@ class Hunter extends Node3D:
 					global_position.x = c.x + out.x
 					global_position.z = c.z + out.z
 		rotation.y = heading
-		global_position.y = 0.0
+		global_position.y = level.floor_y(global_position)
 		actor.locomote("run" if speed > 2.5 else "walk", speed if want_speed > 0.0 else 0.0, "idle")
-		# il balaie les sous-bois de sa lampe
 		lamp.rotation_degrees.y = sin(Time.get_ticks_msec() / 900.0) * (6.0 if state == S.CHASE else 18.0)
 
 	func _flat(v: Vector3) -> Vector3:
@@ -1391,7 +2118,7 @@ class Hunter extends Node3D:
 				var v := 1.0 - d / 24.0
 				v *= 0.45 if p.crouching else 1.0
 				v *= 1.0 if p.flashlight_on else 0.55
-				if ang > cos(deg_to_rad(20.0)) and d < 16.0:
+				if ang > cos(deg_to_rad(20.0)) and d < 18.0:
 					v *= 2.2
 				if p.moving:
 					v *= 1.3
@@ -1413,6 +2140,5 @@ class Hunter extends Node3D:
 					_said = true
 					Game.hud.say("Il m'a vu... COURS !", 1.8)
 			elif suspicion > 0.45 and seen and state != S.INVESTIGATE:
-				# quelque chose a bougé là-bas : il s'arrête et va voir
 				state = S.INVESTIGATE
 				target = p.global_position

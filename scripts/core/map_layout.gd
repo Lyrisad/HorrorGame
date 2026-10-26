@@ -59,6 +59,10 @@ static func spawn_entry(e: Dictionary, root: Node3D) -> Node3D:
 
 
 static func _procedural(model: String, root: Node3D) -> Node3D:
+	if model.begins_with("proc:poster_"):
+		var poster := Props.poster(root, int(model.trim_prefix("proc:poster_")))
+		poster.set_meta("spec", {"model": model, "center": false})
+		return poster
 	if model == "proc:bottle":
 		var bottle := Props.bottle(root)
 		bottle.set_meta("spec", {"model": model, "center": true})

@@ -346,6 +346,8 @@ func _build_catalog() -> void:
 	_catalog.append(["gobelet rouge renversé", "proc:red_cup_tipped", ""])
 	_catalog.append(["toile d'araignée (qui pend du plafond)", "proc:cobweb_strands", ""])
 	_catalog.append(["bouteille à ramasser (à lancer pour faire diversion)", "proc:bottle", ""])
+	for k in 3:
+		_catalog.append(["avis de recherche %d (sur un arbre)" % (k + 1), "proc:poster_%d" % k, ""])
 	_catalog.sort_custom(func(a: Array, b: Array) -> bool: return str(a[0]).to_lower() < str(b[0]).to_lower())
 	_filter(search.text)
 

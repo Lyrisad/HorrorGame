@@ -106,6 +106,12 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    dons et son téléphone, homme au masque qui patrouille (il voit, entend mal), la radio répond « Ouvrez la trappe »,
    course contre la créature jusqu'à la route, puis la révélation de la caméra du poteau).
 
+29. Il met 5/20 à la surface : refaite de nuit, cabane en rondins aménagée (carte annotée de David Roche, radio,
+   lit, bois), camp crédible (bâche, table kaki, écrans, van, feu avec flammes et crépitements, lampe de chantier,
+   antennes du brouilleur), deux hommes au masque, drone avec aide à la visée des cailloux, pièges : marteler E,
+   vidéo de la caméra de la victime lue sur son écran (vision nocturne), téléphone d'un inconnu (le sien reste
+   sur lui), tout déplaçable dans l'éditeur (menu « FORÊT (SURFACE) » ou F8).
+
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.
 - Dernier export : build/DernierEnregistrement.exe + DernierEnregistrement.zip (non versionnés ;

@@ -193,7 +193,10 @@ func key_label(action: String) -> String:
 
 func event_label(ev: InputEvent) -> String:
 	if ev is InputEventKey:
-		var s := OS.get_keycode_string(DisplayServer.keyboard_get_keycode_from_physical((ev as InputEventKey).physical_keycode))
+		var phys := (ev as InputEventKey).physical_keycode
+		# (sans fenêtre — outils, export — la disposition du clavier est inconnue)
+		var k := phys if DisplayServer.get_name() == "headless" else DisplayServer.keyboard_get_keycode_from_physical(phys)
+		var s := OS.get_keycode_string(k)
 		return {"Shift": "Maj", "Space": "Espace", "Escape": "Échap", "Enter": "Entrée", "Backspace": "Retour",
 			"CapsLock": "Verr. Maj", "Up": "Haut", "Down": "Bas", "Left": "Gauche", "Right": "Droite"}.get(s, s)
 	if ev is InputEventMouseButton:

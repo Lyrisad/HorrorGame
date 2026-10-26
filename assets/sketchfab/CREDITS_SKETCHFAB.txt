@@ -41,3 +41,9 @@ drone: "Quadrocopter 2" by yanix (https://sketchfab.com/3d-models/quadrocopter-2
 generator: "Generator" by victorberdugo1 (https://sketchfab.com/3d-models/generator-b0de972e500a48d6a26a7d1ef6f5143f) — CC Attribution
 cb_radio: "Cobra 139XLR CBRadio | Low Poly, PBR, Game Ready" by caelykkaty_3d (https://sketchfab.com/3d-models/cobra-139xlr-cbradio-low-poly-pbr-game-ready-9e4881935f3146159cec5199d3335bf8) — CC Attribution
 tarp: "Tent" by trueaimisbetterthandarudas (https://sketchfab.com/3d-models/tent-35b2c98626ac46c79ab312a00424b9de) — CC Attribution
+log_cabin: "Wooden Log Cabin" by donnichols (https://sketchfab.com/3d-models/wooden-log-cabin-21bf3df011b147598cdb43fea839cef7) — CC Attribution
+canvas_tent: "Tent" by Gajk.Mv (https://sketchfab.com/3d-models/tent-fa46028e8d3849399ba5271df07ed99c) — CC Attribution
+military_furniture: "FMB_Military Furniture_001" by FreeMeshBase (https://sketchfab.com/3d-models/fmb-military-furniture-001-fe2d019b22f7401284eaf92d8dcbb2b0) — CC Attribution
+work_light: "Industrial Work Light" by denis_cliofas (https://sketchfab.com/3d-models/industrial-work-light-ff0abe17dc64498191bb41c905d00ab0) — CC Attribution
+sat_dish: "Rusty House Satellite Dish" by TomasKiniulis (https://sketchfab.com/3d-models/rusty-house-satellite-dish-929f056abe02416da19d7b1aa805d235) — CC Attribution
+antennas: "Rusted Antennas" by Blank2574 (https://sketchfab.com/3d-models/rusted-antennas-86303d7c8cb442c2bcd138abe2b01c9f) — CC Attribution

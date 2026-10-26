@@ -34,6 +34,8 @@ SOURCES = {
     "pipe_bang": ([("687242", "DanJFilms"), ("257300", "machine_831")], 4, 1.6, 0.85),
     # surface : cailloux qui retombent dans les feuilles, sur la terre
     "rock_hit": ([("179360", "lolamadeus"), ("567701", "Nox_Sound")], 3, 0.5, 0.6),
+    # une branche qui craque dans le noir, derrière Théo
+    "twig_snap": ([("164472", "deleted_user_2104797"), ("17184", "mrjingles")], 3, 0.5, 0.7),
 }
 
 
@@ -141,6 +143,9 @@ LOOPS = {
     "generator_loop": [("453995", "kyles")],
     "radio_static_loop": [("50750", "RutgerMuller")],
     "birds_loop": [("288899", "petebuchwald")],
+    "forest_wind_loop": [("459981", "florianreichelt")],
+    # le feu de camp des ravisseurs : crépitements, petits claquements
+    "fire_loop": [("508110", "ahriik")],
 }
 
 
@@ -299,6 +304,8 @@ CUTS = {
     "trap_snap": (("644245", "fractionalist"), 0.75, 2.0, 0.9),
     "door_slam": (("208695", "monotraum"), 0.06, 0.65, 0.8),
     "whistle": (("218318", "SpliceSound"), 0.05, 1.6, 0.8),
+    "owl_0": (("465697", "Breviceps"), 0.0, 4.4, 0.6),
+    "owl_1": (("398734", "Anthousai"), 0.0, 4.0, 0.6),
 }
 
 

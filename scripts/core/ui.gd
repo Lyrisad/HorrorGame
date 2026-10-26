@@ -205,6 +205,7 @@ func _build_main_menu() -> void:
 Vos modifications sont gardées pour les prochaines parties.", 18, Color(0.7, 0.7, 0.7)))
 	editor_panel.add_child(_button("MAISON DE MAX", func() -> void: Game.start_level("house", {"editor": true})))
 	editor_panel.add_child(_button("ÉGOUTS", func() -> void: Game.start_level("sewer", {"editor": true})))
+	editor_panel.add_child(_button("FORÊT (SURFACE)", func() -> void: Game.start_level("ending", {"editor": true})))
 	editor_panel.add_child(_button("RETOUR", func() -> void: _show_panel("buttons")))
 
 	settings_main = _build_settings(func() -> void: _show_panel("buttons"))

@@ -100,6 +100,33 @@ static func bottle(parent: Node) -> Node3D:
 	return n
 
 
+## Avis de recherche agrafé sur un tronc (feuille A4 gondolée, quatre agrafes). Origine au dos de la feuille,
+## +Z vers l'extérieur du tronc : l'éditeur le colle au mur (ou à l'arbre) visé.
+static func poster(parent: Node, idx: int) -> Node3D:
+	var n := Node3D.new()
+	parent.add_child(n)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load("res://assets/gen/poster_missing_%d.png" % clampi(idx, 0, 2))
+	m.roughness = 0.95
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var q := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(0.21, 0.297)
+	pm.subdivide_width = 4
+	pm.subdivide_depth = 4
+	pm.orientation = PlaneMesh.FACE_Z
+	q.mesh = pm
+	q.material_override = m
+	n.add_child(q)
+	q.position = Vector3(0, 0.15, 0.004)
+	q.rotation_degrees.z = randf_range(-4.0, 4.0)
+	var staple := B.color_mat(Color(0.7, 0.7, 0.72), 0.3, 0.9)
+	for c in [Vector2(-0.09, 0.28), Vector2(0.09, 0.28), Vector2(-0.09, 0.02), Vector2(0.09, 0.02)]:
+		B.box(n, Vector3(0.012, 0.003, 0.002), Vector3(c.x, c.y, 0.006), staple, false)
+	n.set_meta("size", Vector3(0.21, 0.3, 0.02))
+	return n
+
+
 ## Toile d'araignée qui pend du plafond (ou d'un tuyau) : des fils souples et un lambeau de nappe, sur deux plans
 ## en croix. Origine en bas, haut de la toile au plafond (l'éditeur la suspend sous la surface visée).
 static func cobweb(parent: Node) -> Node3D:

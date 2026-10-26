@@ -1,4 +1,6 @@
-"""Télécharge des assets CC0 Poly Haven (textures 1k + modèles glTF 1k) dans le projet."""
+"""Télécharge des assets CC0 Poly Haven (textures 1k + modèles glTF 1k) dans le projet.
+usage: ph_download.py <dossier assets> [t:texture ...] [m:modèle ...]
+"""
 import json
 import os
 import sys
@@ -45,6 +47,12 @@ def download(url, dest):
             f.write(chunk)
     os.replace(dest + ".part", dest)
 
+
+# arguments facultatifs « t:slug » / « m:slug » : ne télécharger que ces textures / modèles
+picked = sys.argv[2:]
+if picked:
+    TEXTURES = [a[2:] for a in picked if a.startswith("t:")]
+    MODELS = [a[2:] for a in picked if a.startswith("m:")]
 
 jobs = []
 for slug in TEXTURES:

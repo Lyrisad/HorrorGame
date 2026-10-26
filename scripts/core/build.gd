@@ -204,6 +204,20 @@ static func model_path(slug: String) -> String:
 static var _templates := {}
 ## Modèles en carton / nourriture livrés avec des matériaux métalliques (ils brillaient comme du chrome).
 const MATTE_MODELS := ["pizza_box", "pizza_open"]
+## Modèles dont la couleur d'origine ne va pas (blanc pur...) : teinte multipliée au chargement.
+const TINT_MODELS := {"military_furniture": Color(0.42, 0.44, 0.33), "canvas_tent": Color(0.62, 0.6, 0.48)}
+
+
+static func _tint(root: Node, c: Color) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(s) as BaseMaterial3D
+			if m == null:
+				continue
+			var mm := m.duplicate() as BaseMaterial3D
+			mm.albedo_color = mm.albedo_color * c
+			mi.set_surface_override_material(s, mm)
 
 
 static func _make_matte(root: Node) -> void:
@@ -234,6 +248,8 @@ static func _template(path: String) -> Node3D:
 	_clear_owner(inst)
 	if path.get_file().get_basename() in MATTE_MODELS:
 		_make_matte(inst)
+	if TINT_MODELS.has(path.get_file().get_basename()):
+		_tint(inst, TINT_MODELS[path.get_file().get_basename()])
 	# sans ça, duplicate() ré-instancie la scène d'origine ET recopie les enfants (devenus sans
 	# propriétaire) : chaque modèle existait en double (portes de la grille fantômes, rendu x2)
 	inst.scene_file_path = ""
