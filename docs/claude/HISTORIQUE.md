@@ -150,6 +150,13 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    trouvée avec --surfacetest=sounds : la RESPIRATION de la créature endormie, rangée au point 0 (sous la plaque
    d'égout de la sortie) ; elle était « en pause », et Godot relance tout son en pause à la fin de n'importe quelle
    pause du jeu. Corrigé : arrêtée (stop) tant qu'elle dort. Aussi : le drone de préchauffage ne bourdonne plus.
+35. « Les mobs peuvent se coincer et ne plus jamais se décoincer. » Ils allaient en ligne droite, repoussés par les
+   troncs : un tronc pile devant (surtout le tronc couché en travers du sentier, -1,3 ; -37) les bloquait à jamais.
+   Fait : vrai calcul de chemin (AStarGrid2D, cases de 50 cm ; arbres, cabane, camp, poteaux bloquent ; troncs
+   couchés chers, enjambés si pas d'autre passage) + filet anti-blocage (recalcul après 1,5 s sur place, replacé
+   sur le sentier après 6 s, jamais sous ses yeux). Il veut enregistrer lui-même la voix du direct et des répliques
+   pour les hommes au masque (liste donnée : radio_01..04, masque_vu/course/perdu/cherche/ronde/radio, van,
+   attrape), une seule voix dont je ferai deux timbres + effet masque à gaz / radio.
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

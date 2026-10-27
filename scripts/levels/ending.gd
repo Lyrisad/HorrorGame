@@ -15,6 +15,7 @@ const ROAD_Z := -52.0
 const POLE := Vector3(3.5, 0, -47.5)
 const POLE_STEP := 36.0  ## écart entre deux poteaux de la ligne électrique (le long de la route)
 const POLE_R := 0.095  ## rayon d'un poteau en bois (modèle Poly Haven à l'échelle 1,35)
+const NAV_CELL := 0.5
 const AREA := Rect2(-60, -62, 120, 82)  ## terrain en relief (x de -60 à 60, z de -62 à 20)
 const TRAIL := [Vector3(0, 0, 2), Vector3(-1.5, 0, -8), Vector3(1.0, 0, -17), Vector3(-0.5, 0, -27), Vector3(1.0, 0, -38), Vector3(0, 0, -49)]
 
@@ -58,6 +59,8 @@ var _gd := 0
 var _paths: Array = []  ## [[points], largeur]
 var _clearings: Array = []  ## [centre, rayon]
 var _trunk_grid := {}
+var _astar: AStarGrid2D  ## grille de navigation (créature, hommes au masque), cases de NAV_CELL m
+var _nav_logs: Array = []  ## troncs couchés [centre, rayon] : on les contourne si on peut, sinon on les enjambe
 var _layout: Variant = null  ## disposition sauvegardée par le joueur (éditeur), ou null
 var _force_deco := false  ## pose le décor par défaut même s'il y a une disposition (sous-bois ajouté après coup)
 # état
@@ -112,6 +115,7 @@ func _ready() -> void:
 	_decor_obstacles()
 	_build_road_and_pole()
 	_build_bounds()
+	_build_nav()
 
 	creature = Creature.new()
 	creature.nav = self
@@ -575,6 +579,7 @@ func _build_forest() -> void:
 
 func _build_trunk_colliders() -> void:
 	var body := StaticBody3D.new()
+	body.name = "TrunkColliders"
 	add_child(body)
 	for t in trunks:
 		var p: Vector3 = t[0]
@@ -612,10 +617,12 @@ func _decor_obstacles() -> void:
 	for n in MapLayout.collect(self):
 		var model := str((n.get_meta("spec", {}) as Dictionary).get("model", ""))
 		if model.contains("dead_tree_trunk"):
+			# un tronc couché s'enjambe : il n'arrête personne (sinon, de face, on reste collé dessus pour
+			# toujours), mais le chemin le contourne quand il peut
 			var dir := n.global_basis.x.normalized()
-			var half := float((n.get_meta("size", Vector3.ONE) as Vector3).x) * 0.45
-			for k in range(-2, 3):
-				_add_obstacle(n.global_position + dir * half * k * 0.5, 0.45)
+			var half := float((n.get_meta("size", Vector3.ONE) as Vector3).x) * n.scale.x * 0.5
+			for k in range(-4, 5):
+				_nav_logs.append([n.global_position + dir * half * k / 4.0, 0.45])
 		elif model.contains("pine") or model.contains("conifer"):
 			_add_obstacle(n.global_position, 0.3)
 
@@ -802,9 +809,190 @@ func _build_bounds() -> void:
 		b.position = spec[0]
 
 
+# ================================================================== navigation (créature, hommes au masque)
+## Grille de 50 cm sur toute la forêt : les arbres, la cabane, le camp, les poteaux et tout ce qui a une collision
+## bloquent (avec une marge pour le corps) ; les troncs couchés coûtent cher (contournés si possible, sinon
+## enjambés). Avant, ils allaient en ligne droite et un tronc pile devant eux les bloquait à jamais.
+func _build_nav() -> void:
+	_astar = AStarGrid2D.new()
+	_astar.region = Rect2i(0, 0, int(AREA.size.x / NAV_CELL), int(AREA.size.y / NAV_CELL))
+	_astar.cell_size = Vector2(NAV_CELL, NAV_CELL)
+	_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	_astar.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	_astar.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	_astar.update()
+	for key in _trunk_grid:
+		for o in _trunk_grid[key]:
+			_nav_disc(o[0], float(o[1]) + 0.35, true)
+	for l in _nav_logs:
+		_nav_disc(l[0], float(l[1]) + 0.25, false)
+	for cs: CollisionShape3D in find_children("*", "CollisionShape3D", true, false):
+		_nav_shape(cs)
+
+
+func _nav_cell(p: Vector3) -> Vector2i:
+	return Vector2i(floori((p.x - AREA.position.x) / NAV_CELL), floori((p.z - AREA.position.y) / NAV_CELL))
+
+
+func _cell_pos(c: Vector2i) -> Vector3:
+	return Vector3(AREA.position.x + (c.x + 0.5) * NAV_CELL, 0, AREA.position.y + (c.y + 0.5) * NAV_CELL)
+
+
+func _nav_disc(p: Vector3, r: float, solid: bool) -> void:
+	var c0 := _nav_cell(p - Vector3(r, 0, r))
+	var c1 := _nav_cell(p + Vector3(r, 0, r))
+	for cy in range(c0.y, c1.y + 1):
+		for cx in range(c0.x, c1.x + 1):
+			var c := Vector2i(cx, cy)
+			if not _astar.is_in_boundsv(c):
+				continue
+			var w := _cell_pos(c)
+			if Vector2(w.x - p.x, w.z - p.z).length() > r:
+				continue
+			if solid:
+				_astar.set_point_solid(c, true)
+			elif not _astar.is_point_solid(c):
+				_astar.set_point_weight_scale(c, 8.0)
+
+
+## L'empreinte au sol d'une forme de collision (boîte tournée, cylindre, maillage...), si elle gêne à hauteur
+## d'homme. Les troncs couchés, le terrain et les murs du bord de la carte sont traités à part.
+func _nav_shape(cs: CollisionShape3D) -> void:
+	var body := cs.get_parent()
+	if not (body is StaticBody3D) or body.name == "TrunkColliders" or cs.disabled or cs.shape == null:
+		return
+	if cs.shape is HeightMapShape3D or cs.shape is WorldBoundaryShape3D:
+		return
+	var owner_node: Node = body
+	while owner_node != null and owner_node != self and not owner_node.has_meta("spec"):
+		owner_node = owner_node.get_parent()
+	if owner_node != null and owner_node != self and str((owner_node.get_meta("spec") as Dictionary).get("model", "")).contains("dead_tree_trunk"):
+		return
+	var local := _shape_aabb(cs.shape)
+	if local.size == Vector3.ZERO:
+		return
+	var xf := cs.global_transform
+	var wb := xf * local
+	if wb.size.x > 60.0 or wb.size.z > 60.0:
+		return
+	var fy := floor_y(wb.get_center())
+	if wb.end.y < fy + 0.3 or wb.position.y > fy + 1.9:
+		return
+	var upright := xf.basis.y.normalized().dot(Vector3.UP) > 0.95
+	var inv := xf.affine_inverse()
+	var mx := 0.3 / maxf(xf.basis.x.length(), 0.01)
+	var mz := 0.3 / maxf(xf.basis.z.length(), 0.01)
+	var lc := local.get_center()
+	var c0 := _nav_cell(wb.position - Vector3(0.35, 0, 0.35))
+	var c1 := _nav_cell(wb.end + Vector3(0.35, 0, 0.35))
+	for cy in range(c0.y, c1.y + 1):
+		for cx in range(c0.x, c1.x + 1):
+			var c := Vector2i(cx, cy)
+			if not _astar.is_in_boundsv(c):
+				continue
+			if upright:
+				var lp := inv * (_cell_pos(c) + Vector3(0, wb.get_center().y, 0))
+				if absf(lp.x - lc.x) > local.size.x * 0.5 + mx or absf(lp.z - lc.z) > local.size.z * 0.5 + mz:
+					continue
+			_astar.set_point_solid(c, true)
+
+
+func _shape_aabb(sh: Shape3D) -> AABB:
+	if sh is BoxShape3D:
+		var s: Vector3 = (sh as BoxShape3D).size
+		return AABB(-s * 0.5, s)
+	if sh is CylinderShape3D:
+		var cy := sh as CylinderShape3D
+		return AABB(Vector3(-cy.radius, -cy.height * 0.5, -cy.radius), Vector3(cy.radius * 2.0, cy.height, cy.radius * 2.0))
+	if sh is CapsuleShape3D:
+		var ca := sh as CapsuleShape3D
+		return AABB(Vector3(-ca.radius, -ca.height * 0.5, -ca.radius), Vector3(ca.radius * 2.0, ca.height, ca.radius * 2.0))
+	if sh is SphereShape3D:
+		var r := (sh as SphereShape3D).radius
+		return AABB(Vector3(-r, -r, -r), Vector3(r, r, r) * 2.0)
+	var pts := PackedVector3Array()
+	if sh is ConvexPolygonShape3D:
+		pts = (sh as ConvexPolygonShape3D).points
+	elif sh is ConcavePolygonShape3D:
+		pts = (sh as ConcavePolygonShape3D).get_faces()
+	if pts.is_empty():
+		return AABB()
+	var b := AABB(pts[0], Vector3.ZERO)
+	for v in pts:
+		b = b.expand(v)
+	return b
+
+
+## La case libre la plus proche (le point demandé est dans un arbre, une table...).
+func _nav_free(c: Vector2i) -> Vector2i:
+	for r in 7:
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var q := c + Vector2i(dx, dy)
+				if _astar.is_in_boundsv(q) and not _astar.is_point_solid(q):
+					return q
+	return Vector2i(-1, -1)
+
+
+## Ligne droite praticable (sans arbre ni tronc couché) entre deux points : sert à lisser le chemin.
+func _nav_clear(a: Vector3, b: Vector3) -> bool:
+	var d := Vector2(b.x - a.x, b.z - a.z).length()
+	var n := maxi(1, ceili(d / (NAV_CELL * 0.6)))
+	for i in n + 1:
+		var c := _nav_cell(a.lerp(b, float(i) / n))
+		if not _astar.is_in_boundsv(c) or _astar.is_point_solid(c) or _astar.get_point_weight_scale(c) > 1.0:
+			return false
+	return true
+
+
 # ----------------------------------------------------------- interface pour la créature (Creature.nav)
-func nav_path(_from: Vector3, to: Vector3) -> PackedVector3Array:
-	return PackedVector3Array([to])
+## Le chemin de `from` à `to` (sans le point de départ) : il contourne les arbres et le reste ; des lignes droites
+## tant que c'est dégagé. Si `to` est inaccessible, il mène au plus près.
+func nav_path(from: Vector3, to: Vector3) -> PackedVector3Array:
+	if _astar == null:
+		return PackedVector3Array([to])
+	var a := _nav_free(_nav_cell(from))
+	var goal_cell := _nav_cell(to)
+	var b := _nav_free(goal_cell)
+	if a.x < 0 or b.x < 0:
+		return PackedVector3Array([to])
+	var ids: Array[Vector2i] = _astar.get_id_path(a, b, true)
+	if ids.size() < 2:
+		return PackedVector3Array([to if b == goal_cell else _cell_pos(b)])
+	var end_pos := to if b == goal_cell else _cell_pos(ids[ids.size() - 1])
+	var out := PackedVector3Array()
+	var anchor := from
+	var k := 0
+	var last := ids.size() - 1
+	while k < last:
+		var best := k + 1
+		for step: int in [48, 24, 12, 6, 3, 2]:
+			var j := mini(k + step, last)
+			if j > best and _nav_clear(anchor, end_pos if j == last else _cell_pos(ids[j])):
+				best = j
+				break
+		var p := end_pos if best == last else _cell_pos(ids[best])
+		p.y = floor_y(p)
+		out.append(p)
+		anchor = p
+		k = best
+	return out
+
+
+## Un PNJ coincé depuis plusieurs secondes : replacé sur le sentier le plus proche, seulement si Théo ne le voit
+## pas (jamais de téléportation sous ses yeux). Vrai si c'est fait.
+func unstick(n: Node3D) -> bool:
+	var head := n.global_position + Vector3(0, 1.5, 0)
+	if player != null and player.cam.is_position_in_frustum(head) and has_los(player.eye_position(), head):
+		return false
+	var c := _nav_free(_nav_cell(_nearest_on_trail(n.global_position)))
+	if c.x < 0:
+		return false
+	var p := _cell_pos(c)
+	n.global_position = Vector3(p.x, floor_y(p), p.z)
+	return true
 
 
 func random_point(near: Vector3, max_tiles: int) -> Vector3:
@@ -2394,6 +2582,34 @@ func _surface_test(kind: String) -> void:
 			_release_creature(true)
 			await wait(3.0)
 			print("CRÉATURE sortie : respiration %s" % ("audible" if creature.breath.playing and not creature.breath.stream_paused else "COUPÉE"))
+			for i in 8:
+				print("CRÉATURE t=%d à %.1f m de Théo, bloquée=%.1f s" % [i + 4, creature.global_position.distance_to(player.global_position), creature._stuck_t])
+				await wait(1.0)
+		"nav":
+			# la grille, le temps d'un calcul de chemin, puis l'homme au masque face au tronc couché du sentier
+			var solid := 0
+			var heavy := 0
+			for cy in _astar.region.size.y:
+				for cx in _astar.region.size.x:
+					if _astar.is_point_solid(Vector2i(cx, cy)):
+						solid += 1
+					elif _astar.get_point_weight_scale(Vector2i(cx, cy)) > 1.0:
+						heavy += 1
+			var t0 := Time.get_ticks_usec()
+			var total := 0
+			for i in 20:
+				total += nav_path(Vector3(randf_range(-50, 50), 0, randf_range(-55, 15)), Vector3(randf_range(-50, 50), 0, randf_range(-55, 15))).size()
+			print("NAV cases bloquées=%d chères=%d  calcul moyen=%.1f ms (%d points en tout)" % [solid, heavy, (Time.get_ticks_usec() - t0) / 20000.0, total])
+			var h5 := hunters[0] as Hunter
+			h5.global_position = Vector3(0.8, floor_y(Vector3(0.8, 0, -32.0)), -32.0)
+			h5.route = [Vector3(0.8, 0, -42.0), Vector3(0.8, 0, -32.0)]
+			h5.wp = 0
+			h5.state = Hunter.S.PATROL
+			player.global_position = Vector3(-20, 0.05, -45)
+			_drone_cd = 1e9
+			for i in 14:
+				await wait(1.0)
+				print("NAV t=%d homme au masque %s → but n°%d" % [i + 1, h5.global_position.snapped(Vector3.ONE * 0.1), h5.wp])
 		"sounds":
 			# tous les sons qui jouent autour de Théo (nom, distance, hauteur relative, volume), à l'apparition
 			for when in [0.0, 2.0, 5.0]:
@@ -2430,7 +2646,10 @@ func _surface_test(kind: String) -> void:
 			_drone_cd = 1e9
 			calm = 1e9
 		"patrol":
-			# Théo reste à la sortie : où sont les hommes au masque et le drone, toutes les 2 s
+			# Théo reste à la sortie (ou à l'écart avec --away) : où sont les hommes au masque et le drone, toutes les 2 s
+			if Game.args.has("away"):
+				player.global_position = Vector3(-45, 0.05, -50)
+				_drone_cd = 1e9
 			for i in 35:
 				await wait(2.0)
 				var h0 := hunters[0] as Hunter
@@ -2442,8 +2661,8 @@ func _surface_test(kind: String) -> void:
 					var a3 := ap as AudioStreamPlayer3D
 					if a3.playing and a3.get_parent() is Drone:
 						buzzing += 1
-				print("RONDE t=%d masque1=%s %s à %.0f m visible=%s | masque2=%s | drone=%s | bourdonnements=%d" % [(i + 1) * 2,
-					Hunter.S.keys()[h0.state], h0.global_position.snapped(Vector3.ONE * 0.1), h0.global_position.distance_to(player.global_position),
+				print("RONDE t=%d masque1=%s %s but n°%d bloqué=%.1f s à %.0f m visible=%s | masque2=%s | drone=%s | bourdonnements=%d" % [(i + 1) * 2,
+					Hunter.S.keys()[h0.state], h0.global_position.snapped(Vector3.ONE * 0.1), h0.wp, h0._stuck_t, h0.global_position.distance_to(player.global_position),
 					h0.is_visible_in_tree(), Hunter.S.keys()[(hunters[1] as Hunter).state], dr, buzzing])
 		"flee":
 			# sur la route : il le repère à 10 m, Théo sprinte vers l'ouest (sans lampe si --dark) ; on mesure l'écart
@@ -2686,6 +2905,12 @@ class Hunter extends Node3D:
 	var _step := 0.0
 	var _chased_at := -100.0  ## dernière fois qu'il le poursuivait (s) : le retrouver juste après n'est pas un nouveau « repéré »
 	var outfit := 0  ## 0 : celui qui patrouille (tout en noir, masque GP-5) ; 1 : celui du van (tenue de chasse, gilet orange)
+	var _path := PackedVector3Array()  ## chemin calculé vers le but (level.nav_path)
+	var _path_goal := Vector3(1e9, 0, 0)
+	var _path_t := 0.0
+	var _stuck_from := Vector3.ZERO
+	var _stuck_check := 0.0
+	var _stuck_t := 0.0  ## depuis combien de temps il n'avance plus alors qu'il veut avancer
 
 	func _ready() -> void:
 		actor = Actor.new()
@@ -2765,12 +2990,12 @@ class Hunter extends Node3D:
 					return
 				goal = route[wp]
 				want_speed = WALK
-				if _flat(goal - global_position).length() < 0.7:
+				if _arrived(goal, 0.7):
 					wp = (wp + 1) % route.size()
 			S.INVESTIGATE:
 				goal = target
 				want_speed = WALK * 1.5
-				if _flat(goal - global_position).length() < 0.9:
+				if _arrived(goal, 0.9):
 					state = S.SEARCH
 					wait_t = 0.0
 			S.SEARCH:
@@ -2793,7 +3018,7 @@ class Hunter extends Node3D:
 			S.LEAVING:
 				goal = target
 				want_speed = WALK * 1.4
-				if _flat(goal - global_position).length() < 0.9:
+				if _arrived(goal, 0.9):
 					state = S.HIDDEN
 					visible = false
 					if breath != null:
@@ -2820,7 +3045,24 @@ class Hunter extends Node3D:
 				var run := speed > 2.0
 				Sound.play_at(Sound.variant("step_" + str(level.get_surface(global_position)), 4), global_position + Vector3(0, 0.05, 0),
 					-3.0 if run else -12.0, randf_range(0.78, 0.88), 3.0, 34.0 if run else 18.0)
-		var to := _flat(goal - global_position)
+		# il suit un chemin calculé (autour des arbres, de la cabane, du camp), recalculé quand le but bouge, et
+		# souvent quand il poursuit Théo
+		var steer := goal
+		if want_speed > 0.0:
+			_path_t -= delta
+			if _path_t <= 0.0 or _flat(_path_goal - goal).length() > 1.5:
+				_path = level.nav_path(global_position, goal)
+				_path_goal = goal
+				_path_t = 0.5 if state == S.CHASE else 3.0
+			while _path.size() > 1 and _flat(_path[0] - global_position).length() < 0.6:
+				_path.remove_at(0)
+			if _path.size() > 0:
+				steer = _path[0]
+			_watch_stuck(delta)
+		else:
+			_stuck_check = 0.0
+			_stuck_t = 0.0
+		var to := _flat(steer - global_position)
 		if to.length() > 0.2 and want_speed > 0.0:
 			heading = lerp_angle(heading, atan2(-to.x, -to.z), 1.0 - exp(-5.0 * delta))
 			var fwd := Vector3(-sin(heading), 0, -cos(heading))
@@ -2840,6 +3082,31 @@ class Hunter extends Node3D:
 
 	func _flat(v: Vector3) -> Vector3:
 		return Vector3(v.x, 0, v.z)
+
+	## Arrivé au but, ou au bout du chemin quand le but lui-même est inaccessible (dans une table, un buisson...).
+	func _arrived(goal: Vector3, r: float) -> bool:
+		if _flat(goal - global_position).length() < r:
+			return true
+		return _path.size() == 1 and _flat(_path_goal - goal).length() < 0.1 and _flat(_path[0] - global_position).length() < r \
+			and _flat(_path[0] - goal).length() > 0.3
+
+	## Il veut avancer mais n'a pas bougé de 30 cm en 1,5 s : il recalcule son chemin ; au bout de 6 s, il est
+	## replacé sur le sentier (hors de la vue de Théo).
+	func _watch_stuck(delta: float) -> void:
+		_stuck_check += delta
+		if _stuck_check < 1.5:
+			return
+		_stuck_check = 0.0
+		var moved := _flat(global_position - _stuck_from).length()
+		_stuck_from = global_position
+		if moved > 0.3:
+			_stuck_t = 0.0
+			return
+		_stuck_t += 1.5
+		_path_t = 0.0
+		if _stuck_t >= 6.0 and level.unstick(self):
+			_stuck_t = 0.0
+			_path_t = 0.0
 
 	## Il VOIT : Théo dans son champ (55°), sans arbre entre eux. Plus visible debout, lampe allumée, en mouvement,
 	## et surtout dans le faisceau de sa lampe ; beaucoup moins accroupi dans le noir.

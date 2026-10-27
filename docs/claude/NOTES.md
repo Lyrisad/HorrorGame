@@ -304,6 +304,15 @@ Keep it current — add a line whenever you learn something non-obvious. History
   feet that way; Creature now stop()s its breath and _breathe() restarts it. (night.gd's party music toggle still
   uses stream_paused.) `--surfacetest=sounds` lists every playing sound with distance/height around Théo. Tests: outfits (both side by side,
   frozen), patrol (positions every 2 s), cam --camlate (video at ~22 s, prints where hunter 0 is after).
+  Navigation (forest): _build_nav() after everything is placed = AStarGrid2D over AREA, NAV_CELL 0.5 m: trunk
+  discs (r + 0.35) and every StaticBody CollisionShape3D footprint between 0.3 and 1.9 m above the ground (rotated
+  boxes, cylinders, mesh AABBs; skips the terrain, the edge walls, "TrunkColliders") are solid; fallen logs are
+  NOT obstacles any more (they used to trap NPCs head-on) but weight-8 cells (_nav_logs). nav_path() = A* with
+  partial paths + greedy line-of-sight smoothing (~0.4 ms); the Creature uses it through Creature.nav, Hunters
+  follow `_path` (re-path when the goal moves > 1.5 m, every 0.5 s in CHASE, 3 s otherwise) and `_arrived()`
+  accepts the path end when the goal is unreachable. Both have a stuck watchdog (< 0.3 m in 1.5 s → re-path,
+  6 s → level.unstick(): back onto the nearest trail, only if Théo can't see them). Tests: nav (grid stats, query
+  time, hunter across the fallen log), patrol --away (full route, "bloqué=" seconds).
   Hunters (character "hunter"): WALK 1.15, RUN 3.6 for ~6 s (wind), then JOG 2.4 until wind > 0.5 (Théo: 4.7
   for 6.5 s, then 1.95); in CHASE he sees 20 m (flashlight on) / 13 m (off) and gives up after 3 s out of sight
   (→ SEARCH, level.on_lost = radio squelch). Spotted → level.on_spotted: spotted_sting (UI) + radio_squelch at him,

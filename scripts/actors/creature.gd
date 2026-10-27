@@ -40,6 +40,9 @@ var _last_known := Vector3.ZERO
 var _vocal_cd := 4.0
 var _step_accum := 0.0
 var _repath_cd := 0.0
+var _stuck_from := Vector3.ZERO
+var _stuck_check := 0.0
+var _stuck_t := 0.0  ## depuis combien de temps elle n'avance plus alors qu'elle a un chemin à suivre
 var _search_dur := 5.0
 var _patrol_wait := 0.0
 var _stand_anim := "listen"
@@ -188,6 +191,29 @@ func _set_state(s: State) -> void:
 			# dressée au-dessus de Théo, bouche grande ouverte
 			actor.play("screech", 0.1, 1.6)
 			actor.anim.seek(0.7, true)
+
+
+## Elle a un chemin mais n'a pas bougé de 30 cm en 1,5 s : chemin recalculé ; au bout de 6 s, le niveau la
+## replace (s'il sait le faire, hors de la vue du joueur).
+func _watch_stuck(delta: float) -> void:
+	if target_speed < 0.3 or state in [State.STAND, State.ATTACK]:
+		_stuck_check = 0.0
+		_stuck_t = 0.0
+		return
+	_stuck_check += delta
+	if _stuck_check < 1.5:
+		return
+	_stuck_check = 0.0
+	var moved := Vector2(global_position.x - _stuck_from.x, global_position.z - _stuck_from.z).length()
+	_stuck_from = global_position
+	if moved > 0.3:
+		_stuck_t = 0.0
+		return
+	_stuck_t += 1.5
+	if nav != null and path.size() > 0:
+		path = nav.nav_path(global_position, path[path.size() - 1])
+	if _stuck_t >= 6.0 and nav != null and nav.has_method("unstick") and nav.unstick(self):
+		_stuck_t = 0.0
 
 
 func _pick_patrol() -> void:
@@ -392,6 +418,9 @@ func _locomote(delta: float) -> void:
 		_move_speed = lerpf(_move_speed, 0.0, 1.0 - exp(-14.0 * delta))
 		return
 	speed = lerpf(speed, target_speed * agit, 1.0 - exp(-4.0 * delta))
+	_watch_stuck(delta)
+	if path.is_empty():
+		return
 	var target := path[0]
 	var to := Vector3(target.x - global_position.x, 0, target.z - global_position.z)
 	var dist := to.length()
