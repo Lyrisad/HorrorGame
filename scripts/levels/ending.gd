@@ -1789,16 +1789,14 @@ func _radio_call() -> void:
 	await wait(5.6)
 	Sound.play("glitch_0", -6.0, 0.7)
 	await wait(2.0)
-	Game.hud.say("...On vous reçoit très bien, Théo.", 3.0, "Radio")
-	await wait(3.3)
+	await _radio_say("...On vous reçoit très bien, Théo.", "radio_01")
 	Game.hud.say("Merci... Merci ! Envoyez quelqu'un, vite !", 2.6)
 	await wait(3.0)
-	Game.hud.say("Vous êtes en direct, Théo. Quatre mille trois cent douze personnes vous regardent.", 4.2, "Radio")
-	await wait(4.6)
-	Game.hud.say("Le public a voté.", 2.4, "Radio")
-	await wait(2.8)
-	Game.hud.say("...Ouvrez la trappe.", 2.4, "Radio")
-	await wait(2.0)
+	await _radio_say("Vous êtes en direct, Théo. Quatre mille trois cent douze personnes vous regardent.", "radio_02")
+	await wait(0.4)
+	await _radio_say("Le public a voté.", "radio_03")
+	await wait(0.4)
+	await _radio_say("...Ouvrez la trappe.", "radio_04")
 	if is_instance_valid(_radio_static):
 		Sound.fade(_radio_static, -60.0, 0.4, true)
 	if is_instance_valid(_radio_glow):
@@ -1806,6 +1804,24 @@ func _radio_call() -> void:
 	params = {"checkpoint": "chase", "drones": drones_left}
 	Game.level_params = params
 	_release_creature(false)
+
+
+## Le direct répond dans la radio de la cabane : sa voix enregistrée (filtrée en radio CB) sort du haut-parleur,
+## le souffle de la radio baisse le temps de la réplique.
+func _radio_say(text: String, voice: String) -> void:
+	var radio := hut.find_child("CBRadio", true, false) as Node3D
+	var at := (radio.global_position if radio != null else hut.global_position) + Vector3(0, 0.12, 0)
+	var path := "dialogues/direct/" + voice
+	var st := Sound.stream(path)
+	var length := st.get_length() if st != null else 2.5
+	if is_instance_valid(_radio_static):
+		Sound.fade(_radio_static, -18.0, 0.15)
+	if st != null:
+		Sound.play_at(path, at, 3.0, 1.0, 3.0, 25.0)
+	Game.hud.say(text, length + 0.4, "Radio")
+	await wait(length + 0.3)
+	if is_instance_valid(_radio_static):
+		Sound.fade(_radio_static, -6.0, 0.4)
 
 
 ## La créature sort de la plaque « S·13 »... puis elle fonce. Les hommes au masque rentrent au van.
@@ -2071,10 +2087,13 @@ func _take_battery() -> void:
 	await wait(2.4)
 	Sound.play_at("door_slam", van.global_position + Vector3(0, 1.0, 0), 12.0, 0.85, 14.0, 90.0)
 	await wait(0.7)
-	(hunters[1] as Hunter).wake(true)
+	var vh := hunters[1] as Hunter
+	vh.wake(true)
 	Game.glitch(0.4)
-	await wait(1.4)
+	await wait(vh.say("van", true, 0) + 0.4)
 	Game.hud.say("Le van... Il y en avait un deuxième dedans. Il m'a pas vu. Pas encore.", 3.4)
+	await wait(3.0)
+	vh.say("van", true, 1)
 	Game.hud.objective("Rapporter la batterie à la cabane, sans te faire voir")
 	await wait(3.6)
 	Game.hud.hint("Ils voient, mais entendent mal : reste hors de leurs lampes, accroupis-toi ([C]), éteins ta lampe ([F]). Un caillou lancé loin les attire.", 8.0)
@@ -2168,13 +2187,14 @@ func _route(k: int) -> Array:
 ## Théo ne le dit qu'une fois dans la partie. Quand il le perd, sa radio grésille encore (il rend compte).
 func on_spotted(h: Node3D) -> void:
 	Sound.play("spotted_sting", 3.0, randf_range(0.97, 1.03), "UI")
-	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), 6.0, 1.0, 8.0, 50.0)
+	var length: float = (h as Hunter).say("vu", true)
 	if Game.first_time("hunter_spotted"):
+		await wait(length + 0.2)
 		Game.hud.say("Il m'a vu... COURS !", 1.8)
 
 
 func on_lost(h: Node3D) -> void:
-	Sound.play_at("radio_squelch", h.global_position + Vector3(0, 1.5, 0), 3.0, 0.94, 8.0, 50.0)
+	(h as Hunter).say("perdu", true)
 
 
 ## La première fois qu'il passe à côté d'un tas de cailloux (une fois dans la partie) : Théo le remarque.
@@ -2337,6 +2357,7 @@ func _die(cause: String) -> void:
 		Sound.play("creature_attack", 4.0)
 	elif killer != null:
 		killer.actor.play("strike", 0.1, 1.2)
+		killer.say("attrape", true)
 		Sound.play("hit_impact", 0.0)
 	Game.glitch(1.0, false)
 	Game.shake(3.0)
@@ -2883,6 +2904,22 @@ class Hunter extends Node3D:
 	const RUN := 3.6  ## gilet, rangers, masque à gaz : il court lourdement, moins vite que Théo qui sprinte
 	const JOG := 2.4  ## essoufflé dans son masque
 	const MASK_B_OFFSET := Vector3(0, 0.03, -0.07)  ## vieux masque à tuyau sur l'os de la tête (repère du personnage)
+	## Ses répliques (enregistrées : assets/audio/dialogues/masque_a pour l'homme en noir, masque_b pour celui du
+	## van, même voix, deux timbres), par situation, avec leur sous-titre.
+	const LINES := {
+		"vu": ["Là ! Je le vois !", "Bouge pas, Quatorze.", "Trouvé.", "Coucou, Quatorze.", "Contact. Je le tiens."],
+		"course": ["Cours... cours... ça fait de l'audience.", "Tu vas nulle part !", "Le public adore quand tu cours !"],
+		"perdu": ["Putain... il est où ?", "Je l'ai perdu. Il est dans le coin.", "Tu pourras pas te cacher éternellement, Quatorze."],
+		"cherche": ["C'est toi, Quatorze ?", "J'ai entendu quelque chose...", "Allez... montre-toi."],
+		"ronde": ["T'es où, numéro Quatorze ?", "Sors de ta cachette, Quatorze. Le public attend.",
+			"Quatre mille personnes te regardent. Fais-leur plaisir.", "On a toute la nuit, Quatorze.",
+			"Tes potes ont pas tenu longtemps, tu sais.", "Plus tu te caches, plus ils votent pour la trappe."],
+		"radio": ["Rien de mon côté.", "Reçu. Je remonte vers le camp."],
+		"attrape": ["Fin de l'épisode, Quatorze.", "Désolé. C'est le public qui décide."],
+		"van": ["Hé ! ... Qui a touché à la batterie ?!", "Il est venu au camp. Il veut la radio."],
+	}
+	## celles qu'il dit dans son talkie : le « kssh-bip » quand il relâche le bouton
+	const RADIO_LINES := ["masque_vu_05", "masque_perdu_02", "masque_radio_01", "masque_radio_02", "van_02"]
 	var level
 	var camp := Vector3.ZERO  ## où il va d'abord (la batterie volée)
 	var route: Array = []
@@ -2905,6 +2942,10 @@ class Hunter extends Node3D:
 	var _step := 0.0
 	var _chased_at := -100.0  ## dernière fois qu'il le poursuivait (s) : le retrouver juste après n'est pas un nouveau « repéré »
 	var outfit := 0  ## 0 : celui qui patrouille (tout en noir, masque GP-5) ; 1 : celui du van (tenue de chasse, gilet orange)
+	var _talk_t := 0.0  ## il parle encore (son souffle s'efface)
+	var _bark_cd := 0.0  ## pas deux répliques l'une sur l'autre
+	var _chatter_cd := 12.0  ## prochaine réplique « de ronde » ou de poursuite
+	var _last_line := {}
 	var _path := PackedVector3Array()  ## chemin calculé vers le but (level.nav_path)
 	var _path_goal := Vector3(1e9, 0, 0)
 	var _path_t := 0.0
@@ -2969,9 +3010,43 @@ class Hunter extends Node3D:
 			return
 		# il entend mal (le masque, le groupe électrogène) : seulement les bruits proches ou forts
 		if global_position.distance_to(pos) < radius * 0.6:
+			if state != S.INVESTIGATE and randf() < 0.75:
+				say("cherche")
 			state = S.INVESTIGATE
 			target = pos
 			wait_t = 0.0
+
+	## Il dit une réplique de la situation `kind` (au hasard, jamais deux fois la même d'affilée ; `idx` pour une
+	## précise) : sa voix part de son masque et le suit, sous-titrée si Théo est assez près. Renvoie sa durée.
+	func say(kind: String, force := false, idx := -1) -> float:
+		if (_bark_cd > 0.0 and not force) or level.cutscene:
+			return 0.0
+		var lines: Array = LINES[kind]
+		if idx < 0:
+			idx = randi() % lines.size()
+			if lines.size() > 1 and int(_last_line.get(kind, -1)) == idx:
+				idx = (idx + 1) % lines.size()
+		_last_line[kind] = idx
+		var file := ("van_%02d" if kind == "van" else "masque_" + kind + "_%02d") % (idx + 1)
+		var path := "dialogues/%s/%s" % ["masque_a" if outfit == 0 else "masque_b", file]
+		var st := Sound.stream(path)
+		if st == null:
+			return 0.0
+		var length := st.get_length()
+		Sound.play_at(path, global_position + Vector3(0, 1.6, 0), 4.0, 1.0, 5.0, 45.0, self)
+		if RADIO_LINES.has(file):
+			get_tree().create_timer(length).timeout.connect(func() -> void:
+				if is_instance_valid(self):
+					Sound.play_at("radio_squelch", global_position + Vector3(0, 1.4, 0), 0.0, 1.05, 6.0, 40.0, self))
+		var p: Player = level.player
+		if p != null and global_position.distance_to(p.global_position) < 24.0:
+			Game.hud.say(str(lines[idx]), length + 0.3, "Homme au masque")
+		_talk_t = length
+		_bark_cd = length + 1.5
+		if Game.args.has("surfacetest"):
+			print("VOIX %s/%s (%.1f s) à %.0f m de Théo" % ["masque_a" if outfit == 0 else "masque_b", file, length,
+				global_position.distance_to(p.global_position) if p != null else -1.0])
+		return length
 
 	func _process(delta: float) -> void:
 		if state == S.HIDDEN or level == null or level.dying:
@@ -3033,9 +3108,13 @@ class Hunter extends Node3D:
 			wind = minf(1.0, wind + delta / 7.0)
 			if winded and wind > 0.5:
 				winded = false
+		_talk_t = maxf(0.0, _talk_t - delta)
+		_bark_cd = maxf(0.0, _bark_cd - delta)
 		if breath != null:
 			breath.pitch_scale = lerpf(breath.pitch_scale, 1.3 if state == S.CHASE else 1.0, 1.0 - exp(-2.0 * delta))
-			breath.volume_db = lerpf(breath.volume_db, 3.0 if state == S.CHASE else -2.0, 1.0 - exp(-2.0 * delta))
+			var bv := -24.0 if _talk_t > 0.0 else (3.0 if state == S.CHASE else -2.0)
+			breath.volume_db = lerpf(breath.volume_db, bv, 1.0 - exp(-(8.0 if _talk_t > 0.0 else 2.0) * delta))
+		_chatter(delta, p)
 		# ses pas (rangers) : on l'entend arriver derrière soi
 		if want_speed > 0.0:
 			_step += speed * delta
@@ -3082,6 +3161,24 @@ class Hunter extends Node3D:
 
 	func _flat(v: Vector3) -> Vector3:
 		return Vector3(v.x, 0, v.z)
+
+	## Ce qu'il dit de lui-même : en poursuite, toutes les 6 à 10 s ; pendant sa ronde, de temps en temps une
+	## réplique pour Théo ou un mot dans son talkie, seulement si Théo est assez près pour l'entendre.
+	func _chatter(delta: float, p: Player) -> void:
+		_chatter_cd -= delta
+		if _chatter_cd > 0.0 or p == null:
+			return
+		var d := global_position.distance_to(p.global_position)
+		if state == S.CHASE:
+			_chatter_cd = randf_range(6.0, 10.0)
+			if d < 28.0:
+				say("course")
+		elif state == S.PATROL:
+			_chatter_cd = randf_range(20.0, 38.0)
+			if d < 38.0:
+				say("ronde" if randf() < 0.75 else "radio")
+		else:
+			_chatter_cd = 4.0
 
 	## Arrivé au but, ou au bout du chemin quand le but lui-même est inaccessible (dans une table, un buisson...).
 	func _arrived(goal: Vector3, r: float) -> bool:

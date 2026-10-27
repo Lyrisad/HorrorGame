@@ -157,6 +157,14 @@ il s'échappe par la surface (forêt) à l'aube… où une caméra sur un poteau
    sur le sentier après 6 s, jamais sous ses yeux). Il veut enregistrer lui-même la voix du direct et des répliques
    pour les hommes au masque (liste donnée : radio_01..04, masque_vu/course/perdu/cherche/ronde/radio, van,
    attrape), une seule voix dont je ferai deux timbres + effet masque à gaz / radio.
+36. Il a enregistré la voix du direct (4) et des hommes au masque (27, pas de masque_ronde_07), même voix pour tous.
+   Rangées dans tools/voices_src/direct et /masque (il les avait mises dans assets/audio/dialogues/Radio et
+   Masque). process_voices.py : « direct » filtré en radio CB (bande 400 Hz-3 kHz, saturation, souffle,
+   craquements, kssh d'alternat) ; « masque » → masque_a (homme en noir : +1 demi-ton, membrane nasillarde) et
+   masque_b (celui du van : -2,4 demi-tons, plus lent, plus sourd), étouffement de masque à gaz + grésillement.
+   En jeu : le direct parle dans la radio de la cabane ; les hommes au masque parlent quand ils le repèrent, le
+   poursuivent, le perdent, entendent un bruit, pendant leur ronde (s'il est à portée), quand celui du van se
+   réveille, quand ils l'attrapent ; sous-titres « Homme au masque » à moins de 24 m (texte = mon script).
 
 ## État actuel
 - Jeu complet et jouable de bout en bout (route → maison → égouts → forêt), environ 30-45 min.

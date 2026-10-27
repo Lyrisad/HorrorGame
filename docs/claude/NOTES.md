@@ -48,6 +48,13 @@ Keep it current — add a line whenever you learn something non-obvious. History
   Generate a single sound: `import generate_sounds as g; g.write('name', g.name(), gain)` with
   `sys.argv=['x', '<repo>/assets/audio']`. New audio files need `--headless --import` before `Sound.stream()`
   finds them (otherwise play_at errors out).
+- Recorded voices of the user (one voice for the radio host and both masked men): tools/voices_src/direct and
+  /masque → process_voices.py [who] (OUTPUTS: direct = CB radio fx; masque → masque_a / masque_b = resampled
+  +1 / -2.4 semitones + gas mask fx; deterministic noise seeded with crc32(name)). Hunter.say(kind, force, idx)
+  picks from Hunter.LINES (subtitle text = the script given to the user), plays 3D from the hunter, ducks his
+  breath, RADIO_LINES end with the radio_squelch, 1.5 s cooldown; _chatter(): CHASE every 6-10 s (< 28 m),
+  PATROL every 20-38 s (< 38 m: 75 % "ronde", else "radio"). Level._radio_say() = the host in the hut radio.
+  Tests print "VOIX masque_x/<file>".
 - Textures: `tools/texture_gen/*` (UI textures, sewer decals, icons via generate_icons.py → assets/gen/icon_*.png,
   Material Icons Apache 2.0). After new textures run `tools/fix_imports.ps1` then reimport.
 
